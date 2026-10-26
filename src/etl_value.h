@@ -13,4 +13,16 @@ int comtrace_scan_string(
     int *terminated
 );
 
+typedef enum {
+    COMTRACE_VALUE_HEXINT32,
+    COMTRACE_VALUE_HEXINT64,
+    COMTRACE_VALUE_POINTER,
+    COMTRACE_VALUE_SIZET
+} ComTraceValueSizeKind;
+
+int comtrace_value_size_is_valid(
+    ComTraceValueSizeKind kind,
+    size_t value_size,
+    size_t pointer_size
+);
 #endif

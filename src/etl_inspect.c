@@ -550,17 +550,44 @@ static void print_event_property_value(
             return;
         }
 
-    case TDH_INTYPE_POINTER:
-    case TDH_INTYPE_SIZET:
     case TDH_INTYPE_HEXINT32:
-    case TDH_INTYPE_HEXINT64:
-        if (value_size != 4U && value_size != 8U) {
+        if (!comtrace_value_size_is_valid(
+                COMTRACE_VALUE_HEXINT32, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         } else {
             ULONGLONG number = 0U;
-            CopyMemory(&number, value, value_size);
+            CopyMemory(&number, value, sizeof(ULONG));
             wprintf(L"value=0x%llx\n", number);
+            return;
+        }
+
+    case TDH_INTYPE_HEXINT64:
+        if (!comtrace_value_size_is_valid(
+                COMTRACE_VALUE_HEXINT64, value_size, 0U)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        } else {
+            ULONGLONG number = 0U;
+            CopyMemory(&number, value, sizeof(number));
+            wprintf(L"value=0x%llx\n", number);
+            return;
+        }
+
+    case TDH_INTYPE_POINTER:
+    case TDH_INTYPE_SIZET:
+        if (!comtrace_value_size_is_valid(
+                in_type == TDH_INTYPE_POINTER
+                    ? COMTRACE_VALUE_POINTER
+                    : COMTRACE_VALUE_SIZET,
+                value_size,
+                sizeof(ULONG_PTR))) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        } else {
+            ULONG_PTR number = 0U;
+            CopyMemory(&number, value, sizeof(number));
+            wprintf(L"value=0x%llx\n", (unsigned long long)number);
             return;
         }
 

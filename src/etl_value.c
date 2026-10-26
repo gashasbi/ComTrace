@@ -39,3 +39,22 @@ int comtrace_scan_string(
 
     return 1;
 }
+
+int comtrace_value_size_is_valid(
+    ComTraceValueSizeKind kind,
+    size_t value_size,
+    size_t pointer_size
+)
+{
+    switch (kind) {
+    case COMTRACE_VALUE_HEXINT32:
+        return value_size == 4U;
+    case COMTRACE_VALUE_HEXINT64:
+        return value_size == 8U;
+    case COMTRACE_VALUE_POINTER:
+    case COMTRACE_VALUE_SIZET:
+        return pointer_size != 0U && value_size == pointer_size;
+    default:
+        return 0;
+    }
+}

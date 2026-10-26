@@ -2,6 +2,25 @@
 
 #include <stdio.h>
 
+static int check_numeric_size(
+    const char *name,
+    ComTraceValueSizeKind kind,
+    size_t value_size,
+    size_t pointer_size,
+    int expected
+)
+{
+    int result = comtrace_value_size_is_valid(kind, value_size, pointer_size);
+
+    if (result != expected) {
+        (void)fprintf(stderr, "FAIL: %s\n", name);
+        return 0;
+    }
+
+    (void)printf("PASS: %s\n", name);
+    return 1;
+}
+
 static int check(
     const char *name,
     const unsigned char *value,
@@ -100,5 +119,38 @@ int main(void)
         sizeof(ansi_unterminated), 4U, 256U, 0, 0U, 0U, 0
     );
 
+    passed &= check_numeric_size(
+        "HEXINT32 accepts four bytes",
+        COMTRACE_VALUE_HEXINT32, 4U, 0U, 1
+    );
+    passed &= check_numeric_size(
+        "HEXINT32 rejects eight bytes",
+        COMTRACE_VALUE_HEXINT32, 8U, 0U, 0
+    );
+    passed &= check_numeric_size(
+        "HEXINT64 accepts eight bytes",
+        COMTRACE_VALUE_HEXINT64, 8U, 0U, 1
+    );
+    passed &= check_numeric_size(
+        "HEXINT64 rejects four bytes",
+        COMTRACE_VALUE_HEXINT64, 4U, 0U, 0
+    );
+    passed &= check_numeric_size(
+        "POINTER accepts native pointer size",
+        COMTRACE_VALUE_POINTER, sizeof(void *), sizeof(void *), 1
+    );
+    passed &= check_numeric_size(
+        "POINTER rejects mismatched size",
+        COMTRACE_VALUE_POINTER,
+        (sizeof(void *) == 8U ? 4U : 8U), sizeof(void *), 0
+    );
+    passed &= check_numeric_size(
+        "SIZET accepts native pointer size",
+        COMTRACE_VALUE_SIZET, sizeof(void *), sizeof(void *), 1
+    );
+    passed &= check_numeric_size(
+        "SIZET rejects zero pointer size",
+        COMTRACE_VALUE_SIZET, 0U, 0U, 0
+    );
     return passed ? 0 : 1;
 }
