@@ -1,0 +1,52 @@
+﻿if(NOT DEFINED COMTRACE_EXE OR NOT DEFINED TEST_DIR OR NOT DEFINED CASE)
+    message(FATAL_ERROR "COMTRACE_EXE, TEST_DIR, and CASE are required")
+endif()
+
+file(MAKE_DIRECTORY "${TEST_DIR}")
+
+if(CASE STREQUAL "invalid_limit")
+    set(input "${TEST_DIR}/invalid-limit.etl")
+    set(limit "0")
+    set(expected "Invalid max-events value.")
+    file(REMOVE "${input}")
+elseif(CASE STREQUAL "missing_file")
+    set(input "${TEST_DIR}/missing-file.etl")
+    set(limit "10")
+    set(expected "Unable to access ETL input path.")
+    file(REMOVE "${input}")
+elseif(CASE STREQUAL "empty_file")
+    set(input "${TEST_DIR}/empty-file.etl")
+    set(limit "10")
+    set(expected "OpenTraceW failed with Win32 error")
+    file(WRITE "${input}" "")
+elseif(CASE STREQUAL "malformed_file")
+    set(input "${TEST_DIR}/malformed-file.etl")
+    set(limit "10")
+    set(expected "OpenTraceW failed with Win32 error")
+    file(WRITE "${input}" "not an ETL file")
+elseif(CASE STREQUAL "directory_path")
+    set(input "${TEST_DIR}")
+    set(limit "10")
+    set(expected "ETL input path is a directory.")
+else()
+    message(FATAL_ERROR "Unknown test case: ${CASE}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --inspect "${input}" "${limit}"
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE stdout
+    ERROR_VARIABLE stderr
+)
+
+set(combined "${stdout}${stderr}")
+
+if(NOT "${result}" STREQUAL "1")
+    message(FATAL_ERROR "Expected exit code 1, received '${result}'. Output: ${combined}")
+endif()
+
+string(FIND "${combined}" "${expected}" expected_position)
+
+if(expected_position EQUAL -1)
+    message(FATAL_ERROR "Expected output was not found: '${expected}'. Output: ${combined}")
+endif()

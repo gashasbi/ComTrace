@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include "etw_capture.h"
+#include "etl_inspect.h"
 
 #define COMTRACE_VERSION "0.1.0"
 #define ARRAY_COUNT(values) (sizeof(values) / sizeof((values)[0]))
@@ -36,7 +37,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl>]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events]]\n",
         program_name
     );
 }
@@ -231,6 +232,9 @@ int wmain(int argc, wchar_t **argv)
         return EXIT_SUCCESS;
     }
 
+    if ((argc == 3 || argc == 4) && wcscmp(argv[1], L"--inspect") == 0) {
+        return comtrace_inspect_etl(argv[2], argc == 4 ? argv[3] : L"100");
+    }
     if (argc == 4 && wcscmp(argv[1], L"--capture") == 0) {
         return comtrace_capture_com_perf(argv[2], argv[3]);
     }

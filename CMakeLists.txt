@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+﻿cmake_minimum_required(VERSION 3.24)
 
 project(ComTrace VERSION 0.1.0 LANGUAGES C)
 
@@ -9,6 +9,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_executable(ComTrace
     src/main.c
     src/etw_capture.c
+    src/etl_inspect.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -35,4 +36,15 @@ if(BUILD_TESTING)
         comtrace_capture_invalid_duration
         PROPERTIES WILL_FAIL TRUE
     )
+
+    foreach(case_name invalid_limit missing_file directory_path empty_file malformed_file)
+        add_test(
+            NAME comtrace_inspect_${case_name}
+            COMMAND "${CMAKE_COMMAND}"
+                "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+                "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/inspect-tests"
+                "-DCASE=${case_name}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/inspect_cli_case.cmake"
+        )
+    endforeach()
 endif()
