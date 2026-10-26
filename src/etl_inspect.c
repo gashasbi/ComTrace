@@ -415,7 +415,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_INT8: {
         signed char number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT8, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -426,7 +426,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_UINT8: {
         BYTE number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -437,7 +437,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_INT16: {
         SHORT number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT16, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -448,7 +448,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_UINT16: {
         USHORT number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -459,7 +459,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_INT32: {
         LONG number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT32, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -470,7 +470,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_UINT32: {
         ULONG number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT32, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -481,7 +481,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_INT64: {
         LONGLONG number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT64, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -492,7 +492,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_UINT64: {
         ULONGLONG number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT64, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -503,7 +503,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_FLOAT: {
         float number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_FLOAT, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -514,7 +514,7 @@ static void print_event_property_value(
 
     case TDH_INTYPE_DOUBLE: {
         double number;
-        if (value_size != sizeof(number)) {
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_DOUBLE, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -525,10 +525,8 @@ static void print_event_property_value(
 
     case TDH_INTYPE_BOOLEAN: {
         ULONGLONG number = 0U;
-        if (value_size != 1U &&
-            value_size != 2U &&
-            value_size != 4U &&
-            value_size != 8U) {
+        if (!comtrace_value_size_is_valid(
+                COMTRACE_VALUE_BOOLEAN, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         }
@@ -538,7 +536,8 @@ static void print_event_property_value(
     }
 
     case TDH_INTYPE_GUID:
-        if (value_size != sizeof(GUID)) {
+        if (!comtrace_value_size_is_valid(
+                COMTRACE_VALUE_GUID, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         } else {
@@ -592,7 +591,8 @@ static void print_event_property_value(
         }
 
     case TDH_INTYPE_FILETIME:
-        if (value_size != sizeof(ULONGLONG)) {
+        if (!comtrace_value_size_is_valid(
+                COMTRACE_VALUE_FILETIME, value_size, 0U)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         } else {

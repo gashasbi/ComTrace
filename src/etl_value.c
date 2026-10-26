@@ -47,10 +47,28 @@ int comtrace_value_size_is_valid(
 )
 {
     switch (kind) {
+    case COMTRACE_VALUE_INT8:
+    case COMTRACE_VALUE_UINT8:
+    case COMTRACE_VALUE_BOOLEAN:
+        return value_size == 1U ||
+            (kind == COMTRACE_VALUE_BOOLEAN &&
+             (value_size == 2U || value_size == 4U || value_size == 8U));
+    case COMTRACE_VALUE_INT16:
+    case COMTRACE_VALUE_UINT16:
+        return value_size == 2U;
+    case COMTRACE_VALUE_INT32:
+    case COMTRACE_VALUE_UINT32:
+    case COMTRACE_VALUE_FLOAT:
     case COMTRACE_VALUE_HEXINT32:
         return value_size == 4U;
+    case COMTRACE_VALUE_INT64:
+    case COMTRACE_VALUE_UINT64:
+    case COMTRACE_VALUE_DOUBLE:
+    case COMTRACE_VALUE_FILETIME:
     case COMTRACE_VALUE_HEXINT64:
         return value_size == 8U;
+    case COMTRACE_VALUE_GUID:
+        return value_size == 16U;
     case COMTRACE_VALUE_POINTER:
     case COMTRACE_VALUE_SIZET:
         return pointer_size != 0U && value_size == pointer_size;
