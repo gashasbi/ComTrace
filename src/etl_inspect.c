@@ -1,4 +1,4 @@
-﻿#define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <evntrace.h>
 #include <evntcons.h>
@@ -147,6 +147,441 @@ static void record_event_kind(
     }
 }
 
+static void print_event_property_value(
+    const EVENT_RECORD *event_record,
+    const EVENT_PROPERTY_INFO *property,
+    const wchar_t *name,
+    ULONG index)
+{
+    PROPERTY_DATA_DESCRIPTOR descriptor;
+    BYTE value[4096];
+    ULONG value_size = 0U;
+    ULONG status;
+    ULONG flags = (ULONG)property->Flags;
+    USHORT in_type = property->nonStructType.InType;
+
+    if ((flags & PropertyStruct) != 0U ||
+        (flags & PropertyParamCount) != 0U ||
+        (flags & PropertyParamFixedCount) != 0U ||
+        (flags & PropertyParamLength) != 0U ||
+        (flags & PropertyParamFixedLength) != 0U ||
+        (flags & PropertyWBEMXmlFragment) != 0U ||
+        (flags & PropertyHasCustomSchema) != 0U) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=skipped reason=complex_property\n",
+            (unsigned long)index,
+            name
+        );
+        return;
+    }
+
+    switch (in_type) {
+    case TDH_INTYPE_UNICODESTRING:
+    case TDH_INTYPE_ANSISTRING:
+    case TDH_INTYPE_INT8:
+    case TDH_INTYPE_UINT8:
+    case TDH_INTYPE_INT16:
+    case TDH_INTYPE_UINT16:
+    case TDH_INTYPE_INT32:
+    case TDH_INTYPE_UINT32:
+    case TDH_INTYPE_INT64:
+    case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_FLOAT:
+    case TDH_INTYPE_DOUBLE:
+    case TDH_INTYPE_BOOLEAN:
+    case TDH_INTYPE_BINARY:
+    case TDH_INTYPE_GUID:
+    case TDH_INTYPE_POINTER:
+    case TDH_INTYPE_FILETIME:
+    case TDH_INTYPE_HEXINT32:
+    case TDH_INTYPE_HEXINT64:
+    case TDH_INTYPE_SIZET:
+    case TDH_INTYPE_HEXDUMP:
+        break;
+    default:
+        wprintf(
+            L"  property_value[%lu] name=%ls status=skipped reason=unsupported_type in_type=%u\n",
+            (unsigned long)index,
+            name,
+            (unsigned int)in_type
+        );
+        return;
+    }
+
+    ZeroMemory(&descriptor, sizeof(descriptor));
+    descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)name;
+    descriptor.ArrayIndex = 0xFFFFFFFFUL;
+
+    status = TdhGetPropertySize(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        1U,
+        &descriptor,
+        &value_size
+    );
+
+    if (status != ERROR_SUCCESS) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=unavailable reason=size_query_failed tdh_status=%lu\n",
+            (unsigned long)index,
+            name,
+            (unsigned long)status
+        );
+        return;
+    }
+
+    if (value_size == 0U) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=unavailable reason=zero_size\n",
+            (unsigned long)index,
+            name
+        );
+        return;
+    }
+
+    if (value_size > (ULONG)sizeof(value)) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=skipped reason=value_too_large size=%lu limit=%lu\n",
+            (unsigned long)index,
+            name,
+            (unsigned long)value_size,
+            (unsigned long)sizeof(value)
+        );
+        return;
+    }
+
+    status = TdhGetProperty(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        1U,
+        &descriptor,
+        value_size,
+        value
+    );
+
+    if (status != ERROR_SUCCESS) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=unavailable reason=read_failed tdh_status=%lu\n",
+            (unsigned long)index,
+            name,
+            (unsigned long)status
+        );
+        return;
+    }
+
+    wprintf(
+        L"  property_value[%lu] name=%ls ",
+        (unsigned long)index,
+        name
+    );
+
+    switch (in_type) {
+    case TDH_INTYPE_UNICODESTRING: {
+        ULONG displayed_bytes = value_size > 256U ? 256U : value_size;
+        ULONG offset;
+        BOOL terminated = FALSE;
+
+        if ((value_size % (ULONG)sizeof(wchar_t)) != 0U) {
+            wprintf(L"status=unavailable reason=invalid_unicode_size\n");
+            return;
+        }
+
+        wprintf(L"value=\"");
+
+        for (offset = 0U;
+             offset + (ULONG)sizeof(wchar_t) <= displayed_bytes;
+             offset += (ULONG)sizeof(wchar_t)) {
+            wchar_t character;
+
+            CopyMemory(&character, value + offset, sizeof(character));
+
+            if (character == L'\0') {
+                terminated = TRUE;
+                break;
+            }
+
+            switch (character) {
+            case L'\\':
+                wprintf(L"\\\\");
+                break;
+            case L'"':
+                wprintf(L"\\\"");
+                break;
+            case L'\n':
+                wprintf(L"\\n");
+                break;
+            case L'\r':
+                wprintf(L"\\r");
+                break;
+            case L'\t':
+                wprintf(L"\\t");
+                break;
+            default:
+                if ((unsigned int)character < 0x20U ||
+                    (unsigned int)character == 0x7FU) {
+                    wprintf(L"\\u%04x", (unsigned int)character);
+                } else {
+                    wprintf(L"%lc", character);
+                }
+                break;
+            }
+        }
+
+        if (!terminated && displayed_bytes < value_size) {
+            wprintf(
+                L"...(+%lu bytes)",
+                (unsigned long)(value_size - displayed_bytes)
+            );
+        }
+
+        wprintf(L"\"\n");
+        return;
+    }
+
+    case TDH_INTYPE_ANSISTRING: {
+        ULONG displayed = value_size > 256U ? 256U : value_size;
+        ULONG offset;
+        BOOL terminated = FALSE;
+
+        wprintf(L"value=\"");
+
+        for (offset = 0U; offset < displayed; ++offset) {
+            BYTE character = value[offset];
+
+            if (character == 0U) {
+                terminated = TRUE;
+                break;
+            }
+
+            switch (character) {
+            case '\\':
+                wprintf(L"\\\\");
+                break;
+            case '"':
+                wprintf(L"\\\"");
+                break;
+            case '\n':
+                wprintf(L"\\n");
+                break;
+            case '\r':
+                wprintf(L"\\r");
+                break;
+            case '\t':
+                wprintf(L"\\t");
+                break;
+            default:
+                if (character >= 0x20U && character <= 0x7EU) {
+                    wprintf(L"%c", (int)character);
+                } else {
+                    wprintf(L"\\x%02x", (unsigned int)character);
+                }
+                break;
+            }
+        }
+
+        if (!terminated && displayed < value_size) {
+            wprintf(
+                L"...(+%lu bytes)",
+                (unsigned long)(value_size - displayed)
+            );
+        }
+
+        wprintf(L"\"\n");
+        return;
+    }
+
+    case TDH_INTYPE_INT8: {
+        signed char number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%d\n", (int)number);
+        return;
+    }
+
+    case TDH_INTYPE_UINT8: {
+        BYTE number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%u\n", (unsigned int)number);
+        return;
+    }
+
+    case TDH_INTYPE_INT16: {
+        SHORT number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%d\n", (int)number);
+        return;
+    }
+
+    case TDH_INTYPE_UINT16: {
+        USHORT number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%u\n", (unsigned int)number);
+        return;
+    }
+
+    case TDH_INTYPE_INT32: {
+        LONG number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%ld\n", number);
+        return;
+    }
+
+    case TDH_INTYPE_UINT32: {
+        ULONG number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%lu\n", number);
+        return;
+    }
+
+    case TDH_INTYPE_INT64: {
+        LONGLONG number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%lld\n", number);
+        return;
+    }
+
+    case TDH_INTYPE_UINT64: {
+        ULONGLONG number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%llu\n", number);
+        return;
+    }
+
+    case TDH_INTYPE_FLOAT: {
+        float number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%.9g\n", (double)number);
+        return;
+    }
+
+    case TDH_INTYPE_DOUBLE: {
+        double number;
+        if (value_size != sizeof(number)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, sizeof(number));
+        wprintf(L"value=%.17g\n", number);
+        return;
+    }
+
+    case TDH_INTYPE_BOOLEAN: {
+        ULONGLONG number = 0U;
+        if (value_size != 1U &&
+            value_size != 2U &&
+            value_size != 4U &&
+            value_size != 8U) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        CopyMemory(&number, value, value_size);
+        wprintf(L"value=%ls\n", number == 0U ? L"false" : L"true");
+        return;
+    }
+
+    case TDH_INTYPE_GUID:
+        if (value_size != sizeof(GUID)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        } else {
+            GUID guid;
+            CopyMemory(&guid, value, sizeof(guid));
+            wprintf(L"value=");
+            print_guid(&guid);
+            wprintf(L"\n");
+            return;
+        }
+
+    case TDH_INTYPE_POINTER:
+    case TDH_INTYPE_SIZET:
+    case TDH_INTYPE_HEXINT32:
+    case TDH_INTYPE_HEXINT64:
+        if (value_size != 4U && value_size != 8U) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        } else {
+            ULONGLONG number = 0U;
+            CopyMemory(&number, value, value_size);
+            wprintf(L"value=0x%llx\n", number);
+            return;
+        }
+
+    case TDH_INTYPE_FILETIME:
+        if (value_size != sizeof(ULONGLONG)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        } else {
+            ULONGLONG ticks;
+            CopyMemory(&ticks, value, sizeof(ticks));
+            wprintf(L"value=filetime_ticks:%llu\n", ticks);
+            return;
+        }
+
+    case TDH_INTYPE_BINARY:
+    case TDH_INTYPE_HEXDUMP: {
+        ULONG displayed = value_size > 64U ? 64U : value_size;
+        ULONG offset;
+
+        wprintf(L"value=hex:");
+
+        for (offset = 0U; offset < displayed; ++offset) {
+            wprintf(L"%02x", (unsigned int)value[offset]);
+        }
+
+        if (displayed < value_size) {
+            wprintf(
+                L"...(+%lu bytes)",
+                (unsigned long)(value_size - displayed)
+            );
+        }
+
+        wprintf(L"\n");
+        return;
+    }
+
+    default:
+        wprintf(L"status=skipped reason=unsupported_type\n");
+        return;
+    }
+}
+
 static void print_event_properties(const EVENT_RECORD *event_record)
 {
     ULONG buffer_size = 0U;
@@ -248,6 +683,11 @@ static void print_event_properties(const EVENT_RECORD *event_record)
                 (unsigned int)property->nonStructType.InType,
                 (unsigned int)property->nonStructType.OutType
             );
+        }
+        if (index < 8U) {
+            print_event_property_value(event_record, property, name, index);
+        } else if (index == 8U) {
+            wprintf(L"  payload_value_limit=8 remaining=%lu\n" , (unsigned long)(property_count - 8U));
         }
     }
 
