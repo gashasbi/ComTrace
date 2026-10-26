@@ -633,6 +633,7 @@ static void print_event_property_value(
 static void print_event_properties(const EVENT_RECORD *event_record)
 {
     ULONG buffer_size = 0U;
+    ULONG allocated_size;
     ULONG status;
     ULONG available_count;
     ULONG property_count;
@@ -656,6 +657,7 @@ static void print_event_properties(const EVENT_RECORD *event_record)
         return;
     }
 
+    allocated_size = buffer_size;
     buffer = (BYTE *)malloc(buffer_size);
     if (buffer == NULL) {
         wprintf(L"  payload_schema=unavailable reason=allocation_failed\n");
@@ -670,7 +672,9 @@ static void print_event_properties(const EVENT_RECORD *event_record)
         &buffer_size
     );
 
-    if (status != ERROR_SUCCESS || buffer_size < property_offset) {
+    if (status != ERROR_SUCCESS ||
+        buffer_size < property_offset ||
+        buffer_size > allocated_size) {
         wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)status);
         free(buffer);
         return;
