@@ -10,6 +10,8 @@ add_executable(ComTrace
     src/main.c
 )
 
+target_link_libraries(ComTrace PRIVATE Tdh)
+
 if(MSVC)
     target_compile_options(ComTrace PRIVATE /W4 /WX /utf-8)
 else()
@@ -20,4 +22,8 @@ include(CTest)
 
 if(BUILD_TESTING)
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
+    add_test(NAME comtrace_version COMMAND ComTrace --version)
+    add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
+    add_test(NAME comtrace_invalid_argument COMMAND ComTrace --invalid)
+    set_tests_properties(comtrace_invalid_argument PROPERTIES WILL_FAIL TRUE)
 endif()
