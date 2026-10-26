@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <evntrace.h>
 #include <evntcons.h>
+#include <tdh.h>
+#include <stddef.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,6 +147,113 @@ static void record_event_kind(
     }
 }
 
+static void print_event_properties(const EVENT_RECORD *event_record)
+{
+    ULONG buffer_size = 0U;
+    ULONG status;
+    ULONG available_count;
+    ULONG property_count;
+    ULONG index;
+    BYTE *buffer;
+    TRACE_EVENT_INFO *event_info;
+    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        NULL,
+        &buffer_size
+    );
+
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        buffer_size < property_offset ||
+        buffer_size > 65536U) {
+        wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)status);
+        return;
+    }
+
+    buffer = (BYTE *)malloc(buffer_size);
+    if (buffer == NULL) {
+        wprintf(L"  payload_schema=unavailable reason=allocation_failed\n");
+        return;
+    }
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        (PTRACE_EVENT_INFO)buffer,
+        &buffer_size
+    );
+
+    if (status != ERROR_SUCCESS || buffer_size < property_offset) {
+        wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)status);
+        free(buffer);
+        return;
+    }
+
+    event_info = (TRACE_EVENT_INFO *)buffer;
+    available_count = (ULONG)((buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO));
+    property_count = event_info->TopLevelPropertyCount;
+
+    if (property_count > available_count) {
+        property_count = available_count;
+    }
+    if (property_count > 64U) {
+        property_count = 64U;
+    }
+
+    wprintf(L"  payload_properties=%lu\n", (unsigned long)property_count);
+
+    for (index = 0U; index < property_count; ++index) {
+        const EVENT_PROPERTY_INFO *property =
+            &event_info->EventPropertyInfoArray[index];
+        ULONG name_offset = property->NameOffset;
+        ULONG remaining;
+        ULONG name_length = 0U;
+        const wchar_t *name;
+
+        if (name_offset >= buffer_size ||
+            (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+            wprintf(L"  property[%lu]=invalid_name_offset\n", (unsigned long)index);
+            continue;
+        }
+
+        name = (const wchar_t *)(buffer + name_offset);
+        remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+
+        while (name_length < remaining && name[name_length] != L'\0') {
+            ++name_length;
+        }
+
+        if (name_length == remaining) {
+            wprintf(L"  property[%lu]=unterminated_name\n", (unsigned long)index);
+            continue;
+        }
+
+        if ((property->Flags & PropertyStruct) != 0U) {
+            wprintf(
+                L"  property[%lu] name=%.*ls type=struct\n",
+                (unsigned long)index,
+                (int)name_length,
+                name
+            );
+        } else {
+            wprintf(
+                L"  property[%lu] name=%.*ls in_type=%u out_type=%u\n",
+                (unsigned long)index,
+                (int)name_length,
+                name,
+                (unsigned int)property->nonStructType.InType,
+                (unsigned int)property->nonStructType.OutType
+            );
+        }
+    }
+
+    free(buffer);
+}
+
 static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 {
     ETL_INSPECT_CONTEXT *context;
@@ -180,6 +289,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
         (unsigned long)event_record->EventHeader.ProcessId,
         (unsigned long)event_record->EventHeader.ThreadId
     );
+    print_event_properties(event_record);
 }
 
 int comtrace_inspect_etl(
