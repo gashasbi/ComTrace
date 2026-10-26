@@ -8,9 +8,10 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 add_executable(ComTrace
     src/main.c
+    src/etw_capture.c
 )
 
-target_link_libraries(ComTrace PRIVATE Tdh)
+target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
 
 if(MSVC)
     target_compile_options(ComTrace PRIVATE /W4 /WX /utf-8)
@@ -25,5 +26,13 @@ if(BUILD_TESTING)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
     add_test(NAME comtrace_invalid_argument COMMAND ComTrace --invalid)
-    set_tests_properties(comtrace_invalid_argument PROPERTIES WILL_FAIL TRUE)
+    add_test(
+        NAME comtrace_capture_invalid_duration
+        COMMAND ComTrace --capture 0 C:/ComTrace-invalid.etl
+    )
+    set_tests_properties(
+        comtrace_invalid_argument
+        comtrace_capture_invalid_duration
+        PROPERTIES WILL_FAIL TRUE
+    )
 endif()
