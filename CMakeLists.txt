@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.24)
 
 project(ComTrace VERSION 0.1.0 LANGUAGES C)
 
@@ -10,6 +10,7 @@ add_executable(ComTrace
     src/main.c
     src/etw_capture.c
     src/etl_inspect.c
+    src/etl_value.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -23,6 +24,20 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(ComTraceEtlValueTests
+        tests/test_etl_value.c
+        src/etl_value.c
+    )
+
+    target_include_directories(ComTraceEtlValueTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceEtlValueTests PRIVATE /W4 /WX /utf-8)
+    else()
+        target_compile_options(ComTraceEtlValueTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_etl_value COMMAND ComTraceEtlValueTests)
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)

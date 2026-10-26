@@ -10,6 +10,7 @@
 #include <string.h>
 #include <wchar.h>
 #include "etl_inspect.h"
+#include "etl_value.h"
 
 #define MAX_EVENT_TYPES 512UL
 #define MAX_SAMPLE_EVENTS 10000UL
@@ -279,28 +280,30 @@ static void print_event_property_value(
 
     switch (in_type) {
     case TDH_INTYPE_UNICODESTRING: {
-        ULONG displayed_bytes = value_size > 256U ? 256U : value_size;
+        size_t content_size;
+        size_t displayed_size;
+        int terminated;
         ULONG offset;
-        BOOL terminated = FALSE;
 
-        if ((value_size % (ULONG)sizeof(wchar_t)) != 0U) {
+        if (!comtrace_scan_string(
+                value,
+                (size_t)value_size,
+                sizeof(wchar_t),
+                256U,
+                &content_size,
+                &displayed_size,
+                &terminated)) {
             wprintf(L"status=unavailable reason=invalid_unicode_size\n");
             return;
         }
 
         wprintf(L"value=\"");
 
-        for (offset = 0U;
-             offset + (ULONG)sizeof(wchar_t) <= displayed_bytes;
+        for (offset = 0U; offset < (ULONG)displayed_size;
              offset += (ULONG)sizeof(wchar_t)) {
             wchar_t character;
 
             CopyMemory(&character, value + offset, sizeof(character));
-
-            if (character == L'\0') {
-                terminated = TRUE;
-                break;
-            }
 
             switch (character) {
             case L'\\':
@@ -329,11 +332,16 @@ static void print_event_property_value(
             }
         }
 
-        if (!terminated && displayed_bytes < value_size) {
+        if (displayed_size == 256U &&
+            value_size > (ULONG)displayed_size) {
             wprintf(
                 L"...(+%lu bytes)",
-                (unsigned long)(value_size - displayed_bytes)
+                (unsigned long)(value_size - (ULONG)displayed_size)
             );
+        }
+
+        if (!terminated) {
+            wprintf(L" [unterminated]");
         }
 
         wprintf(L"\"\n");
@@ -341,19 +349,27 @@ static void print_event_property_value(
     }
 
     case TDH_INTYPE_ANSISTRING: {
-        ULONG displayed = value_size > 256U ? 256U : value_size;
-        ULONG offset;
-        BOOL terminated = FALSE;
+        size_t content_size;
+        size_t displayed_size;
+        int terminated;
+        size_t offset;
+
+        if (!comtrace_scan_string(
+                value,
+                (size_t)value_size,
+                1U,
+                256U,
+                &content_size,
+                &displayed_size,
+                &terminated)) {
+            wprintf(L"status=unavailable reason=invalid_string_size\n");
+            return;
+        }
 
         wprintf(L"value=\"");
 
-        for (offset = 0U; offset < displayed; ++offset) {
+        for (offset = 0U; offset < displayed_size; ++offset) {
             BYTE character = value[offset];
-
-            if (character == 0U) {
-                terminated = TRUE;
-                break;
-            }
 
             switch (character) {
             case '\\':
@@ -381,11 +397,16 @@ static void print_event_property_value(
             }
         }
 
-        if (!terminated && displayed < value_size) {
+        if (displayed_size == 256U &&
+            value_size > (ULONG)displayed_size) {
             wprintf(
                 L"...(+%lu bytes)",
-                (unsigned long)(value_size - displayed)
+                (unsigned long)(value_size - (ULONG)displayed_size)
             );
+        }
+
+        if (!terminated) {
+            wprintf(L" [unterminated]");
         }
 
         wprintf(L"\"\n");
