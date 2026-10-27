@@ -52,7 +52,7 @@ if(BUILD_TESTING)
         PROPERTIES WILL_FAIL TRUE
     )
 
-    foreach(case_name invalid_limit missing_file directory_path empty_file malformed_file)
+    foreach(case_name invalid_limit limit_too_high limit_overflow limit_nonnumeric limit_plus_sign limit_minus_sign limit_whitespace missing_file directory_path empty_file malformed_file)
         add_test(
             NAME comtrace_inspect_${case_name}
             COMMAND "${CMAKE_COMMAND}"
