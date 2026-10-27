@@ -25,6 +25,13 @@ static const GUID com_perf_provider_guid = {
     {0xbb, 0xae, 0x87, 0xe0, 0xdd, 0x80, 0x60, 0x2b}
 };
 
+static const GUID ole_perf_provider_guid = {
+    0x84958368,
+    0x7da7,
+    0x49a0,
+    {0xb3, 0x3d, 0x07, 0xfa, 0xbb, 0x87, 0x96, 0x26}
+};
+
 static HANDLE g_stop_event = NULL;
 
 static BOOL WINAPI comtrace_console_handler(DWORD control_type)
@@ -75,12 +82,13 @@ static int parse_duration(const wchar_t *text, ULONG *duration_seconds)
 static ULONG stop_trace_session(
     TRACEHANDLE trace_handle,
     PEVENT_TRACE_PROPERTIES properties,
-    BOOL provider_enabled
+    BOOL com_provider_enabled,
+    BOOL ole_provider_enabled
 )
 {
     ULONG status;
 
-    if (provider_enabled) {
+    if (com_provider_enabled) {
         status = EnableTraceEx2(
             trace_handle,
             &com_perf_provider_guid,
@@ -95,7 +103,28 @@ static ULONG stop_trace_session(
         if (status != ERROR_SUCCESS) {
             fwprintf(
                 stderr,
-                L"Warning: provider disable returned status %lu.\n",
+                L"Warning: COM-Perf provider disable returned status %lu.\n",
+                (unsigned long)status
+            );
+        }
+    }
+
+    if (ole_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &ole_perf_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(
+                stderr,
+                L"Warning: OLE-Perf provider disable returned status %lu.\n",
                 (unsigned long)status
             );
         }
@@ -124,7 +153,8 @@ int comtrace_capture_com_perf(
     ULONG status;
     TRACEHANDLE trace_handle = 0U;
     BOOL session_started = FALSE;
-    BOOL provider_enabled = FALSE;
+    BOOL com_provider_enabled = FALSE;
+    BOOL ole_provider_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
     WCHAR *absolute_path = NULL;
@@ -307,7 +337,37 @@ int comtrace_capture_com_perf(
         goto cleanup;
     }
 
-    provider_enabled = TRUE;
+    com_provider_enabled = TRUE;
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &ole_perf_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_VERBOSE,
+        0U,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status != ERROR_SUCCESS) {
+        fwprintf(
+            stderr,
+            L"EnableTraceEx2 for OLE-Perf failed with status %lu.\n",
+            (unsigned long)status
+        );
+
+        if (status == ERROR_ACCESS_DENIED) {
+            fwprintf(
+                stderr,
+                L"Retry from an elevated Developer PowerShell if appropriate.\n"
+            );
+        }
+
+        goto cleanup;
+    }
+
+    ole_provider_enabled = TRUE;
 
     stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (stop_event == NULL) {
@@ -336,6 +396,7 @@ int comtrace_capture_com_perf(
     wprintf(L"ComTrace 0.1.0\n");
     wprintf(L"ETW capture started.\n");
     wprintf(L"Provider: Microsoft-Windows-COM-Perf\n");
+    wprintf(L"Provider: Microsoft-Windows-OLE-Perf\n");
     wprintf(L"Output: %ls\n", absolute_path);
     wprintf(L"Duration: %lu seconds\n", (unsigned long)duration_seconds);
     wprintf(L"Reproduce the behavior now. Press Ctrl+C to stop early.\n");
@@ -376,7 +437,8 @@ cleanup:
         status = stop_trace_session(
             trace_handle,
             properties,
-            provider_enabled
+            com_provider_enabled,
+            ole_provider_enabled
         );
 
         if (status != ERROR_SUCCESS) {
