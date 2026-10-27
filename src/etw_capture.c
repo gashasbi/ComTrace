@@ -202,8 +202,7 @@ int comtrace_capture_com_perf(
     }
 
     file_error = GetLastError();
-    if (file_error != ERROR_FILE_NOT_FOUND &&
-        file_error != ERROR_PATH_NOT_FOUND) {
+    if (file_error != ERROR_FILE_NOT_FOUND) {
         fwprintf(
             stderr,
             L"Could not inspect output path. Win32 error: %lu\n",

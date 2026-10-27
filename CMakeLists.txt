@@ -52,7 +52,7 @@ if(BUILD_TESTING)
         PROPERTIES WILL_FAIL TRUE
     )
 
-    foreach(case_name duration_empty duration_zero duration_negative duration_plus duration_text duration_whitespace duration_high duration_overflow empty_output invalid_extension existing_output)
+    foreach(case_name duration_empty duration_zero duration_negative duration_plus duration_text duration_whitespace duration_high duration_overflow empty_output invalid_extension existing_output missing_directory)
         add_test(
             NAME comtrace_capture_${case_name}
             COMMAND "${CMAKE_COMMAND}"
