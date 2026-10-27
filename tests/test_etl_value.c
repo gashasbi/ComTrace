@@ -66,7 +66,9 @@ int main(void)
         {"POINTER rejects mismatched size", COMTRACE_VALUE_POINTER, (sizeof(void *) == 8U ? 4U : 8U), sizeof(void *), 0},
         {"SIZET accepts native size", COMTRACE_VALUE_SIZET, sizeof(void *), sizeof(void *), 1},
         {"SIZET rejects mismatched size", COMTRACE_VALUE_SIZET, (sizeof(void *) == 8U ? 4U : 8U), sizeof(void *), 0},
-        {"SIZET rejects zero pointer size", COMTRACE_VALUE_SIZET, 0U, 0U, 0}
+        {"SIZET rejects zero pointer size", COMTRACE_VALUE_SIZET, 0U, 0U, 0},
+        {"POINTER rejects zero pointer size", COMTRACE_VALUE_POINTER, 0U, 0U, 0},
+        {"Unknown value kind is rejected", (ComTraceValueSizeKind)999, 4U, 0U, 0}
     };
 
     static const unsigned char ansi_terminated[] = {'a', 'b', 0U, 'c'};
@@ -181,12 +183,41 @@ int main(void)
         ++failures;
     }
 
+    if (comtrace_scan_string(
+            NULL, 0U, 1U, 256U,
+            &content_size, &displayed_size, &terminated)) {
+        fprintf(stderr, "FAIL: Null string input rejected\n");
+        ++failures;
+    }
+
+    if (comtrace_scan_string(
+            ansi_terminated, sizeof(ansi_terminated), 1U, 256U,
+            &content_size, NULL, &terminated)) {
+        fprintf(stderr, "FAIL: Null displayed-size output rejected\n");
+        ++failures;
+    }
+
+    if (comtrace_scan_string(
+            ansi_terminated, sizeof(ansi_terminated), 1U, 256U,
+            &content_size, &displayed_size, NULL)) {
+        fprintf(stderr, "FAIL: Null terminated output rejected\n");
+        ++failures;
+    }
+
+    if (!comtrace_scan_string(
+            ansi_terminated, 0U, 1U, 256U,
+            &content_size, &displayed_size, &terminated) ||
+        content_size != 0U || displayed_size != 0U || terminated) {
+        fprintf(stderr, "FAIL: Empty string buffer\n");
+        ++failures;
+    }
+
     if (failures != 0) {
         fprintf(stderr, "%d test(s) failed\n", failures);
         return 1;
     }
 
-    printf("%zu size cases and 12 string cases passed\n",
+    printf("%zu size cases and 16 string cases passed\n",
         sizeof(cases) / sizeof(cases[0]));
     return 0;
 }
