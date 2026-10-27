@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <string.h>
+#include <wchar.h>
 #include "com_event.h"
 
 typedef struct {
@@ -82,16 +82,26 @@ int main(void)
         {8U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_InProc", L"stop"},
         {9U, 0U, 1U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"start"},
         {10U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"stop"},
+        {11U, 0U, 1U, L"COM_GetClassObject", L"start"},
+        {12U, 0U, 2U, L"COM_GetClassObject", L"stop"},
+        {25U, 0U, 1U, L"COM_CreateInstance_App", L"start"},
+        {26U, 0U, 2U, L"COM_CreateInstance_App", L"stop"},
         {31U, 0U, 1U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"start"},
         {32U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"stop"},
         {33U, 0U, 1U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"start"},
         {34U, 0U, 2U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"stop"},
         {35U, 0U, 1U, L"COM_GetClassFactory_InprocServerImpl", L"start"},
         {36U, 0U, 2U, L"COM_GetClassFactory_InprocServerImpl", L"stop"},
-        {39U, 1U, 1U, L"COM_Call_Proxy", L"start"},
-        {40U, 0U, 2U, L"COM_Call_Proxy", L"stop"},
-        {43U, 2U, 1U, L"COM_Call_Server", L"start"},
-        {44U, 0U, 2U, L"COM_Call_Server", L"stop"},
+        {37U, 0U, 1U, L"COM_CreateInstance_InprocServerImpl", L"start"},
+        {38U, 0U, 2U, L"COM_CreateInstance_InprocServerImpl", L"stop"},
+        {39U, 1U, 1U, L"COM_ClientSyncCall", L"start"},
+        {40U, 0U, 2U, L"COM_ClientSyncCall", L"stop"},
+        {41U, 1U, 1U, L"COM_ClientAsyncCall", L"start"},
+        {42U, 0U, 2U, L"COM_ClientAsyncCall", L"stop"},
+        {43U, 2U, 1U, L"COM_ServerSyncCall", L"start"},
+        {44U, 0U, 2U, L"COM_ServerSyncCall", L"stop"},
+        {45U, 1U, 1U, L"COM_ServerAsyncCall", L"start"},
+        {46U, 0U, 2U, L"COM_ServerAsyncCall", L"stop"},
         {47U, 0U, 0U, L"COM_FreeUnusedLibrary", L"info"},
         {48U, 0U, 0U, L"COM_ApartmentUninitialize", L"info"},
         {49U, 0U, 0U, L"COM_ApartmentInitialize", L"info"}
@@ -107,8 +117,18 @@ int main(void)
     if (!run_rejection_case(&other_provider, 5U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 5U, 1U, 1U) ||
         !run_rejection_case(&com_perf_provider, 5U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 11U, 1U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 12U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 25U, 1U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 26U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 37U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 38U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 39U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 41U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 42U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 43U, 1U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 45U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 46U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 47U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 48U, 0U, 2U) ||
         !run_rejection_case(&com_perf_provider, 999U, 0U, 1U) ||
@@ -117,7 +137,7 @@ int main(void)
         return 1;
     }
 
-    printf("COM event classification tests passed: %zu mappings and 9 rejection cases\n",
+    printf("COM event classification tests passed: %zu mappings and 19 rejection cases\n",
         sizeof(cases) / sizeof(cases[0]));
     return 0;
 }
