@@ -1,9 +1,10 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include <string.h>
 #include "com_event.h"
 
 typedef struct {
     USHORT event_id;
+    UCHAR version;
     UCHAR opcode;
     const wchar_t *operation;
     const wchar_t *phase;
@@ -31,7 +32,7 @@ static int run_mapping_case(const TestCase *test_case)
     if (!comtrace_classify_com_event(
             &com_perf_provider,
             test_case->event_id,
-            0U,
+            test_case->version,
             test_case->opcode,
             &operation,
             &phase)) {
@@ -73,20 +74,27 @@ static int run_rejection_case(
 int main(void)
 {
     static const TestCase cases[] = {
-        {1U, 1U, L"Windows_Runtime_ActivateInstance_InProc", L"start"},
-        {2U, 2U, L"Windows_Runtime_ActivateInstance_InProc", L"stop"},
-        {5U, 1U, L"COM_CreateInstance", L"start"},
-        {6U, 2U, L"COM_CreateInstance", L"stop"},
-        {7U, 1U, L"Windows_Runtime_GetActivationFactory_InProc", L"start"},
-        {8U, 2U, L"Windows_Runtime_GetActivationFactory_InProc", L"stop"},
-        {9U, 1U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"start"},
-        {10U, 2U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"stop"},
-        {31U, 1U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"start"},
-        {32U, 2U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"stop"},
-        {33U, 1U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"start"},
-        {34U, 2U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"stop"},
-        {35U, 1U, L"COM_GetClassFactory_InprocServerImpl", L"start"},
-        {36U, 2U, L"COM_GetClassFactory_InprocServerImpl", L"stop"}
+        {1U, 0U, 1U, L"Windows_Runtime_ActivateInstance_InProc", L"start"},
+        {2U, 0U, 2U, L"Windows_Runtime_ActivateInstance_InProc", L"stop"},
+        {5U, 0U, 1U, L"COM_CreateInstance", L"start"},
+        {6U, 0U, 2U, L"COM_CreateInstance", L"stop"},
+        {7U, 0U, 1U, L"Windows_Runtime_GetActivationFactory_InProc", L"start"},
+        {8U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_InProc", L"stop"},
+        {9U, 0U, 1U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"start"},
+        {10U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_OutOfProc", L"stop"},
+        {31U, 0U, 1U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"start"},
+        {32U, 0U, 2U, L"Windows_Runtime_GetActivationFactory_InprocServerImpl", L"stop"},
+        {33U, 0U, 1U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"start"},
+        {34U, 0U, 2U, L"Windows_Runtime_ActivateInstance_InprocServerImpl", L"stop"},
+        {35U, 0U, 1U, L"COM_GetClassFactory_InprocServerImpl", L"start"},
+        {36U, 0U, 2U, L"COM_GetClassFactory_InprocServerImpl", L"stop"},
+        {39U, 1U, 1U, L"COM_Call_Proxy", L"start"},
+        {40U, 0U, 2U, L"COM_Call_Proxy", L"stop"},
+        {43U, 2U, 1U, L"COM_Call_Server", L"start"},
+        {44U, 0U, 2U, L"COM_Call_Server", L"stop"},
+        {47U, 0U, 0U, L"COM_FreeUnusedLibrary", L"info"},
+        {48U, 0U, 0U, L"COM_ApartmentUninitialize", L"info"},
+        {49U, 0U, 0U, L"COM_ApartmentInitialize", L"info"}
     };
     size_t index;
 
@@ -99,13 +107,17 @@ int main(void)
     if (!run_rejection_case(&other_provider, 5U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 5U, 1U, 1U) ||
         !run_rejection_case(&com_perf_provider, 5U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 39U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 43U, 1U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 47U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 48U, 0U, 2U) ||
         !run_rejection_case(&com_perf_provider, 999U, 0U, 1U) ||
         !run_rejection_case(&com_perf_provider, 5U, 0U, 0U)) {
         fputs("Unexpected classification for an unsupported event\n", stderr);
         return 1;
     }
 
-    printf("COM event classification tests passed: %zu mappings and 5 rejection cases\n",
+    printf("COM event classification tests passed: %zu mappings and 9 rejection cases\n",
         sizeof(cases) / sizeof(cases[0]));
     return 0;
 }
