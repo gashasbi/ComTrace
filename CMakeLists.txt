@@ -12,6 +12,7 @@ add_executable(ComTrace
     src/etl_inspect.c
     src/etl_value.c
     src/com_event.c
+    src/ole_event.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -39,7 +40,15 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+    add_test(NAME comtrace_ole_event COMMAND ComTraceOleEventTests)
 
+    add_executable(ComTraceOleEventTests
+        tests/test_ole_event.c
+        src/ole_event.c
+    )
+    target_include_directories(ComTraceOleEventTests PRIVATE src)
+    target_compile_definitions(ComTraceOleEventTests PRIVATE WIN32_LEAN_AND_MEAN)
+    target_compile_options(ComTraceOleEventTests PRIVATE /W4 /WX)
     add_executable(ComTraceEtlValueTests
         tests/test_etl_value.c
         src/etl_value.c
