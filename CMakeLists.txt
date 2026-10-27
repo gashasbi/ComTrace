@@ -40,7 +40,6 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
-    add_test(NAME comtrace_ole_event COMMAND ComTraceOleEventTests)
 
     add_executable(ComTraceOleEventTests
         tests/test_ole_event.c
@@ -48,7 +47,14 @@ if(BUILD_TESTING)
     )
     target_include_directories(ComTraceOleEventTests PRIVATE src)
     target_compile_definitions(ComTraceOleEventTests PRIVATE WIN32_LEAN_AND_MEAN)
-    target_compile_options(ComTraceOleEventTests PRIVATE /W4 /WX)
+
+    if(MSVC)
+        target_compile_options(ComTraceOleEventTests PRIVATE /W4 /WX /utf-8)
+    else()
+        target_compile_options(ComTraceOleEventTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_ole_event COMMAND ComTraceOleEventTests)
     add_executable(ComTraceEtlValueTests
         tests/test_etl_value.c
         src/etl_value.c
@@ -77,7 +83,7 @@ if(BUILD_TESTING)
         PROPERTIES WILL_FAIL TRUE
     )
 
-    foreach(case_name duration_empty duration_zero duration_negative duration_plus duration_text duration_whitespace duration_high duration_overflow empty_output invalid_extension existing_output missing_directory)
+    foreach(case_name duration_empty duration_zero duration_negative duration_plus duration_text duration_whitespace duration_high duration_overflow duration_minimum duration_maximum empty_output invalid_extension existing_output missing_directory)
         add_test(
             NAME comtrace_capture_${case_name}
             COMMAND "${CMAKE_COMMAND}"
@@ -87,7 +93,7 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/capture_cli_case.cmake"
         )
     endforeach()
-    foreach(case_name invalid_limit limit_too_high limit_overflow limit_nonnumeric limit_plus_sign limit_minus_sign limit_whitespace missing_file directory_path empty_file malformed_file)
+    foreach(case_name invalid_limit limit_too_high limit_overflow limit_nonnumeric limit_plus_sign limit_minus_sign limit_whitespace limit_minimum limit_maximum missing_file directory_path empty_file malformed_file)
         add_test(
             NAME comtrace_inspect_${case_name}
             COMMAND "${CMAKE_COMMAND}"
