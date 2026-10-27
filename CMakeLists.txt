@@ -52,6 +52,16 @@ if(BUILD_TESTING)
         PROPERTIES WILL_FAIL TRUE
     )
 
+    foreach(case_name duration_empty duration_zero duration_negative duration_plus duration_text duration_whitespace duration_high duration_overflow empty_output invalid_extension existing_output)
+        add_test(
+            NAME comtrace_capture_${case_name}
+            COMMAND "${CMAKE_COMMAND}"
+                "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+                "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/capture-tests"
+                "-DCASE=${case_name}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/capture_cli_case.cmake"
+        )
+    endforeach()
     foreach(case_name invalid_limit limit_too_high limit_overflow limit_nonnumeric limit_plus_sign limit_minus_sign limit_whitespace missing_file directory_path empty_file malformed_file)
         add_test(
             NAME comtrace_inspect_${case_name}
