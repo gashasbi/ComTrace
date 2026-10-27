@@ -11,6 +11,7 @@ add_executable(ComTrace
     src/etw_capture.c
     src/etl_inspect.c
     src/etl_value.c
+    src/com_event.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -24,6 +25,21 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(ComTraceComEventTests
+        tests/test_com_event.c
+        src/com_event.c
+    )
+
+    target_include_directories(ComTraceComEventTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceComEventTests PRIVATE /W4 /WX /utf-8)
+    else()
+        target_compile_options(ComTraceComEventTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+
     add_executable(ComTraceEtlValueTests
         tests/test_etl_value.c
         src/etl_value.c

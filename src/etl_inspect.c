@@ -11,6 +11,7 @@
 #include <wchar.h>
 #include "etl_inspect.h"
 #include "etl_value.h"
+#include "com_event.h"
 
 #define MAX_EVENT_TYPES 512UL
 #define MAX_SAMPLE_EVENTS 10000UL
@@ -746,6 +747,26 @@ static void print_event_properties(const EVENT_RECORD *event_record)
     free(buffer);
 }
 
+static void print_com_event_classification(const EVENT_RECORD *event_record)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+
+    if (event_record == NULL) {
+        return;
+    }
+
+    if (comtrace_classify_com_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase)) {
+        wprintf(L"  com_event=%ls phase=%ls\n", operation, phase);
+    }
+}
+
 static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 {
     ETL_INSPECT_CONTEXT *context;
@@ -781,6 +802,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
         (unsigned long)event_record->EventHeader.ProcessId,
         (unsigned long)event_record->EventHeader.ThreadId
     );
+    print_com_event_classification(event_record);
     print_event_properties(event_record);
 }
 
