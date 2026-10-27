@@ -41,7 +41,8 @@ static int run_mapping_case(const TestCase *test_case)
         return 0;
     }
 
-    if (wcscmp(operation, test_case->operation) != 0 ||
+    if (operation == NULL || phase == NULL ||
+        wcscmp(operation, test_case->operation) != 0 ||
         wcscmp(phase, test_case->phase) != 0) {
         fwprintf(stderr, L"Unexpected classification for event %u\n",
             (unsigned int)test_case->event_id);
@@ -58,17 +59,74 @@ static int run_rejection_case(
     UCHAR opcode
 )
 {
-    const wchar_t *operation = NULL;
-    const wchar_t *phase = NULL;
+    const wchar_t *operation = L"unchanged_operation";
+    const wchar_t *phase = L"unchanged_phase";
 
-    return !comtrace_classify_com_event(
-        provider_id,
-        event_id,
-        version,
-        opcode,
-        &operation,
-        &phase
-    );
+    if (comtrace_classify_com_event(
+            provider_id,
+            event_id,
+            version,
+            opcode,
+            &operation,
+            &phase)) {
+        fwprintf(stderr, L"Unexpected classification for event %u\n",
+            (unsigned int)event_id);
+        return 0;
+    }
+
+    if (wcscmp(operation, L"unchanged_operation") != 0) {
+        fputs("Operation output changed after rejected classification\n", stderr);
+        return 0;
+    }
+
+    if (wcscmp(phase, L"unchanged_phase") != 0) {
+        fputs("Phase output changed after rejected classification\n", stderr);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int run_null_argument_cases(void)
+{
+    const wchar_t *operation;
+    const wchar_t *phase;
+
+    operation = L"unchanged_operation";
+    phase = L"unchanged_phase";
+    if (comtrace_classify_com_event(
+            NULL, 5U, 0U, 1U, &operation, &phase) ||
+        wcscmp(operation, L"unchanged_operation") != 0 ||
+        wcscmp(phase, L"unchanged_phase") != 0) {
+        fputs("Null provider handling failed\n", stderr);
+        return 0;
+    }
+
+    operation = L"unchanged_operation";
+    phase = L"unchanged_phase";
+    if (comtrace_classify_com_event(
+            &com_perf_provider, 5U, 0U, 1U, NULL, &phase) ||
+        wcscmp(phase, L"unchanged_phase") != 0) {
+        fputs("Null operation output handling failed\n", stderr);
+        return 0;
+    }
+
+    operation = L"unchanged_operation";
+    phase = L"unchanged_phase";
+    if (comtrace_classify_com_event(
+            &com_perf_provider, 5U, 0U, 1U, &operation, NULL) ||
+        wcscmp(operation, L"unchanged_operation") != 0) {
+        fputs("Null phase output handling failed\n", stderr);
+        return 0;
+    }
+
+    if (comtrace_classify_com_event(
+            NULL, 5U, 0U, 1U, NULL, NULL)) {
+        fputs("Multiple null arguments were unexpectedly accepted\n", stderr);
+        return 0;
+    }
+
+    return 1;
 }
 
 int main(void)
@@ -107,37 +165,49 @@ int main(void)
         {49U, 0U, 0U, L"COM_ApartmentInitialize", L"info"}
     };
     size_t index;
+    size_t rejection_count = 0U;
 
     for (index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
-        if (!run_mapping_case(&cases[index])) {
+        const TestCase *test_case = &cases[index];
+        UCHAR wrong_version = (UCHAR)(test_case->version + 1U);
+        UCHAR wrong_opcode = (UCHAR)(test_case->opcode == 1U ? 2U : 1U);
+
+        if (!run_mapping_case(test_case) ||
+            !run_rejection_case(
+                &com_perf_provider,
+                test_case->event_id,
+                wrong_version,
+                test_case->opcode) ||
+            !run_rejection_case(
+                &com_perf_provider,
+                test_case->event_id,
+                test_case->version,
+                wrong_opcode)) {
             return 1;
         }
+
+        rejection_count += 2U;
     }
 
     if (!run_rejection_case(&other_provider, 5U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 5U, 1U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 5U, 0U, 2U) ||
-        !run_rejection_case(&com_perf_provider, 11U, 1U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 12U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 25U, 1U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 26U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 37U, 0U, 2U) ||
-        !run_rejection_case(&com_perf_provider, 38U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 39U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 41U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 42U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 43U, 1U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 45U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 46U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 47U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 48U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 0U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 3U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 4U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 13U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 24U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 27U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 28U, 0U, 2U) ||
+        !run_rejection_case(&com_perf_provider, 50U, 0U, 1U) ||
+        !run_rejection_case(&com_perf_provider, 55U, 0U, 2U) ||
         !run_rejection_case(&com_perf_provider, 999U, 0U, 1U) ||
-        !run_rejection_case(&com_perf_provider, 5U, 0U, 0U)) {
-        fputs("Unexpected classification for an unsupported event\n", stderr);
+        !run_null_argument_cases()) {
+        fputs("Unexpected classification for an unsupported event or null argument\n", stderr);
         return 1;
     }
 
-    printf("COM event classification tests passed: %zu mappings and 19 rejection cases\n",
-        sizeof(cases) / sizeof(cases[0]));
+    rejection_count += 11U;
+
+    printf("COM event classification tests passed: %zu mappings and %zu rejection cases\n",
+        sizeof(cases) / sizeof(cases[0]), rejection_count);
     return 0;
 }
