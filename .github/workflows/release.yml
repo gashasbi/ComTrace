@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Configure
+        run: cmake --preset windows-vs2022-x64
+
+      - name: Build Release
+        run: cmake --build --preset windows-vs2022-x64-release --parallel
+
+      - name: Run Release tests
+        run: ctest --preset windows-vs2022-x64-release
+
+      - name: Package executable and generate SHA-256 checksums
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $configurationDir = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release'
+          $exe = Join-Path $configurationDir 'ComTrace.exe'
+          if (-not (Test-Path $exe)) { throw "Release executable not found: $exe" }
+
+          $stage = Join-Path $env:RUNNER_TEMP 'ComTrace-release'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $exe, 'README.md', 'LICENSE' -Destination $stage
+
+          $zipName = "ComTrace-$env:RELEASE_TAG-win-x64.zip"
+          $zipPath = Join-Path $env:GITHUB_WORKSPACE $zipName
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal
+
+          $exeAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTrace.exe'
+          Copy-Item $exe $exeAsset
+
+          $checksumLines = @()
+          foreach ($file in @($zipPath, $exeAsset)) {
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $checksumLines += "$hash  $(Split-Path $file -Leaf)"
+          }
+          $checksumLines | Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE 'SHA256SUMS.txt') -Encoding ascii
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            ComTrace-${{ inputs.tag || github.ref_name }}-win-x64.zip
+            ComTrace.exe
+            SHA256SUMS.txt
