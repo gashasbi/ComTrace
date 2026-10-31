@@ -4,7 +4,7 @@ cmake_policy(SET CMP0091 NEW)
 
 project(ComTrace VERSION 0.1.0 LANGUAGES C)
 
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
