@@ -2,27 +2,44 @@
 
 ComTrace is a small native Windows command-line tool for recording and inspecting ETW trace files related to COM and OLE activity.
 
+---
+
 ## Requirements
 
-- Windows
-- Visual Studio with the C/C++ workload
-- CMake 4.2 or newer, matching `CMakePresets.json`
+- Windows 10/11 x64
+- Visual Studio 2022 with **Desktop development with C++** and the Windows 10/11 SDK
+- CMake 3.21 or newer
+- Ninja only for the VS Code/Ninja workflow
 
-## Build and test
+## Visual Studio 2022
 
-Run these commands from a Developer PowerShell in the project directory:
+Open **x64 Native Tools Command Prompt for VS 2022** in the project folder and run:
 
-```powershell
-cmake --preset windows-msvc-x64
+```cmd
+cmake --preset windows-vs2022-x64
+cmake --build --preset windows-vs2022-x64-debug
+ctest --preset windows-vs2022-x64-debug
+```
+
+For Release, replace `debug` with `release` in the build and test preset names. Open `out\build\windows-vs2022-x64\ComTrace.sln` to work in Visual Studio.
+
+## VS Code / Ninja
+
+Open **x64 Native Tools Command Prompt for VS 2022** in the project folder, then run:
+
+```cmd
+cmake --preset windows-msvc-x64-debug
 cmake --build --preset windows-msvc-x64-debug
 ctest --preset windows-msvc-x64-debug
 ```
 
-For a Release build, use `windows-msvc-x64-release` instead of the Debug preset.
+For Release, replace `debug` with `release` in all three preset names. In VS Code, install the recommended **CMake Tools** and **C/C++** extensions and select the corresponding configure preset.
 
-## Commands
+---
 
-```text
+## Run
+
+```cmd
 ComTrace --help
 ComTrace --version
 ComTrace --self-test
@@ -30,7 +47,6 @@ ComTrace --providers
 ComTrace --capture <seconds> <output.etl>
 ComTrace --inspect <file.etl> [max-events]
 ```
-
 Capture duration must be between 1 and 3600 seconds. The output path must end in `.etl` and must not already exist. Capture may require an elevated terminal depending on the machine's ETW permissions.
 
 Inspection prints a bounded sample of events, a summary of event types, and supported payload property values. The default sample limit is 100; the accepted range is 1 to 10000. Some property types or schemas are intentionally skipped when they are unsupported or exceed the tool's size limits.

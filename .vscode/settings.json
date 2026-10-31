@@ -1,5 +1,6 @@
 {
   "cmake.useCMakePresets": "always",
   "cmake.configureOnOpen": false,
+  "cmake.useVsDeveloperEnvironment": "auto",
   "C_Cpp.default.cStandard": "c17"
 }

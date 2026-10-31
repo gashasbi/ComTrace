@@ -1,6 +1,10 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.21)
+
+cmake_policy(SET CMP0091 NEW)
 
 project(ComTrace VERSION 0.1.0 LANGUAGES C)
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -17,8 +21,12 @@ add_executable(ComTrace
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
 
+if(MINGW)
+    target_link_options(ComTrace PRIVATE -municode)
+endif()
+
 if(MSVC)
-    target_compile_options(ComTrace PRIVATE /W4 /WX /utf-8)
+    target_compile_options(ComTrace PRIVATE /W4 /WX /wd5105 /utf-8)
 else()
     target_compile_options(ComTrace PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -34,7 +42,7 @@ if(BUILD_TESTING)
     target_include_directories(ComTraceComEventTests PRIVATE src)
 
     if(MSVC)
-        target_compile_options(ComTraceComEventTests PRIVATE /W4 /WX /utf-8)
+        target_compile_options(ComTraceComEventTests PRIVATE /W4 /WX /wd5105 /utf-8)
     else()
         target_compile_options(ComTraceComEventTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
@@ -49,7 +57,7 @@ if(BUILD_TESTING)
     target_compile_definitions(ComTraceOleEventTests PRIVATE WIN32_LEAN_AND_MEAN)
 
     if(MSVC)
-        target_compile_options(ComTraceOleEventTests PRIVATE /W4 /WX /utf-8)
+        target_compile_options(ComTraceOleEventTests PRIVATE /W4 /WX /wd5105 /utf-8)
     else()
         target_compile_options(ComTraceOleEventTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
@@ -63,7 +71,7 @@ if(BUILD_TESTING)
     target_include_directories(ComTraceEtlValueTests PRIVATE src)
 
     if(MSVC)
-        target_compile_options(ComTraceEtlValueTests PRIVATE /W4 /WX /utf-8)
+        target_compile_options(ComTraceEtlValueTests PRIVATE /W4 /WX /wd5105 /utf-8)
     else()
         target_compile_options(ComTraceEtlValueTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
