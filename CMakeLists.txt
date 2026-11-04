@@ -17,6 +17,8 @@ add_executable(ComTrace
     src/etl_value.c
     src/com_event.c
     src/ole_event.c
+    src/event_record.c
+    src/event_catalog.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
