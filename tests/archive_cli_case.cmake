@@ -118,6 +118,50 @@ elseif(CASE STREQUAL "missing_input")
         message(FATAL_ERROR "Missing-input diagnostic is incorrect: ${combined}")
     endif()
 
+elseif(CASE STREQUAL "inspect_missing_file")
+    set(input "${TEST_DIR}/missing-archive.ctra")
+    file(REMOVE "${input}")
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_EXE}" --inspect "${input}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+        TIMEOUT 30
+    )
+
+    string(CONCAT combined "${output}" "${error}")
+
+    if("${result}" STREQUAL "0")
+        message(FATAL_ERROR "Missing archive unexpectedly passed inspection.")
+    endif()
+
+    if(NOT combined MATCHES "Archive open failed")
+        message(FATAL_ERROR "Missing-archive diagnostic is incorrect: ${combined}")
+    endif()
+
+elseif(CASE STREQUAL "inspect_invalid_file")
+    set(input "${TEST_DIR}/invalid-archive.ctra")
+    file(WRITE "${input}" "invalid")
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_EXE}" --inspect "${input}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+        TIMEOUT 30
+    )
+
+    string(CONCAT combined "${output}" "${error}")
+
+    if("${result}" STREQUAL "0")
+        message(FATAL_ERROR "Invalid archive unexpectedly passed inspection.")
+    endif()
+
+    if(NOT combined MATCHES "Archive open failed")
+        message(FATAL_ERROR "Invalid-archive diagnostic is incorrect: ${combined}")
+    endif()
+
 else()
     message(FATAL_ERROR "Unknown archive CLI test case: ${CASE}")
 endif()

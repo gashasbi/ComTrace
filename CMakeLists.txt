@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+﻿cmake_minimum_required(VERSION 3.21)
 
 cmake_policy(SET CMP0091 NEW)
 
@@ -37,6 +37,7 @@ add_executable(ComTraceArchive
     src/archive_main.c
     src/etl_archive.c
     src/archive_writer.c
+    src/archive_reader.c
 )
 
 target_include_directories(ComTraceArchive PRIVATE src)
@@ -144,6 +145,22 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_archive_writer COMMAND ComTraceArchiveWriterTests)
 
+    add_executable(ComTraceArchiveReaderTests
+        tests/test_archive_reader.c
+        src/archive_reader.c
+        src/archive_writer.c
+    )
+
+    target_include_directories(ComTraceArchiveReaderTests PRIVATE src)
+    target_link_libraries(ComTraceArchiveReaderTests PRIVATE Advapi32)
+
+    if(MSVC)
+        target_compile_options(ComTraceArchiveReaderTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArchiveReaderTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_archive_reader COMMAND ComTraceArchiveReaderTests)
     foreach(case_name help version no_arguments invalid_arguments missing_input)
         add_test(
             NAME comtrace_archive_cli_${case_name}
@@ -190,3 +207,4 @@ if(BUILD_TESTING)
         )
     endforeach()
 endif()
+
