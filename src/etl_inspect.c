@@ -13,25 +13,19 @@
 #include "etl_value.h"
 #include "com_event.h"
 #include "ole_event.h"
+#include "event_record.h"
+#include "event_catalog.h"
 
-#define MAX_EVENT_TYPES 512UL
 #define MAX_SAMPLE_EVENTS 10000UL
 
 typedef struct {
-    GUID provider_id;
-    USHORT event_id;
-    UCHAR version;
-    UCHAR opcode;
-    ULONGLONG count;
-} ETL_EVENT_KIND;
-
-typedef struct {
     ULONGLONG total_events;
-    ULONGLONG untracked_event_type_events;
+    ULONGLONG processing_failures;
     ULONG sample_limit;
     ULONG sampled_events;
-    ULONG kind_count;
-    ETL_EVENT_KIND kinds[MAX_EVENT_TYPES];
+    COMTRACE_EVENT_CATALOG event_catalog;
+    COMTRACE_EVENT_RECORD_STATUS record_status;
+    COMTRACE_EVENT_CATALOG_STATUS catalog_status;
 } ETL_INSPECT_CONTEXT;
 
 static void print_guid(const GUID *guid)
@@ -107,46 +101,6 @@ static void print_timestamp(const EVENT_RECORD *event_record)
         );
     } else {
         wprintf(L"(timestamp unavailable)");
-    }
-}
-
-static void record_event_kind(
-    ETL_INSPECT_CONTEXT *context,
-    const EVENT_RECORD *event_record
-)
-{
-    ULONG index;
-
-    for (index = 0U; index < context->kind_count; ++index) {
-        ETL_EVENT_KIND *kind = &context->kinds[index];
-
-        if (memcmp(
-                &kind->provider_id,
-                &event_record->EventHeader.ProviderId,
-                sizeof(GUID)
-            ) == 0 &&
-            kind->event_id == event_record->EventHeader.EventDescriptor.Id &&
-            kind->version == event_record->EventHeader.EventDescriptor.Version &&
-            kind->opcode == event_record->EventHeader.EventDescriptor.Opcode) {
-            ++kind->count;
-            return;
-        }
-    }
-
-    if (context->kind_count >= MAX_EVENT_TYPES) {
-        ++context->untracked_event_type_events;
-        return;
-    }
-
-    {
-        ETL_EVENT_KIND *kind = &context->kinds[context->kind_count];
-
-        kind->provider_id = event_record->EventHeader.ProviderId;
-        kind->event_id = event_record->EventHeader.EventDescriptor.Id;
-        kind->version = event_record->EventHeader.EventDescriptor.Version;
-        kind->opcode = event_record->EventHeader.EventDescriptor.Opcode;
-        kind->count = 1U;
-        ++context->kind_count;
     }
 }
 
@@ -790,6 +744,10 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
 static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 {
     ETL_INSPECT_CONTEXT *context;
+    COMTRACE_EVENT_CATALOG_STATUS catalog_status;
+    COMTRACE_EVENT_RECORD_STATUS record_status;
+    COMTRACE_OWNED_EVENT_RECORD *owned_record = NULL;
+    const EVENT_RECORD *owned_event;
 
     if (event_record == NULL || event_record->UserContext == NULL) {
         return;
@@ -797,36 +755,59 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     context = (ETL_INSPECT_CONTEXT *)event_record->UserContext;
     ++context->total_events;
-    record_event_kind(context, event_record);
+
+    catalog_status = comtrace_event_catalog_add(
+        &context->event_catalog,
+        event_record
+    );
+
+    if (catalog_status != COMTRACE_EVENT_CATALOG_SUCCESS) {
+        ++context->processing_failures;
+        context->catalog_status = catalog_status;
+    }
 
     if (context->sampled_events >= context->sample_limit) {
         return;
     }
 
+    record_status = comtrace_event_record_copy(
+        event_record,
+        &owned_record
+    );
+
+    if (record_status != COMTRACE_EVENT_RECORD_SUCCESS) {
+        ++context->processing_failures;
+        context->record_status = record_status;
+        return;
+    }
+
+    owned_event = &owned_record->record;
     ++context->sampled_events;
 
     wprintf(
         L"sample=%lu time=",
         (unsigned long)context->sampled_events
     );
-    print_timestamp(event_record);
+    print_timestamp(owned_event);
 
     wprintf(L" provider=");
-    print_guid(&event_record->EventHeader.ProviderId);
+    print_guid(&owned_event->EventHeader.ProviderId);
 
     wprintf(
         L" event_id=%u version=%u opcode=%u pid=%lu tid=%lu\n",
-        (unsigned int)event_record->EventHeader.EventDescriptor.Id,
-        (unsigned int)event_record->EventHeader.EventDescriptor.Version,
-        (unsigned int)event_record->EventHeader.EventDescriptor.Opcode,
-        (unsigned long)event_record->EventHeader.ProcessId,
-        (unsigned long)event_record->EventHeader.ThreadId
+        (unsigned int)owned_event->EventHeader.EventDescriptor.Id,
+        (unsigned int)owned_event->EventHeader.EventDescriptor.Version,
+        (unsigned int)owned_event->EventHeader.EventDescriptor.Opcode,
+        (unsigned long)owned_event->EventHeader.ProcessId,
+        (unsigned long)owned_event->EventHeader.ThreadId
     );
-    print_com_event_classification(event_record);
-    print_ole_event_classification(event_record);
-    print_event_properties(event_record);
-}
 
+    print_com_event_classification(owned_event);
+    print_ole_event_classification(owned_event);
+    print_event_properties(owned_event);
+
+    comtrace_event_record_destroy(owned_record);
+}
 int comtrace_inspect_etl(
     const wchar_t *etl_path,
     const wchar_t *limit_text
@@ -837,7 +818,8 @@ int comtrace_inspect_etl(
     TRACEHANDLE trace_handle;
     ULONG process_status;
     ULONG close_status;
-    ULONG index;
+    size_t index;
+    size_t kind_count;
     DWORD attributes;
     int result = EXIT_FAILURE;
 
@@ -873,6 +855,8 @@ int comtrace_inspect_etl(
         return EXIT_FAILURE;
     }
 
+    comtrace_event_catalog_init(&context.event_catalog);
+
     logfile.LogFileName = (LPWSTR)etl_path;
     logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
     logfile.EventRecordCallback = inspect_event_callback;
@@ -907,29 +891,44 @@ int comtrace_inspect_etl(
         L"Event samples printed: %lu\n",
         (unsigned long)context.sampled_events
     );
+    kind_count = comtrace_event_catalog_count(&context.event_catalog);
+
     wprintf(
-        L"Distinct tracked event types: %lu\n",
-        (unsigned long)context.kind_count
+        L"Distinct event types: %llu\n",
+        (unsigned long long)kind_count
     );
     wprintf(
-        L"Events in untracked event types: %llu\n",
-        (unsigned long long)context.untracked_event_type_events
+        L"Event processing failures: %llu\n",
+        (unsigned long long)context.processing_failures
     );
 
-    wprintf(L"\nProvider GUID | Event ID | Version | Opcode | Count\n");
+    wprintf(
+        L"\nProvider GUID | Event ID | Version | Channel | Level | Opcode | Task | Keyword | Count\n"
+    );
 
-    for (index = 0U; index < context.kind_count; ++index) {
-        const ETL_EVENT_KIND *kind = &context.kinds[index];
+    for (index = 0U; index < kind_count; ++index) {
+        const COMTRACE_EVENT_KIND *kind =
+            comtrace_event_catalog_get(&context.event_catalog, index);
+
+        if (kind == NULL) {
+            continue;
+        }
 
         print_guid(&kind->provider_id);
+
         wprintf(
-            L" | %u | %u | %u | %llu\n",
-            (unsigned int)kind->event_id,
-            (unsigned int)kind->version,
-            (unsigned int)kind->opcode,
+            L" | %u | %u | %u | %u | %u | %u | 0x%016llX | %llu\n",
+            (unsigned int)kind->descriptor.Id,
+            (unsigned int)kind->descriptor.Version,
+            (unsigned int)kind->descriptor.Channel,
+            (unsigned int)kind->descriptor.Level,
+            (unsigned int)kind->descriptor.Opcode,
+            (unsigned int)kind->descriptor.Task,
+            (unsigned long long)kind->descriptor.Keyword,
             (unsigned long long)kind->count
         );
     }
+    result = EXIT_SUCCESS;
 
     if (process_status != ERROR_SUCCESS) {
         fwprintf(
@@ -937,7 +936,7 @@ int comtrace_inspect_etl(
             L"ProcessTrace failed with status %lu.\n",
             (unsigned long)process_status
         );
-        return EXIT_FAILURE;
+        result = EXIT_FAILURE;
     }
 
     if (close_status != ERROR_SUCCESS) {
@@ -946,9 +945,37 @@ int comtrace_inspect_etl(
             L"CloseTrace failed with status %lu.\n",
             (unsigned long)close_status
         );
-        return EXIT_FAILURE;
+        result = EXIT_FAILURE;
     }
 
-    result = EXIT_SUCCESS;
+    if (context.record_status != COMTRACE_EVENT_RECORD_SUCCESS) {
+        fwprintf(
+            stderr,
+            L"Event record copy failed with status %u.\n",
+            (unsigned int)context.record_status
+        );
+        result = EXIT_FAILURE;
+    }
+
+    if (context.catalog_status != COMTRACE_EVENT_CATALOG_SUCCESS) {
+        fwprintf(
+            stderr,
+            L"Event catalog update failed with status %u.\n",
+            (unsigned int)context.catalog_status
+        );
+        result = EXIT_FAILURE;
+    }
+
+    if (context.processing_failures != 0ULL) {
+        fwprintf(
+            stderr,
+            L"Event processing failures: %llu\n",
+            (unsigned long long)context.processing_failures
+        );
+        result = EXIT_FAILURE;
+    }
+
+    comtrace_event_catalog_destroy(&context.event_catalog);
+
     return result;
 }
