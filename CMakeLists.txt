@@ -63,6 +63,7 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_ole_event COMMAND ComTraceOleEventTests)
+
     add_executable(ComTraceEtlValueTests
         tests/test_etl_value.c
         src/etl_value.c
@@ -77,6 +78,37 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_etl_value COMMAND ComTraceEtlValueTests)
+
+    add_executable(ComTraceEventRecordTests
+        tests/test_event_record.c
+        src/event_record.c
+    )
+
+    target_include_directories(ComTraceEventRecordTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceEventRecordTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceEventRecordTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_event_record COMMAND ComTraceEventRecordTests)
+
+    add_executable(ComTraceEventCatalogTests
+        tests/test_event_catalog.c
+        src/event_catalog.c
+    )
+
+    target_include_directories(ComTraceEventCatalogTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceEventCatalogTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceEventCatalogTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_event_catalog COMMAND ComTraceEventCatalogTests)
+
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
@@ -101,6 +133,7 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/capture_cli_case.cmake"
         )
     endforeach()
+
     foreach(case_name invalid_limit limit_too_high limit_overflow limit_nonnumeric limit_plus_sign limit_minus_sign limit_whitespace limit_minimum limit_maximum missing_file directory_path empty_file malformed_file)
         add_test(
             NAME comtrace_inspect_${case_name}
