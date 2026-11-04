@@ -33,6 +33,24 @@ else()
     target_compile_options(ComTrace PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+add_executable(ComTraceArchive
+    src/archive_main.c
+    src/etl_archive.c
+    src/archive_writer.c
+)
+
+target_include_directories(ComTraceArchive PRIVATE src)
+target_link_libraries(ComTraceArchive PRIVATE Advapi32)
+
+if(MINGW)
+    target_link_options(ComTraceArchive PRIVATE -municode)
+endif()
+
+if(MSVC)
+    target_compile_options(ComTraceArchive PRIVATE /W4 /WX /wd5105 /utf-8)
+else()
+    target_compile_options(ComTraceArchive PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
 include(CTest)
 
 if(BUILD_TESTING)
@@ -125,6 +143,17 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_archive_writer COMMAND ComTraceArchiveWriterTests)
+
+    foreach(case_name help version no_arguments invalid_arguments missing_input)
+        add_test(
+            NAME comtrace_archive_cli_${case_name}
+            COMMAND "${CMAKE_COMMAND}"
+                "-DCOMTRACE_ARCHIVE_EXE=$<TARGET_FILE:ComTraceArchive>"
+                "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/archive-cli-tests"
+                "-DCASE=${case_name}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/archive_cli_case.cmake"
+        )
+    endforeach()
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
