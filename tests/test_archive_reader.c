@@ -567,6 +567,303 @@ static int test_invalid_record_type(void)
     return failures;
 }
 
+static int test_invalid_archive_field(
+    const char *name,
+    const BYTE *user_data,
+    USHORT user_data_length,
+    const BYTE *extended_payload,
+    USHORT extended_payload_length,
+    size_t offset,
+    const BYTE *replacement,
+    size_t replacement_size,
+    int stage
+)
+{
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    BYTE *data;
+    DWORD size;
+    int failures = 0;
+    wchar_t path[TEST_PATH_CAPACITY];
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(
+            path,
+            user_data,
+            user_data_length,
+            extended_payload,
+            extended_payload_length)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL) {
+        delete_test_paths(path);
+        return 1;
+    }
+
+    if (stage == 2) {
+        if (size < 124U) {
+            free(data);
+            delete_test_paths(path);
+            return 1;
+        }
+
+        offset += (size_t)size - 124U;
+    }
+
+    if (offset > (size_t)size ||
+        replacement_size > (size_t)size - offset) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    memcpy(data + offset, replacement, replacement_size);
+
+    if (!write_file_bytes(path, data, size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    if (stage == 0) {
+        check_condition(
+            comtrace_archive_reader_open(&reader, path) ==
+                COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+            name,
+            &failures
+        );
+    } else if (comtrace_archive_reader_open(&reader, path) ==
+               COMTRACE_ARCHIVE_READER_SUCCESS) {
+        if (stage == 1) {
+            check_condition(
+                comtrace_archive_reader_next(&reader, &event) ==
+                    COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+                name,
+                &failures
+            );
+        } else {
+            COMTRACE_ARCHIVE_READER_STATUS status;
+
+            status = comtrace_archive_reader_next(&reader, &event);
+            check_condition(
+                status == COMTRACE_ARCHIVE_READER_SUCCESS,
+                "Event before invalid footer is readable",
+                &failures
+            );
+
+            comtrace_archive_event_destroy(&event);
+
+            if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+                check_condition(
+                    comtrace_archive_reader_next(&reader, &event) ==
+                        COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+                    name,
+                    &failures
+                );
+            }
+        }
+    } else {
+        check_condition(0, "Mutated archive opens", &failures);
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_trailing_archive_data(void)
+{
+    static const BYTE user_data[] = {0x11U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    BYTE *data;
+    BYTE *expanded;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size == MAXDWORD) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    expanded = (BYTE *)realloc(data, (size_t)size + 1U);
+    if (expanded == NULL) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    expanded[size] = 0xA5U;
+
+    if (!write_file_bytes(path, expanded, size + 1U)) {
+        free(expanded);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(expanded);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    check_condition(
+        comtrace_archive_reader_open(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Archive with trailing data opens",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Event before trailing data is readable",
+            &failures
+        );
+
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+            "Trailing data after footer is rejected",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_additional_archive_validation(void)
+{
+    static const BYTE user_data[] = {0x11U};
+    static const BYTE extended_payload[] = {0x21U, 0x22U, 0x23U};
+
+    static const BYTE invalid_version[] = {2U, 0U, 0U, 0U};
+    static const BYTE invalid_header_size[] = {23U, 0U, 0U, 0U};
+    static const BYTE invalid_header_type[] = {2U, 0U, 0U, 0U};
+    static const BYTE invalid_reserved[] = {1U, 0U, 0U, 0U};
+    static const BYTE invalid_flags[] = {1U, 0U, 0U, 0U};
+    static const BYTE invalid_sequence[] = {2U, 0U, 0U, 0U, 0U, 0U, 0U, 0U};
+    static const BYTE invalid_payload_size[] = {87U, 0U, 0U, 0U, 0U, 0U, 0U, 0U};
+    static const BYTE invalid_count[] = {1U, 0U};
+    static const BYTE invalid_user_length[] = {2U, 0U};
+    static const BYTE invalid_extended_length[] = {0xFFU, 0xFFU};
+    static const BYTE invalid_footer_size[] = {123U, 0U, 0U, 0U};
+    static const BYTE invalid_status[] = {1U, 0U, 0U, 0U};
+    static const BYTE invalid_completion[] = {0U, 0U, 0U, 0U};
+
+    int failures = 0;
+
+    failures += test_invalid_archive_field(
+        "Invalid archive version is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        8U, invalid_version, sizeof(invalid_version), 0
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid archive header size is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        12U, invalid_header_size, sizeof(invalid_header_size), 0
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid archive header type is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        16U, invalid_header_type, sizeof(invalid_header_type), 0
+    );
+
+    failures += test_invalid_archive_field(
+        "Nonzero archive header reserved field is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        20U, invalid_reserved, sizeof(invalid_reserved), 0
+    );
+
+    failures += test_invalid_archive_field(
+        "Nonzero record flags are rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        28U, invalid_flags, sizeof(invalid_flags), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid record sequence is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        32U, invalid_sequence, sizeof(invalid_sequence), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Payload smaller than metadata is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        40U, invalid_payload_size, sizeof(invalid_payload_size), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Extended data count exceeding payload is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        132U, invalid_count, sizeof(invalid_count), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Inconsistent user data length is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        134U, invalid_user_length, sizeof(invalid_user_length), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Extended data length exceeding payload is rejected",
+        user_data, sizeof(user_data),
+        extended_payload, sizeof(extended_payload),
+        142U, invalid_extended_length,
+        sizeof(invalid_extended_length), 1
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid footer version is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        8U, invalid_version, sizeof(invalid_version), 2
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid footer size is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        12U, invalid_footer_size, sizeof(invalid_footer_size), 2
+    );
+
+    failures += test_invalid_archive_field(
+        "Unsuccessful trace status is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        40U, invalid_status, sizeof(invalid_status), 2
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid completion marker is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        44U, invalid_completion, sizeof(invalid_completion), 2
+    );
+
+    failures += test_trailing_archive_data();
+
+    return failures;
+}
 int main(void)
 {
     int failures = 0;
@@ -579,6 +876,7 @@ int main(void)
     failures += test_truncated_event_record();
     failures += test_footer_record_count_mismatch();
     failures += test_invalid_record_type();
+    failures += test_additional_archive_validation();
 
     if (failures != 0) {
         fprintf(stderr, "%d archive reader test(s) failed\n", failures);
