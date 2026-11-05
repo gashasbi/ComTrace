@@ -21,6 +21,25 @@ typedef enum {
     COMTRACE_ARCHIVE_READER_ALLOCATION_FAILED
 } COMTRACE_ARCHIVE_READER_STATUS;
 
+typedef enum {
+    COMTRACE_ARCHIVE_RECOVERY_STOP_NONE = 0,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_MISSING,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_TRUNCATED,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_HEADER_TRUNCATED,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_PAYLOAD_TRUNCATED,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_TRAILING_DATA
+} COMTRACE_ARCHIVE_RECOVERY_STOP_REASON;
+
+typedef struct {
+    ULONGLONG records_recovered;
+    ULONGLONG stop_offset;
+    BOOL footer_valid;
+    BOOL archive_complete;
+    COMTRACE_ARCHIVE_RECOVERY_STOP_REASON stop_reason;
+} COMTRACE_ARCHIVE_RECOVERY_INFO;
+
 typedef struct {
     EVENT_RECORD record;
     EVENT_HEADER_EXTENDED_DATA_ITEM *extended_data;
@@ -61,6 +80,8 @@ typedef struct {
     DWORD win32_error;
     COMTRACE_ARCHIVE_READER_STATUS status;
     COMTRACE_ARCHIVE_FOOTER footer;
+    BOOL recovery_mode;
+    COMTRACE_ARCHIVE_RECOVERY_INFO recovery_info;
 } COMTRACE_ARCHIVE_READER;
 
 COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
@@ -75,5 +96,15 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
 
 void comtrace_archive_event_destroy(COMTRACE_ARCHIVE_EVENT *event);
 void comtrace_archive_reader_close(COMTRACE_ARCHIVE_READER *reader);
+
+COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open_recovery(
+    COMTRACE_ARCHIVE_READER *reader,
+    const wchar_t *path
+);
+
+const COMTRACE_ARCHIVE_RECOVERY_INFO *
+comtrace_archive_reader_get_recovery_info(
+    const COMTRACE_ARCHIVE_READER *reader
+);
 
 #endif

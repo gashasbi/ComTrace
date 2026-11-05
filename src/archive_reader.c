@@ -151,6 +151,24 @@ static void decode_footer(
     footer->perf_frequency = decode_u64(data + 116U);
 }
 
+static COMTRACE_ARCHIVE_READER_STATUS finish_recovery(
+    COMTRACE_ARCHIVE_READER *reader,
+    COMTRACE_ARCHIVE_RECOVERY_STOP_REASON reason,
+    ULONGLONG stop_offset,
+    BOOL footer_valid,
+    BOOL archive_complete
+)
+{
+    reader->recovery_info.records_recovered = reader->records_read;
+    reader->recovery_info.stop_offset = stop_offset;
+    reader->recovery_info.footer_valid = footer_valid;
+    reader->recovery_info.archive_complete = archive_complete;
+    reader->recovery_info.stop_reason = reason;
+    reader->footer_read = TRUE;
+    reader->status = COMTRACE_ARCHIVE_READER_SUCCESS;
+    return COMTRACE_ARCHIVE_READER_END;
+}
+
 static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     COMTRACE_ARCHIVE_READER *reader,
     const BYTE *prefix
@@ -158,9 +176,20 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
 {
     BYTE footer_data[ARCHIVE_FOOTER_SIZE];
     ULONGLONG remaining;
+    ULONGLONG footer_offset = reader->offset - 8ULL;
 
     memcpy(footer_data, prefix, 8U);
     if (reader->file_size - reader->offset < ARCHIVE_FOOTER_SIZE - 8ULL) {
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_TRUNCATED,
+                footer_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
@@ -177,6 +206,16 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
 
     if (decode_u32(footer_data + 8U) != 1U ||
         decode_u32(footer_data + 12U) != ARCHIVE_FOOTER_SIZE) {
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID,
+                footer_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -189,6 +228,16 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     if (reader->footer.records_written != reader->records_read ||
         reader->footer.process_trace_status != ERROR_SUCCESS ||
         reader->footer.completion_marker != 1U) {
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID,
+                footer_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -198,6 +247,16 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
 
     remaining = reader->file_size - reader->offset;
     if (remaining != 0ULL) {
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_TRAILING_DATA,
+                reader->offset,
+                TRUE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -207,16 +266,30 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
 
     reader->footer_read = TRUE;
     reader->status = COMTRACE_ARCHIVE_READER_SUCCESS;
+
+    if (reader->recovery_mode) {
+        return finish_recovery(
+            reader,
+            COMTRACE_ARCHIVE_RECOVERY_STOP_NONE,
+            reader->offset,
+            TRUE,
+            TRUE
+        );
+    }
+
     return COMTRACE_ARCHIVE_READER_END;
 }
 
-COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
+static COMTRACE_ARCHIVE_READER_STATUS archive_reader_open_internal(
     COMTRACE_ARCHIVE_READER *reader,
-    const wchar_t *path
+    const wchar_t *path,
+    BOOL recovery_mode
 )
 {
     LARGE_INTEGER size;
     BYTE header[ARCHIVE_HEADER_SIZE];
+    COMTRACE_ARCHIVE_READER_STATUS status;
+    DWORD error_code;
 
     if (reader == NULL) {
         return COMTRACE_ARCHIVE_READER_INVALID_ARGUMENT;
@@ -225,6 +298,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
     ZeroMemory(reader, sizeof(*reader));
     reader->file = INVALID_HANDLE_VALUE;
     reader->status = COMTRACE_ARCHIVE_READER_SUCCESS;
+    reader->recovery_mode = recovery_mode;
 
     if (path == NULL || path[0] == L'\0') {
         return set_failure(
@@ -252,26 +326,41 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
         );
     }
 
-    if (!GetFileSizeEx(reader->file, &size) || size.QuadPart < 0) {
-        return set_failure(
+    if (!GetFileSizeEx(reader->file, &size)) {
+        error_code = GetLastError();
+        status = set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_READ_FAILED,
-            GetLastError()
+            error_code
         );
+        goto failure;
+    }
+
+    if (size.QuadPart < 0) {
+        status = set_failure(
+            reader,
+            COMTRACE_ARCHIVE_READER_READ_FAILED,
+            ERROR_FILE_INVALID
+        );
+        goto failure;
     }
 
     reader->file_size = (ULONGLONG)size.QuadPart;
 
-    if (reader->file_size < ARCHIVE_HEADER_SIZE + ARCHIVE_FOOTER_SIZE) {
-        return set_failure(
+    if (reader->file_size < ARCHIVE_HEADER_SIZE ||
+        (!recovery_mode &&
+         reader->file_size < ARCHIVE_HEADER_SIZE + ARCHIVE_FOOTER_SIZE)) {
+        status = set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
             ERROR_HANDLE_EOF
         );
+        goto failure;
     }
 
     if (!read_exact(reader, header, sizeof(header))) {
-        return reader->status;
+        status = reader->status;
+        goto failure;
     }
 
     if (memcmp(header, archive_magic, sizeof(archive_magic)) != 0 ||
@@ -279,14 +368,48 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
         decode_u32(header + 12U) != ARCHIVE_HEADER_SIZE ||
         decode_u32(header + 16U) != 1U ||
         decode_u32(header + 20U) != 0U) {
-        return set_failure(
+        status = set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
             ERROR_INVALID_DATA
         );
+        goto failure;
     }
 
     return COMTRACE_ARCHIVE_READER_SUCCESS;
+
+failure:
+    (void)CloseHandle(reader->file);
+    reader->file = INVALID_HANDLE_VALUE;
+    return status;
+}
+
+COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open(
+    COMTRACE_ARCHIVE_READER *reader,
+    const wchar_t *path
+)
+{
+    return archive_reader_open_internal(reader, path, FALSE);
+}
+
+COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_open_recovery(
+    COMTRACE_ARCHIVE_READER *reader,
+    const wchar_t *path
+)
+{
+    return archive_reader_open_internal(reader, path, TRUE);
+}
+
+const COMTRACE_ARCHIVE_RECOVERY_INFO *
+comtrace_archive_reader_get_recovery_info(
+    const COMTRACE_ARCHIVE_READER *reader
+)
+{
+    if (reader == NULL || !reader->recovery_mode) {
+        return NULL;
+    }
+
+    return &reader->recovery_info;
 }
 
 COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
@@ -296,6 +419,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
 {
     BYTE frame[ARCHIVE_RECORD_HEADER_SIZE];
     BYTE *payload = NULL;
+    ULONGLONG record_offset;
     ULONGLONG sequence;
     ULONGLONG payload_size;
     ULONGLONG remaining;
@@ -321,8 +445,44 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         return COMTRACE_ARCHIVE_READER_END;
     }
 
+    record_offset = reader->offset;
     remaining = reader->file_size - reader->offset;
+
     if (remaining < 8ULL) {
+        if (reader->recovery_mode) {
+            if (remaining == 0ULL) {
+                return finish_recovery(
+                    reader,
+                    COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_MISSING,
+                    record_offset,
+                    FALSE,
+                    FALSE
+                );
+            }
+
+            if (!read_exact(reader, frame, (size_t)remaining)) {
+                return reader->status;
+            }
+
+            if (memcmp(frame, footer_magic, (size_t)remaining) == 0) {
+                return finish_recovery(
+                    reader,
+                    COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_TRUNCATED,
+                    record_offset,
+                    FALSE,
+                    FALSE
+                );
+            }
+
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_HEADER_TRUNCATED,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
@@ -338,7 +498,19 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         return read_footer(reader, frame);
     }
 
-    if (remaining < ARCHIVE_RECORD_HEADER_SIZE + ARCHIVE_FOOTER_SIZE) {
+    if (reader->recovery_mode) {
+        remaining = reader->file_size - reader->offset;
+
+        if (remaining < ARCHIVE_RECORD_HEADER_SIZE - 8ULL) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_HEADER_TRUNCATED,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+    } else if (remaining < ARCHIVE_RECORD_HEADER_SIZE + ARCHIVE_FOOTER_SIZE - 8ULL) {
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
@@ -346,7 +518,10 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
-    if (!read_exact(reader, frame + 8U, sizeof(frame) - 8U)) {
+    if (!read_exact(
+            reader,
+            frame + 8U,
+            sizeof(frame) - 8U)) {
         return reader->status;
     }
 
@@ -361,6 +536,16 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         sequence != reader->records_read + 1ULL ||
         payload_size < ARCHIVE_EVENT_METADATA_SIZE ||
         payload_size > (ULONGLONG)SIZE_MAX) {
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -369,8 +554,19 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     }
 
     remaining = reader->file_size - reader->offset;
-    if (remaining < ARCHIVE_FOOTER_SIZE ||
-        payload_size > remaining - ARCHIVE_FOOTER_SIZE) {
+
+    if (reader->recovery_mode) {
+        if (payload_size > remaining) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_PAYLOAD_TRUNCATED,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+    } else if (remaining < ARCHIVE_FOOTER_SIZE ||
+               payload_size > remaining - ARCHIVE_FOOTER_SIZE) {
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
@@ -403,6 +599,18 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     if ((size_t)extended_count >
         ((size_t)payload_size - cursor) / 8U) {
         free(payload);
+
+        if (reader->recovery_mode) {
+            ZeroMemory(event, sizeof(*event));
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -440,6 +648,17 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
             free(event->extended_data);
             free(payload);
             ZeroMemory(event, sizeof(*event));
+
+            if (reader->recovery_mode) {
+                return finish_recovery(
+                    reader,
+                    COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+                    record_offset,
+                    FALSE,
+                    FALSE
+                );
+            }
+
             return set_failure(
                 reader,
                 COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -458,6 +677,17 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         free(event->extended_data);
         free(payload);
         ZeroMemory(event, sizeof(*event));
+
+        if (reader->recovery_mode) {
+            return finish_recovery(
+                reader,
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+                record_offset,
+                FALSE,
+                FALSE
+            );
+        }
+
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -474,20 +704,15 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         : payload + cursor;
     event->record.UserContext = NULL;
 
-    if (reader->records_read == UINT64_MAX) {
-        comtrace_archive_event_destroy(event);
-        return set_failure(
-            reader,
-            COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
-            ERROR_ARITHMETIC_OVERFLOW
-        );
+    ++reader->records_read;
+
+    if (reader->recovery_mode) {
+        reader->recovery_info.records_recovered = reader->records_read;
     }
 
-    ++reader->records_read;
     reader->status = COMTRACE_ARCHIVE_READER_SUCCESS;
     return COMTRACE_ARCHIVE_READER_SUCCESS;
 }
-
 void comtrace_archive_event_destroy(COMTRACE_ARCHIVE_EVENT *event)
 {
     if (event == NULL) {

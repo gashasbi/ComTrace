@@ -114,6 +114,53 @@ static int create_archive(
     return status == COMTRACE_ARCHIVE_SUCCESS;
 }
 
+static int create_two_event_archive(const wchar_t *path)
+{
+    EVENT_RECORD source;
+    COMTRACE_ARCHIVE_WRITER writer;
+    COMTRACE_ARCHIVE_SUMMARY summary;
+    COMTRACE_ARCHIVE_STATUS status;
+
+    ZeroMemory(&source, sizeof(source));
+    ZeroMemory(&writer, sizeof(writer));
+    ZeroMemory(&summary, sizeof(summary));
+
+    source.EventHeader.Size = 462U;
+    source.EventHeader.ThreadId = 42U;
+    source.EventHeader.ProcessId = 24U;
+    source.EventHeader.TimeStamp.QuadPart = 123456789LL;
+    source.EventHeader.ProviderId.Data1 = 0x11223344UL;
+    source.EventHeader.EventDescriptor.Id = 91U;
+    source.EventHeader.EventDescriptor.Opcode = 3U;
+    source.EventHeader.ActivityId.Data1 = 0xAABBCCDDUL;
+    source.BufferContext.ProcessorNumber = 7U;
+    source.BufferContext.LoggerId = 0x1234U;
+
+    status = comtrace_archive_writer_open(&writer, path);
+
+    if (status == COMTRACE_ARCHIVE_SUCCESS) {
+        status = comtrace_archive_writer_write_event(&writer, &source);
+    }
+
+    if (status == COMTRACE_ARCHIVE_SUCCESS) {
+        source.EventHeader.EventDescriptor.Id = 92U;
+        source.EventHeader.TimeStamp.QuadPart = 123456790LL;
+        status = comtrace_archive_writer_write_event(&writer, &source);
+    }
+
+    summary.process_trace_status = ERROR_SUCCESS;
+    summary.buffers_read = 3U;
+    summary.buffers_written = 3U;
+    summary.trace_clock_type = 1U;
+    summary.pointer_size = 8U;
+
+    if (status == COMTRACE_ARCHIVE_SUCCESS) {
+        status = comtrace_archive_writer_finalize(&writer, &summary);
+    }
+
+    comtrace_archive_writer_destroy(&writer);
+    return status == COMTRACE_ARCHIVE_SUCCESS;
+}
 static int write_file_bytes(const wchar_t *path, const BYTE *data, DWORD size)
 {
     HANDLE file;
@@ -581,6 +628,7 @@ static int test_invalid_archive_field(
 {
     COMTRACE_ARCHIVE_READER reader;
     COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
     BYTE *data;
     DWORD size;
     int failures = 0;
@@ -602,7 +650,7 @@ static int test_invalid_archive_field(
         return 1;
     }
 
-    if (stage == 2) {
+    if (stage == 2 || stage == 3) {
         if (size < 124U) {
             free(data);
             delete_test_paths(path);
@@ -632,7 +680,48 @@ static int test_invalid_archive_field(
     ZeroMemory(&reader, sizeof(reader));
     ZeroMemory(&event, sizeof(event));
 
-    if (stage == 0) {
+    if (stage == 3) {
+        COMTRACE_ARCHIVE_READER_STATUS status;
+
+        status = comtrace_archive_reader_open_recovery(&reader, path);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery opens archive with invalid footer",
+            &failures
+        );
+
+        if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+            status = comtrace_archive_reader_next(&reader, &event);
+            check_condition(
+                status == COMTRACE_ARCHIVE_READER_SUCCESS,
+                "Recovery reads event before invalid footer",
+                &failures
+            );
+
+            if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+                comtrace_archive_event_destroy(&event);
+
+                status = comtrace_archive_reader_next(&reader, &event);
+                check_condition(
+                    status == COMTRACE_ARCHIVE_READER_END,
+                    "Recovery stops at invalid footer",
+                    &failures
+                );
+
+                info = comtrace_archive_reader_get_recovery_info(&reader);
+                check_condition(
+                    info != NULL &&
+                    info->records_recovered == 1U &&
+                    !info->footer_valid &&
+                    !info->archive_complete &&
+                    info->stop_reason ==
+                        COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID,
+                    name,
+                    &failures
+                );
+            }
+        }
+    } else if (stage == 0) {
         check_condition(
             comtrace_archive_reader_open(&reader, path) ==
                 COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
@@ -684,6 +773,7 @@ static int test_trailing_archive_data(void)
     static const BYTE user_data[] = {0x11U};
     COMTRACE_ARCHIVE_READER reader;
     COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
     BYTE *data;
     BYTE *expanded;
     DWORD size;
@@ -743,6 +833,53 @@ static int test_trailing_archive_data(void)
             comtrace_archive_reader_next(&reader, &event) ==
                 COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
             "Trailing data after footer is rejected",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    if (comtrace_archive_reader_open_recovery(&reader, path) ==
+        COMTRACE_ARCHIVE_READER_SUCCESS) {
+        COMTRACE_ARCHIVE_READER_STATUS status;
+
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery reads event before trailing data",
+            &failures
+        );
+
+        if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+            comtrace_archive_event_destroy(&event);
+
+            status = comtrace_archive_reader_next(&reader, &event);
+            check_condition(
+                status == COMTRACE_ARCHIVE_READER_END,
+                "Recovery stops at trailing data",
+                &failures
+            );
+
+            info = comtrace_archive_reader_get_recovery_info(&reader);
+            check_condition(
+                info != NULL &&
+                info->records_recovered == 1U &&
+                info->footer_valid &&
+                !info->archive_complete &&
+                info->stop_reason ==
+                    COMTRACE_ARCHIVE_RECOVERY_STOP_TRAILING_DATA,
+                "Recovery reports valid footer and trailing data",
+                &failures
+            );
+        }
+    } else {
+        check_condition(
+            0,
+            "Recovery opens archive with trailing data",
             &failures
         );
     }
@@ -841,6 +978,11 @@ static int test_additional_archive_validation(void)
         user_data, sizeof(user_data), NULL, 0U,
         8U, invalid_version, sizeof(invalid_version), 2
     );
+    failures += test_invalid_archive_field(
+        "Recovery reports invalid footer version",
+        user_data, sizeof(user_data), NULL, 0U,
+        8U, invalid_version, sizeof(invalid_version), 3
+    );
 
     failures += test_invalid_archive_field(
         "Invalid footer size is rejected",
@@ -864,6 +1006,601 @@ static int test_additional_archive_validation(void)
 
     return failures;
 }
+static int test_recovery_valid_archive(void)
+{
+    static const BYTE user_data[] = {0x11U, 0x22U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    check_condition(
+        comtrace_archive_reader_open_recovery(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens a valid archive",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery reads a valid event",
+            &failures
+        );
+
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Recovery completes a valid archive",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 1ULL &&
+            info->footer_valid &&
+            info->archive_complete &&
+            info->stop_reason == COMTRACE_ARCHIVE_RECOVERY_STOP_NONE,
+            "Recovery reports complete archive metadata",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_recovery_missing_footer(void)
+{
+    static const BYTE user_data[] = {0x31U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    BYTE *data;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size <= 124U ||
+        !write_file_bytes(path, data, size - 124U)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    check_condition(
+        comtrace_archive_reader_open_recovery(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens an archive without a footer",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery preserves the event before a missing footer",
+            &failures
+        );
+
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Recovery ends cleanly when the footer is missing",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 1ULL &&
+            !info->footer_valid &&
+            !info->archive_complete &&
+            info->stop_reason == COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_MISSING,
+            "Recovery reports the missing footer",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_recovery_invalid_record(void)
+{
+    static const BYTE user_data[] = {0x41U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    BYTE *data;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 25U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    data[24U] = 2U;
+
+    if (!write_file_bytes(path, data, size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    check_condition(
+        comtrace_archive_reader_open_recovery(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens an archive containing an invalid record",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops at an invalid record",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 0ULL &&
+            info->stop_offset == 24ULL &&
+            !info->archive_complete &&
+            info->stop_reason == COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+            "Recovery reports the invalid record offset",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+static int test_recovery_preserves_previous_records(void)
+{
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    BYTE *data;
+    DWORD size;
+    ULONGLONG first_payload_size;
+    size_t second_record_offset;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_two_event_archive(path)) {
+        delete_test_paths(path);
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 72U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    first_payload_size =
+        (ULONGLONG)data[40U] |
+        ((ULONGLONG)data[41U] << 8U) |
+        ((ULONGLONG)data[42U] << 16U) |
+        ((ULONGLONG)data[43U] << 24U) |
+        ((ULONGLONG)data[44U] << 32U) |
+        ((ULONGLONG)data[45U] << 40U) |
+        ((ULONGLONG)data[46U] << 48U) |
+        ((ULONGLONG)data[47U] << 56U);
+
+    if (first_payload_size > (ULONGLONG)((size_t)-1) - 48ULL) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    second_record_offset = 48U + (size_t)first_payload_size;
+
+    if (second_record_offset > (size_t)size ||
+        (size_t)size - second_record_offset < 24U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    data[second_record_offset] = 2U;
+
+    if (!write_file_bytes(path, data, size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    check_condition(
+        comtrace_archive_reader_open_recovery(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens a multi-record archive",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery reads the first valid event",
+            &failures
+        );
+
+        check_condition(
+            event.record.EventHeader.EventDescriptor.Id == 91U,
+            "Recovery preserves the first event data",
+            &failures
+        );
+
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops at the corrupted second record",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 1ULL &&
+            info->stop_offset == (ULONGLONG)second_record_offset &&
+            !info->archive_complete &&
+            info->stop_reason == COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
+            "Recovery reports one recovered record and the second record offset",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+static int test_recovery_truncated_footer(void)
+{
+    static const BYTE user_data[] = {0x51U, 0x52U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    COMTRACE_ARCHIVE_READER_STATUS status;
+    BYTE *data;
+    DWORD size;
+    DWORD truncated_size;
+    int failures = 0;
+    wchar_t path[TEST_PATH_CAPACITY];
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size <= 124U + 12U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    truncated_size = size - 124U + 12U;
+
+    if (!write_file_bytes(path, data, truncated_size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(data);
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    status = comtrace_archive_reader_open_recovery(&reader, path);
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens archive with truncated footer",
+        &failures
+    );
+
+    if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery reads event before truncated footer",
+            &failures
+        );
+
+        if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+            comtrace_archive_event_destroy(&event);
+        }
+
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops at truncated footer",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 1U &&
+            !info->footer_valid &&
+            !info->archive_complete &&
+            info->stop_reason ==
+                COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_TRUNCATED,
+            "Recovery reports truncated footer",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    status = comtrace_archive_reader_open(&reader, path);
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Strict reader opens archive with truncated footer",
+        &failures
+    );
+
+    if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_TRUNCATED,
+            "Strict reader rejects archive before yielding event with truncated footer",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+
+    return failures;
+}
+
+static int test_recovery_truncated_record_header(void)
+{
+    static const BYTE user_data[] = {0x61U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    COMTRACE_ARCHIVE_READER_STATUS status;
+    BYTE *data;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 34U ||
+        !write_file_bytes(path, data, 34U)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    status = comtrace_archive_reader_open_recovery(&reader, path);
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens archive with truncated record header",
+        &failures
+    );
+
+    if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops at truncated record header",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 0ULL &&
+            info->stop_offset == 24ULL &&
+            !info->footer_valid &&
+            !info->archive_complete &&
+            info->stop_reason ==
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_HEADER_TRUNCATED,
+            "Recovery reports truncated record header",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+
+    ZeroMemory(&reader, sizeof(reader));
+
+    status = comtrace_archive_reader_open(&reader, path);
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_TRUNCATED,
+        "Strict reader rejects truncated record header",
+        &failures
+    );
+
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_recovery_truncated_record_payload(void)
+{
+    static const BYTE user_data[] = {0x71U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    COMTRACE_ARCHIVE_READER_STATUS status;
+    BYTE *data;
+    DWORD size;
+    ULONGLONG payload_size;
+    DWORD truncated_size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 49U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    payload_size =
+        (ULONGLONG)data[40U] |
+        ((ULONGLONG)data[41U] << 8U) |
+        ((ULONGLONG)data[42U] << 16U) |
+        ((ULONGLONG)data[43U] << 24U) |
+        ((ULONGLONG)data[44U] << 32U) |
+        ((ULONGLONG)data[45U] << 40U) |
+        ((ULONGLONG)data[46U] << 48U) |
+        ((ULONGLONG)data[47U] << 56U);
+
+    if (payload_size == 0ULL ||
+        payload_size > (ULONGLONG)MAXDWORD - 47ULL ||
+        payload_size > (ULONGLONG)size - 48ULL) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    truncated_size = 48U + (DWORD)payload_size - 1U;
+
+    if (!write_file_bytes(path, data, truncated_size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    status = comtrace_archive_reader_open_recovery(&reader, path);
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens archive with truncated record payload",
+        &failures
+    );
+
+    if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+        status = comtrace_archive_reader_next(&reader, &event);
+        check_condition(
+            status == COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops at truncated record payload",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 0ULL &&
+            info->stop_offset == 24ULL &&
+            !info->footer_valid &&
+            !info->archive_complete &&
+            info->stop_reason ==
+                COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_PAYLOAD_TRUNCATED,
+            "Recovery reports truncated record payload",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+
+    status = comtrace_archive_reader_open(&reader, path);
+    if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
+        status = comtrace_archive_reader_next(&reader, &event);
+    }
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_READER_TRUNCATED,
+        "Strict reader rejects truncated record payload",
+        &failures
+    );
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
 int main(void)
 {
     int failures = 0;
@@ -877,6 +1614,12 @@ int main(void)
     failures += test_footer_record_count_mismatch();
     failures += test_invalid_record_type();
     failures += test_additional_archive_validation();
+    failures += test_recovery_valid_archive();
+    failures += test_recovery_missing_footer();
+    failures += test_recovery_invalid_record();
+    failures += test_recovery_preserves_previous_records();
+    failures += test_recovery_truncated_footer();    failures += test_recovery_truncated_record_header();
+    failures += test_recovery_truncated_record_payload();
 
     if (failures != 0) {
         fprintf(stderr, "%d archive reader test(s) failed\n", failures);
