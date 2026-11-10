@@ -663,7 +663,7 @@ static int test_invalid_archive_field(
         return 1;
     }
 
-    if (stage == 2 || stage == 3) {
+    if (stage >= 2 && stage <= 5) {
         if (size < 124U) {
             free(data);
             delete_test_paths(path);
@@ -693,7 +693,7 @@ static int test_invalid_archive_field(
     ZeroMemory(&reader, sizeof(reader));
     ZeroMemory(&event, sizeof(event));
 
-    if (stage == 3) {
+    if (stage == 3 || stage == 5) {
         COMTRACE_ARCHIVE_READER_STATUS status;
 
         status = comtrace_archive_reader_open_recovery(&reader, path);
@@ -727,8 +727,9 @@ static int test_invalid_archive_field(
                     info->records_recovered == 1U &&
                     !info->footer_valid &&
                     !info->archive_complete &&
-                    info->stop_reason ==
-                        COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID,
+                    info->stop_reason == (stage == 5 ?
+                        COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID :
+                        COMTRACE_ARCHIVE_RECOVERY_STOP_FOOTER_INVALID),
                     name,
                     &failures
                 );
@@ -765,7 +766,8 @@ static int test_invalid_archive_field(
             if (status == COMTRACE_ARCHIVE_READER_SUCCESS) {
                 check_condition(
                     comtrace_archive_reader_next(&reader, &event) ==
-                        COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+                        (stage == 4 ? COMTRACE_ARCHIVE_READER_TRUNCATED :
+                         COMTRACE_ARCHIVE_READER_INVALID_FORMAT),
                     name,
                     &failures
                 );
@@ -919,6 +921,7 @@ static int test_additional_archive_validation(void)
     static const BYTE invalid_user_length[] = {2U, 0U};
     static const BYTE invalid_extended_length[] = {0xFFU, 0xFFU};
     static const BYTE invalid_footer_size[] = {123U, 0U, 0U, 0U};
+    static const BYTE invalid_footer_signature[] = {0x58U, 0x54U, 0x52U, 0x46U, 0x54U, 0x52U, 0x30U, 0x31U};
     static const BYTE invalid_status[] = {1U, 0U, 0U, 0U};
     static const BYTE invalid_completion[] = {0U, 0U, 0U, 0U};
 
@@ -995,6 +998,18 @@ static int test_additional_archive_validation(void)
         "Recovery reports invalid footer version",
         user_data, sizeof(user_data), NULL, 0U,
         8U, invalid_version, sizeof(invalid_version), 3
+    );
+
+    failures += test_invalid_archive_field(
+        "Invalid footer signature is rejected",
+        user_data, sizeof(user_data), NULL, 0U,
+        0U, invalid_footer_signature, sizeof(invalid_footer_signature), 4
+    );
+
+    failures += test_invalid_archive_field(
+        "Recovery reports invalid footer signature",
+        user_data, sizeof(user_data), NULL, 0U,
+        0U, invalid_footer_signature, sizeof(invalid_footer_signature), 5
     );
 
     failures += test_invalid_archive_field(
@@ -1430,6 +1445,58 @@ static int test_recovery_truncated_footer(void)
     return failures;
 }
 
+static int test_strict_truncated_record_header(void)
+{
+    static const BYTE user_data[] = {0x61U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    BYTE *data;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 156U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    ZeroMemory(data + 32U, 8U);
+    if (!write_file_bytes(path, data, 156U)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+    check_condition(
+        comtrace_archive_reader_open(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Strict reader opens archive with truncated record header",
+        &failures
+    );
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_TRUNCATED,
+            "Strict reader rejects truncated record header during iteration",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
 static int test_recovery_truncated_record_header(void)
 {
     static const BYTE user_data[] = {0x61U};
@@ -1631,7 +1698,9 @@ int main(void)
     failures += test_recovery_missing_footer();
     failures += test_recovery_invalid_record();
     failures += test_recovery_preserves_previous_records();
-    failures += test_recovery_truncated_footer();    failures += test_recovery_truncated_record_header();
+    failures += test_recovery_truncated_footer();
+    failures += test_strict_truncated_record_header();
+    failures += test_recovery_truncated_record_header();
     failures += test_recovery_truncated_record_payload();
 
     if (failures != 0) {
