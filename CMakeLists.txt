@@ -161,11 +161,23 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_archive_reader COMMAND ComTraceArchiveReaderTests)
-    foreach(case_name help version no_arguments invalid_arguments missing_input)
+
+    add_executable(ComTraceArchiveTestFixture tests/archive_cli_fixture.c src/archive_writer.c)
+    target_include_directories(ComTraceArchiveTestFixture PRIVATE src)
+    target_link_libraries(ComTraceArchiveTestFixture PRIVATE Advapi32)
+
+    if(MSVC)
+        target_compile_options(ComTraceArchiveTestFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArchiveTestFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    foreach(case_name help version no_arguments invalid_arguments missing_input recover_valid)
         add_test(
             NAME comtrace_archive_cli_${case_name}
             COMMAND "${CMAKE_COMMAND}"
                 "-DCOMTRACE_ARCHIVE_EXE=$<TARGET_FILE:ComTraceArchive>"
+                "-DCOMTRACE_ARCHIVE_FIXTURE_EXE=$<TARGET_FILE:ComTraceArchiveTestFixture>"
                 "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/archive-cli-tests"
                 "-DCASE=${case_name}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/archive_cli_case.cmake"
@@ -207,4 +219,3 @@ if(BUILD_TESTING)
         )
     endforeach()
 endif()
-

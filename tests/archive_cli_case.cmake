@@ -162,6 +162,51 @@ elseif(CASE STREQUAL "inspect_invalid_file")
         message(FATAL_ERROR "Invalid-archive diagnostic is incorrect: ${combined}")
     endif()
 
+elseif(CASE STREQUAL "recover_valid")
+    if(NOT DEFINED COMTRACE_ARCHIVE_FIXTURE_EXE OR NOT EXISTS "${COMTRACE_ARCHIVE_FIXTURE_EXE}")
+        message(FATAL_ERROR "Archive fixture executable is unavailable.")
+    endif()
+
+    set(input "${TEST_DIR}/recover-valid.ctra")
+    file(REMOVE "${input}")
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_FIXTURE_EXE}" "${input}"
+        RESULT_VARIABLE fixture_result
+        OUTPUT_VARIABLE fixture_output
+        ERROR_VARIABLE fixture_error
+        TIMEOUT 30
+    )
+
+    if(NOT "${fixture_result}" STREQUAL "0")
+        message(FATAL_ERROR "Archive fixture creation failed: ${fixture_output}${fixture_error}")
+    endif()
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_EXE}" --recover "${input}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+        TIMEOUT 30
+    )
+
+    string(CONCAT combined "${output}" "${error}")
+
+    if(NOT "${result}" STREQUAL "0")
+        message(FATAL_ERROR "Archive recovery failed: ${combined}")
+    endif()
+
+    if(NOT combined MATCHES "Records recovered: 1")
+        message(FATAL_ERROR "Recovered record count is incorrect: ${combined}")
+    endif()
+
+    if(NOT combined MATCHES "Stop offset: [0-9]+")
+        message(FATAL_ERROR "Recovery stop offset is missing: ${combined}")
+    endif()
+
+    if(NOT combined MATCHES "Stop reason: none")
+        message(FATAL_ERROR "Recovery stop reason is incorrect: ${combined}")
+    endif()
 else()
     message(FATAL_ERROR "Unknown archive CLI test case: ${CASE}")
 endif()
