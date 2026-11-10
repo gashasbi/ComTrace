@@ -389,6 +389,7 @@ static int test_invalid_header_signature(void)
     COMTRACE_ARCHIVE_READER reader;
     BYTE *data;
     DWORD size;
+    HANDLE file;
     wchar_t path[TEST_PATH_CAPACITY];
     int failures = 0;
 
@@ -417,6 +418,18 @@ static int test_invalid_header_signature(void)
         comtrace_archive_reader_open(&reader, path) ==
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
         "Invalid archive signature is rejected", &failures);
+    file = CreateFileW(
+        path,
+        GENERIC_READ | GENERIC_WRITE,
+        0U,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL);
+    check_condition(file != INVALID_HANDLE_VALUE, "Reader releases file handle after open failure", &failures);
+    if (file != INVALID_HANDLE_VALUE) {
+        CloseHandle(file);
+    }
 
     comtrace_archive_reader_close(&reader);
     delete_test_paths(path);
