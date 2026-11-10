@@ -146,6 +146,21 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_archive_writer COMMAND ComTraceArchiveWriterTests)
 
+    add_executable(ComTraceArchiveEtlTests
+        tests/test_archive_etl.c
+        src/etl_archive.c
+        src/archive_writer.c
+        src/archive_reader.c
+    )
+    target_include_directories(ComTraceArchiveEtlTests PRIVATE src)
+    target_link_libraries(ComTraceArchiveEtlTests PRIVATE Advapi32)
+    if(MSVC)
+        target_compile_options(ComTraceArchiveEtlTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArchiveEtlTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_archive_etl COMMAND ComTraceArchiveEtlTests)
+
     add_executable(ComTraceArchiveReaderTests
         tests/test_archive_reader.c
         src/archive_reader.c
