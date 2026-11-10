@@ -136,6 +136,7 @@ if(BUILD_TESTING)
     )
 
     target_include_directories(ComTraceArchiveWriterTests PRIVATE src)
+    target_compile_definitions(ComTraceArchiveWriterTests PRIVATE COMTRACE_ARCHIVE_WRITER_TESTING)
 
     if(MSVC)
         target_compile_options(ComTraceArchiveWriterTests PRIVATE /W4 /WX /wd5105 /utf-8)

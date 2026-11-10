@@ -1,5 +1,9 @@
 #include "archive_writer.h"
 
+void comtrace_archive_writer_test_fail_allocation_on_call(LONG call_index);
+void comtrace_archive_writer_test_fail_write(BOOL enabled);
+void comtrace_archive_writer_test_fail_flush(BOOL enabled);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -738,11 +742,275 @@ static int test_unopened_writer_rejects_operations(void)
 
     return failures;
 }
+static int test_write_failure(void)
+{
+    EVENT_RECORD event_record;
+    COMTRACE_ARCHIVE_WRITER writer;
+    COMTRACE_ARCHIVE_STATUS status;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    memset(&event_record, 0, sizeof(event_record));
+    memset(&writer, 0, sizeof(writer));
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY)) {
+        return 1;
+    }
+
+    status = comtrace_archive_writer_open(&writer, path);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_SUCCESS,
+        "Writer opens before injected write failure",
+        &failures
+    );
+
+    if (status != COMTRACE_ARCHIVE_SUCCESS) {
+        comtrace_archive_writer_destroy(&writer);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+
+    comtrace_archive_writer_test_fail_write(TRUE);
+    status = comtrace_archive_writer_write_event(&writer, &event_record);
+    comtrace_archive_writer_test_fail_write(FALSE);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_WRITE_FAILED,
+        "Write failure is reported",
+        &failures
+    );
+
+    check_condition(
+        writer.win32_error == ERROR_WRITE_FAULT,
+        "Write failure preserves the Windows error",
+        &failures
+    );
+
+    check_condition(
+        writer.records_written == 0ULL,
+        "Failed event is not counted",
+        &failures
+    );
+
+    comtrace_archive_writer_destroy(&writer);
+    delete_test_paths(path);
+
+    return failures;
+}
+static int test_flush_failure(void)
+{
+    COMTRACE_ARCHIVE_WRITER writer;
+    COMTRACE_ARCHIVE_SUMMARY summary;
+    COMTRACE_ARCHIVE_STATUS status;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    memset(&writer, 0, sizeof(writer));
+    memset(&summary, 0, sizeof(summary));
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY)) {
+        return 1;
+    }
+
+    status = comtrace_archive_writer_open(&writer, path);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_SUCCESS,
+        "Writer opens before injected flush failure",
+        &failures
+    );
+
+    if (status != COMTRACE_ARCHIVE_SUCCESS) {
+        comtrace_archive_writer_destroy(&writer);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+
+    comtrace_archive_writer_test_fail_flush(TRUE);
+    status = comtrace_archive_writer_finalize(&writer, &summary);
+    comtrace_archive_writer_test_fail_flush(FALSE);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_FINALIZE_FAILED,
+        "Flush failure is reported",
+        &failures
+    );
+
+    check_condition(
+        writer.win32_error == ERROR_WRITE_FAULT,
+        "Flush failure preserves the Windows error",
+        &failures
+    );
+
+    check_condition(
+        writer.file != INVALID_HANDLE_VALUE,
+        "File remains open after flush failure",
+        &failures
+    );
+
+    comtrace_archive_writer_destroy(&writer);
+    delete_test_paths(path);
+
+    return failures;
+}
+static int test_move_failure(void)
+{
+    COMTRACE_ARCHIVE_WRITER writer;
+    COMTRACE_ARCHIVE_SUMMARY summary;
+    COMTRACE_ARCHIVE_STATUS status;
+    HANDLE destination;
+    wchar_t path[TEST_PATH_CAPACITY];
+    wchar_t partial[TEST_PATH_CAPACITY];
+    DWORD error;
+    int written;
+    int failures = 0;
+
+    memset(&writer, 0, sizeof(writer));
+    memset(&summary, 0, sizeof(summary));
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY)) {
+        return 1;
+    }
+
+    status = comtrace_archive_writer_open(&writer, path);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_SUCCESS,
+        "Writer opens before destination collision",
+        &failures
+    );
+
+    if (status != COMTRACE_ARCHIVE_SUCCESS) {
+        comtrace_archive_writer_destroy(&writer);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+
+    destination = CreateFileW(
+        path,
+        GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    check_condition(
+        destination != INVALID_HANDLE_VALUE,
+        "Destination collision file is created",
+        &failures
+    );
+
+    if (destination == INVALID_HANDLE_VALUE) {
+        comtrace_archive_writer_destroy(&writer);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+
+    (void)CloseHandle(destination);
+
+    status = comtrace_archive_writer_finalize(&writer, &summary);
+    error = writer.win32_error;
+
+    written = swprintf_s(
+        partial,
+        TEST_PATH_CAPACITY,
+        L"%ls.partial",
+        path
+    );
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_FINALIZE_FAILED,
+        "Move failure is reported",
+        &failures
+    );
+
+    check_condition(
+        error != ERROR_SUCCESS,
+        "Move failure preserves the Windows error",
+        &failures
+    );
+
+    check_condition(
+        writer.file == INVALID_HANDLE_VALUE,
+        "File handle is closed after move failure",
+        &failures
+    );
+
+    check_condition(
+        written > 0 && GetFileAttributesW(partial) != INVALID_FILE_ATTRIBUTES,
+        "Partial archive remains after move failure",
+        &failures
+    );
+
+    check_condition(
+        GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES,
+        "Existing destination remains after move failure",
+        &failures
+    );
+
+    comtrace_archive_writer_destroy(&writer);
+    delete_test_paths(path);
+
+    return failures;
+}
+static int test_allocation_failure(LONG call_index)
+{
+    COMTRACE_ARCHIVE_WRITER writer;
+    COMTRACE_ARCHIVE_STATUS status;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    memset(&writer, 0, sizeof(writer));
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY)) {
+        return 1;
+    }
+
+    comtrace_archive_writer_test_fail_allocation_on_call(call_index);
+    status = comtrace_archive_writer_open(&writer, path);
+
+    check_condition(
+        status == COMTRACE_ARCHIVE_ALLOCATION_FAILED,
+        "Allocation failure is reported",
+        &failures
+    );
+
+    check_condition(
+        (call_index == 0 && writer.final_path == NULL &&
+            writer.partial_path != NULL) ||
+        (call_index == 1 && writer.final_path != NULL &&
+            writer.partial_path == NULL),
+        "Successful allocation is retained until destroy",
+        &failures
+    );
+
+    comtrace_archive_writer_test_fail_allocation_on_call(-1);
+    comtrace_archive_writer_destroy(&writer);
+
+    check_condition(
+        writer.final_path == NULL &&
+        writer.partial_path == NULL &&
+        writer.file == INVALID_HANDLE_VALUE,
+        "Destroy releases resources after allocation failure",
+        &failures
+    );
+
+    delete_test_paths(path);
+    return failures;
+}
 int main(void)
 {
     int failures = 0;
 
     failures += test_archive_round_trip();
+    failures += test_write_failure();
+    failures += test_flush_failure();
+    failures += test_move_failure();
+    failures += test_allocation_failure(0);
+    failures += test_allocation_failure(1);
     failures += test_existing_output_is_not_overwritten();
     failures += test_incomplete_archive_is_kept_as_partial();
     failures += test_invalid_event_is_rejected();

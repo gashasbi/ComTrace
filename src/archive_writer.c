@@ -12,6 +12,69 @@
 #define ARCHIVE_EVENT_METADATA_SIZE 88U
 #define ARCHIVE_FOOTER_SIZE 124U
 #define ARCHIVE_RECORD_TYPE_EVENT 1U
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+static LONG test_allocation_failure_call = -1;
+static LONG test_allocation_call_count;
+
+void comtrace_archive_writer_test_fail_allocation_on_call(LONG call_index)
+{
+    test_allocation_failure_call = call_index;
+    test_allocation_call_count = 0;
+}
+#endif
+
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+static LONG test_write_failure;
+void comtrace_archive_writer_test_fail_write(BOOL enabled)
+{
+    test_write_failure = enabled ? 1 : 0;
+}
+#endif
+
+static BOOL archive_write_file(
+    HANDLE file,
+    LPCVOID data,
+    DWORD size,
+    LPDWORD written,
+    LPOVERLAPPED overlapped
+)
+{
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+    if (test_write_failure != 0) {
+        SetLastError(ERROR_WRITE_FAULT);
+        return FALSE;
+    }
+#endif
+    return WriteFile(file, data, size, written, overlapped);
+}
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+static LONG test_flush_failure;
+
+void comtrace_archive_writer_test_fail_flush(BOOL enabled)
+{
+    test_flush_failure = enabled ? 1 : 0;
+}
+#endif
+
+static BOOL archive_flush_file_buffers(HANDLE file)
+{
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+    if (test_flush_failure != 0) {
+        SetLastError(ERROR_WRITE_FAULT);
+        return FALSE;
+    }
+#endif
+    return FlushFileBuffers(file);
+}
+static void *archive_allocate(size_t size)
+{
+#ifdef COMTRACE_ARCHIVE_WRITER_TESTING
+    if (test_allocation_call_count++ == test_allocation_failure_call) {
+        return NULL;
+    }
+#endif
+    return malloc(size);
+}
 
 _Static_assert(
     offsetof(EVENT_HEADER_EXTENDED_DATA_ITEM, DataPtr) == 8U,
@@ -63,7 +126,7 @@ static COMTRACE_ARCHIVE_STATUS write_bytes(
             : (DWORD)size;
         DWORD written = 0U;
 
-        if (!WriteFile(
+        if (!archive_write_file(
                 writer->file,
                 data,
                 requested,
@@ -282,11 +345,11 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_open(
         );
     }
 
-    writer->final_path = (wchar_t *)malloc(
+    writer->final_path = (wchar_t *)archive_allocate(
         (path_length + 1U) * sizeof(wchar_t)
     );
 
-    writer->partial_path = (wchar_t *)malloc(
+    writer->partial_path = (wchar_t *)archive_allocate(
         (path_length + 9U) * sizeof(wchar_t)
     );
 
@@ -617,7 +680,7 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
 
     status = write_u64(writer, summary->perf_frequency);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
-    if (!FlushFileBuffers(writer->file)) {
+    if (!archive_flush_file_buffers(writer->file)) {
         return set_failure(
             writer,
             COMTRACE_ARCHIVE_FINALIZE_FAILED,
