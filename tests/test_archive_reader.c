@@ -1309,7 +1309,11 @@ static int test_recovery_preserves_previous_records(void)
         );
 
         check_condition(
-            event.record.EventHeader.EventDescriptor.Id == 91U,
+            event.record.EventHeader.EventDescriptor.Id == 91U &&
+            event.record.EventHeader.ThreadId == 42U &&
+            event.record.EventHeader.ProcessId == 24U &&
+            event.record.EventHeader.TimeStamp.QuadPart == 123456789LL &&
+            event.record.EventHeader.EventDescriptor.Opcode == 3U,
             "Recovery preserves the first event data",
             &failures
         );
