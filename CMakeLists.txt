@@ -235,3 +235,16 @@ if(BUILD_TESTING)
         )
     endforeach()
 endif()
+
+install(TARGETS ComTrace ComTraceArchive
+    RUNTIME DESTINATION .
+ )
+install(FILES README.md LICENSE DESTINATION .)
+
+set(CPACK_PACKAGE_NAME "ComTrace")
+set(CPACK_PACKAGE_VENDOR "ComTrace")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows ETW COM/OLE trace tools")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_FILE_NAME "ComTrace-${PROJECT_VERSION}-windows-x64")
+set(CPACK_GENERATOR "ZIP")
+include(CPack)
