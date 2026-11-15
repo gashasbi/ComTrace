@@ -138,8 +138,10 @@ static void print_event_property_value(
     case TDH_INTYPE_UNICODESTRING:
     case TDH_INTYPE_ANSISTRING:
     case TDH_INTYPE_INT8:
+    case TDH_INTYPE_ANSICHAR:
     case TDH_INTYPE_UINT8:
     case TDH_INTYPE_INT16:
+    case TDH_INTYPE_UNICODECHAR:
     case TDH_INTYPE_UINT16:
     case TDH_INTYPE_INT32:
     case TDH_INTYPE_UINT32:
@@ -152,6 +154,7 @@ static void print_event_property_value(
     case TDH_INTYPE_GUID:
     case TDH_INTYPE_POINTER:
     case TDH_INTYPE_FILETIME:
+    case TDH_INTYPE_SYSTEMTIME:
     case TDH_INTYPE_HEXINT32:
     case TDH_INTYPE_HEXINT64:
     case TDH_INTYPE_SIZET:
@@ -382,6 +385,7 @@ static void print_event_property_value(
         return;
     }
 
+    case TDH_INTYPE_ANSICHAR:
     case TDH_INTYPE_UINT8: {
         BYTE number;
         if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) {
@@ -404,6 +408,7 @@ static void print_event_property_value(
         return;
     }
 
+    case TDH_INTYPE_UNICODECHAR:
     case TDH_INTYPE_UINT16: {
         USHORT number;
         if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) {
@@ -547,6 +552,16 @@ static void print_event_property_value(
             wprintf(L"value=0x%llx\n", number);
             return;
         }
+
+    case TDH_INTYPE_SYSTEMTIME: {
+        ComTraceSystemTime system_time;
+        if (!comtrace_decode_systemtime(value, value_size, &system_time)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            return;
+        }
+        wprintf(L"value=%04u-%02u-%02uT%02u:%02u:%02u.%03u\n", system_time.year, system_time.month, system_time.day, system_time.hour, system_time.minute, system_time.second, system_time.milliseconds);
+        return;
+    }
 
     case TDH_INTYPE_FILETIME:
         if (!comtrace_value_size_is_valid(

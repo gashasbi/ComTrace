@@ -1,4 +1,4 @@
-﻿#include "etl_value.h"
+#include "etl_value.h"
 
 #include <stdio.h>
 
@@ -72,6 +72,8 @@ int main(void)
         {"SIZET rejects 4 bytes in 8-byte trace", COMTRACE_VALUE_SIZET, 4U, 8U, 0},
         {"SIZET rejects zero pointer size", COMTRACE_VALUE_SIZET, 0U, 0U, 0},
         {"POINTER rejects zero pointer size", COMTRACE_VALUE_POINTER, 0U, 0U, 0},
+        {"SYSTEMTIME accepts sixteen bytes", COMTRACE_VALUE_SYSTEMTIME, 16U, 0U, 1},
+        {"SYSTEMTIME rejects eight bytes", COMTRACE_VALUE_SYSTEMTIME, 8U, 0U, 0},
         {"Unknown value kind is rejected", (ComTraceValueSizeKind)999, 4U, 0U, 0}
     };
 
@@ -84,6 +86,8 @@ int main(void)
     static const unsigned char unicode_long[] = {
         'a', 0U, 'b', 0U, 'c', 0U, 'd', 0U
     };
+    static const unsigned char systemtime_bytes[] = {0xEA,0x07,0x0B,0,0,0,0x0F,0,0x16,0,0x2D,0,0x1E,0,0x7B,0};
+    ComTraceSystemTime decoded_time;
     size_t content_size;
     size_t displayed_size;
     int terminated;
@@ -92,6 +96,16 @@ int main(void)
 
     for (index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
         failures += run_size_case(&cases[index]);
+    }
+
+    if (!comtrace_decode_systemtime(systemtime_bytes, sizeof(systemtime_bytes), &decoded_time) || decoded_time.year != 2026U || decoded_time.month != 11U || decoded_time.day_of_week != 0U || decoded_time.day != 15U || decoded_time.hour != 22U || decoded_time.minute != 45U || decoded_time.second != 30U || decoded_time.milliseconds != 123U) {
+        fprintf(stderr, "FAIL: SYSTEMTIME fields are decoded correctly");
+        ++failures;
+    }
+
+    if (comtrace_decode_systemtime(systemtime_bytes, 8U, &decoded_time) || comtrace_decode_systemtime(NULL, sizeof(systemtime_bytes), &decoded_time) || comtrace_decode_systemtime(systemtime_bytes, sizeof(systemtime_bytes), NULL)) {
+        fprintf(stderr, "FAIL: SYSTEMTIME rejects invalid input");
+        ++failures;
     }
 
     if (!comtrace_scan_string(

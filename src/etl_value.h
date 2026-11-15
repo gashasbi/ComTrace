@@ -2,6 +2,17 @@
 #define COMTRACE_ETL_VALUE_H
 
 #include <stddef.h>
+#include <stdint.h>
+typedef struct {
+    uint16_t year;
+    uint16_t month;
+    uint16_t day_of_week;
+    uint16_t day;
+    uint16_t hour;
+    uint16_t minute;
+    uint16_t second;
+    uint16_t milliseconds;
+} ComTraceSystemTime;
 
 int comtrace_scan_string(
     const unsigned char *value,
@@ -30,7 +41,8 @@ typedef enum {
     COMTRACE_VALUE_HEXINT32,
     COMTRACE_VALUE_HEXINT64,
     COMTRACE_VALUE_POINTER,
-    COMTRACE_VALUE_SIZET
+    COMTRACE_VALUE_SIZET,
+    COMTRACE_VALUE_SYSTEMTIME
 } ComTraceValueSizeKind;
 
 int comtrace_value_size_is_valid(
@@ -38,5 +50,7 @@ int comtrace_value_size_is_valid(
     size_t value_size,
     size_t pointer_size
 );
+
+int comtrace_decode_systemtime(const unsigned char *value, size_t value_size, ComTraceSystemTime *system_time);
 
 #endif

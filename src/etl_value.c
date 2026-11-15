@@ -68,6 +68,7 @@ int comtrace_value_size_is_valid(
     case COMTRACE_VALUE_HEXINT64:
         return value_size == 8U;
     case COMTRACE_VALUE_GUID:
+    case COMTRACE_VALUE_SYSTEMTIME:
         return value_size == 16U;
     case COMTRACE_VALUE_POINTER:
     case COMTRACE_VALUE_SIZET:
@@ -75,4 +76,31 @@ int comtrace_value_size_is_valid(
     default:
         return 0;
     }
+}
+
+static uint16_t read_uint16_le(const unsigned char *value)
+{
+    return (uint16_t)((uint16_t)value[0] | ((uint16_t)value[1] << 8U));
+}
+
+int comtrace_decode_systemtime(const unsigned char *value, size_t value_size, ComTraceSystemTime *system_time)
+{
+    ComTraceSystemTime decoded;
+
+    if (value == NULL || system_time == NULL ||
+        !comtrace_value_size_is_valid(COMTRACE_VALUE_SYSTEMTIME, value_size, 0U)) {
+        return 0;
+    }
+
+    decoded.year = read_uint16_le(value);
+    decoded.month = read_uint16_le(value + 2U);
+    decoded.day_of_week = read_uint16_le(value + 4U);
+    decoded.day = read_uint16_le(value + 6U);
+    decoded.hour = read_uint16_le(value + 8U);
+    decoded.minute = read_uint16_le(value + 10U);
+    decoded.second = read_uint16_le(value + 12U);
+    decoded.milliseconds = read_uint16_le(value + 14U);
+
+    *system_time = decoded;
+    return 1;
 }
