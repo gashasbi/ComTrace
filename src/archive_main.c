@@ -65,7 +65,7 @@ static int inspect_archive(const wchar_t *path)
         comtrace_archive_event_destroy(&event);
     }
 
-    wprintf(L"ComTraceArchive 0.1.0\n");
+    wprintf(L"ComTraceArchive 0.2.0\n");
     wprintf(L"Archive: %ls\n\n", path);
     wprintf(L"Archive validation: PASS\n");
     wprintf(L"Events read: %llu\n", (unsigned long long)events_read);
@@ -157,7 +157,7 @@ static int recover_archive(const wchar_t *path)
         return EXIT_FAILURE;
     }
 
-    wprintf(L"ComTraceArchive 0.1.0\n");
+    wprintf(L"ComTraceArchive 0.2.0\n");
     wprintf(L"Archive: %ls\n\n", path);
     wprintf(
         L"Records recovered: %llu\n",
@@ -183,7 +183,7 @@ int wmain(int argc, wchar_t **argv)
     }
 
     if (argc == 2 && wcscmp(argv[1], L"--version") == 0) {
-        wprintf(L"ComTraceArchive 0.1.0\n");
+        wprintf(L"ComTraceArchive 0.2.0\n");
         return EXIT_SUCCESS;
     }
 

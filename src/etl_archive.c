@@ -204,7 +204,7 @@ int comtrace_archive_etl(
     context.writer = &writer;
     context.write_status = COMTRACE_ARCHIVE_SUCCESS;
 
-    wprintf(L"ComTraceArchive 0.1.0\n");
+    wprintf(L"ComTraceArchive 0.2.0\n");
     wprintf(L"Input: %ls\n", etl_path);
     wprintf(L"Output: %ls\n\n", archive_path);
 

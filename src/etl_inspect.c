@@ -873,7 +873,7 @@ int comtrace_inspect_etl(
         return EXIT_FAILURE;
     }
 
-    wprintf(L"ComTrace 0.1.0\n");
+    wprintf(L"ComTrace 0.2.0\n");
     wprintf(L"ETL inspection\n");
     wprintf(L"Input: %ls\n", etl_path);
     wprintf(L"Sample limit: %lu\n\n", (unsigned long)context.sample_limit);

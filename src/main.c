@@ -7,7 +7,7 @@
 #include "etw_capture.h"
 #include "etl_inspect.h"
 
-#define COMTRACE_VERSION "0.1.0"
+#define COMTRACE_VERSION "0.2.0"
 #define ARRAY_COUNT(values) (sizeof(values) / sizeof((values)[0]))
 
 typedef struct {

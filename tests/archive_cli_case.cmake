@@ -46,7 +46,7 @@ elseif(CASE STREQUAL "version")
         message(FATAL_ERROR "Version command failed: ${combined}")
     endif()
 
-    if(NOT combined MATCHES "ComTraceArchive 0[.]1[.]0")
+    if(NOT combined MATCHES "ComTraceArchive 0[.]2[.]0")
         message(FATAL_ERROR "Version output is incorrect: ${combined}")
     endif()
 

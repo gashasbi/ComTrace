@@ -393,7 +393,7 @@ int comtrace_capture_com_perf(
 
     handler_registered = TRUE;
 
-    wprintf(L"ComTrace 0.1.0\n");
+    wprintf(L"ComTrace 0.2.0\n");
     wprintf(L"ETW capture started.\n");
     wprintf(L"Provider: Microsoft-Windows-COM-Perf\n");
     wprintf(L"Provider: Microsoft-Windows-OLE-Perf\n");

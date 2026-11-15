@@ -2,7 +2,7 @@
 
 cmake_policy(SET CMP0091 NEW)
 
-project(ComTrace VERSION 0.1.0 LANGUAGES C)
+project(ComTrace VERSION 0.2.0 LANGUAGES C)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
