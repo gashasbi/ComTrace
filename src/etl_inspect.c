@@ -22,6 +22,7 @@ typedef struct {
     ULONGLONG total_events;
     ULONGLONG processing_failures;
     ULONG sample_limit;
+    ULONG pointer_size;
     ULONG sampled_events;
     COMTRACE_EVENT_CATALOG event_catalog;
     COMTRACE_EVENT_RECORD_STATUS record_status;
@@ -108,7 +109,8 @@ static void print_event_property_value(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
-    ULONG index)
+    ULONG index,
+    ULONG pointer_size)
 {
     PROPERTY_DATA_DESCRIPTOR descriptor;
     BYTE value[4096];
@@ -536,13 +538,13 @@ static void print_event_property_value(
                     ? COMTRACE_VALUE_POINTER
                     : COMTRACE_VALUE_SIZET,
                 value_size,
-                sizeof(ULONG_PTR))) {
+                pointer_size)) {
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             return;
         } else {
-            ULONG_PTR number = 0U;
-            CopyMemory(&number, value, sizeof(number));
-            wprintf(L"value=0x%llx\n", (unsigned long long)number);
+            ULONGLONG number = 0U;
+            CopyMemory(&number, value, value_size);
+            wprintf(L"value=0x%llx\n", number);
             return;
         }
 
@@ -586,7 +588,7 @@ static void print_event_property_value(
     }
 }
 
-static void print_event_properties(const EVENT_RECORD *event_record)
+static void print_event_properties(const EVENT_RECORD *event_record, ULONG pointer_size)
 {
     ULONG buffer_size = 0U;
     ULONG allocated_size;
@@ -693,7 +695,7 @@ static void print_event_properties(const EVENT_RECORD *event_record)
             );
         }
         if (index < 8U) {
-            print_event_property_value(event_record, property, name, index);
+            print_event_property_value(event_record, property, name, index, pointer_size);
         } else if (index == 8U) {
             wprintf(L"  payload_value_limit=8 remaining=%lu\n" , (unsigned long)(property_count - 8U));
         }
@@ -804,7 +806,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     print_com_event_classification(owned_event);
     print_ole_event_classification(owned_event);
-    print_event_properties(owned_event);
+    print_event_properties(owned_event, context->pointer_size);
 
     comtrace_event_record_destroy(owned_record);
 }
@@ -870,6 +872,13 @@ int comtrace_inspect_etl(
             L"OpenTraceW failed with Win32 error %lu.\n",
             (unsigned long)GetLastError()
         );
+        return EXIT_FAILURE;
+    }
+
+    context.pointer_size = logfile.LogfileHeader.PointerSize;
+    if (context.pointer_size != 4U && context.pointer_size != 8U) {
+        fwprintf(stderr, L"Unsupported trace pointer size: %lu.\n", (unsigned long)context.pointer_size);
+        CloseTrace(trace_handle);
         return EXIT_FAILURE;
     }
 
