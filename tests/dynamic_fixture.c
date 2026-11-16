@@ -30,6 +30,9 @@ int wmain(int argc, wchar_t **argv)
     int hex_values[2] = { 44, 55 };
     unsigned short text_length = 6U;
     wchar_t text[] = L"Hello";
+    unsigned char fixed_data[4] = { 0x11, 0x22, 0x33, 0x44 };
+    wchar_t fixed_text[] = L"Fixed";
+    unsigned char large_data[5000];
     int registered = 0;
     int result = 1;
 
@@ -98,7 +101,9 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, hex_count, hex_values);
+    memset(large_data, 0xAB, sizeof(large_data));
+
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
