@@ -242,6 +242,42 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/array_cli_case.cmake"
     )
     set_tests_properties(comtrace_inspect_fixed_array PROPERTIES RUN_SERIAL TRUE)
+    add_executable(ComTraceStructFixture tests/struct_fixture.c)
+    target_link_libraries(ComTraceStructFixture PRIVATE Advapi32)
+    set(COMTRACE_STRUCT_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/struct-fixture/$<CONFIG>")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tests/struct_fixture.man" COMTRACE_STRUCT_MANIFEST_CONTENT)
+    string(REPLACE "COMTRACE_STRUCT_FIXTURE_PATH" "$<TARGET_FILE:ComTraceStructFixture>" COMTRACE_STRUCT_MANIFEST_CONTENT "${COMTRACE_STRUCT_MANIFEST_CONTENT}")
+    file(GENERATE OUTPUT "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.man" CONTENT "${COMTRACE_STRUCT_MANIFEST_CONTENT}")
+    set(COMTRACE_STRUCT_GENERATED_FILES
+        "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.h"
+        "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.rc"
+        "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixtureTEMP.BIN"
+        "${COMTRACE_STRUCT_FIXTURE_DIR}/MSG00001.bin"
+    )
+    add_custom_command(
+        OUTPUT ${COMTRACE_STRUCT_GENERATED_FILES}
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${COMTRACE_STRUCT_FIXTURE_DIR}"
+        COMMAND "${COMTRACE_MC_EXECUTABLE}" -um -h "${COMTRACE_STRUCT_FIXTURE_DIR}" -r "${COMTRACE_STRUCT_FIXTURE_DIR}" "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.man"
+        DEPENDS "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.man" "${CMAKE_CURRENT_SOURCE_DIR}/tests/struct_fixture.man"
+        VERBATIM
+    )
+    target_sources(ComTraceStructFixture PRIVATE "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.rc" "${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.h")
+    target_include_directories(ComTraceStructFixture PRIVATE "${COMTRACE_STRUCT_FIXTURE_DIR}")
+    if(MSVC)
+        target_compile_options(ComTraceStructFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceStructFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(
+        NAME comtrace_inspect_struct
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceStructFixture>"
+            "-DMANIFEST_FILE=${COMTRACE_STRUCT_FIXTURE_DIR}/struct_fixture.man"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/struct-cli-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/struct_cli_case.cmake"
+    )
+    set_tests_properties(comtrace_inspect_struct PROPERTIES RUN_SERIAL TRUE)
     add_executable(ComTraceDynamicFixture tests/dynamic_fixture.c)
     target_link_libraries(ComTraceDynamicFixture PRIVATE Advapi32)
     set(COMTRACE_DYNAMIC_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/dynamic-fixture/$<CONFIG>")

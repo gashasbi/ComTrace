@@ -195,11 +195,13 @@ static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
+    const wchar_t *parent_name,
     ULONG index,
     ULONG array_index,
     ULONG pointer_size)
 {
-    PROPERTY_DATA_DESCRIPTOR descriptor;
+    PROPERTY_DATA_DESCRIPTOR descriptors[2];
+    ULONG descriptor_count = 1U;
     BYTE value[4096];
     ULONG value_size = 0U;
     ULONG status;
@@ -207,7 +209,13 @@ static void print_event_property_value_element(
     USHORT in_type = property->nonStructType.InType;
     wchar_t display_name[256];
 
-    if (array_index == 0xFFFFFFFFUL) {
+    if (parent_name != NULL) {
+        if (array_index == 0xFFFFFFFFUL) {
+            _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls.%ls", parent_name, name);
+        } else {
+            _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls.%ls[%lu]", parent_name, name, (unsigned long)array_index);
+        }
+    } else if (array_index == 0xFFFFFFFFUL) {
         wcsncpy_s(display_name, _countof(display_name), name, _TRUNCATE);
     } else {
         _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls[%lu]", name, (unsigned long)array_index);
@@ -260,16 +268,24 @@ static void print_event_property_value_element(
         return;
     }
 
-    ZeroMemory(&descriptor, sizeof(descriptor));
-    descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)name;
-    descriptor.ArrayIndex = array_index;
+    ZeroMemory(descriptors, sizeof(descriptors));
+    if (parent_name == NULL) {
+        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)name;
+        descriptors[0].ArrayIndex = array_index;
+    } else {
+        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)parent_name;
+        descriptors[0].ArrayIndex = 0U;
+        descriptors[1].PropertyName = (ULONGLONG)(ULONG_PTR)name;
+        descriptors[1].ArrayIndex = array_index;
+        descriptor_count = 2U;
+    }
 
     status = TdhGetPropertySize(
         (PEVENT_RECORD)event_record,
         0U,
         NULL,
-        1U,
-        &descriptor,
+        descriptor_count,
+        descriptors,
         &value_size
     );
 
@@ -307,8 +323,8 @@ static void print_event_property_value_element(
         (PEVENT_RECORD)event_record,
         0U,
         NULL,
-        1U,
-        &descriptor,
+        descriptor_count,
+        descriptors,
         value_size,
         value
     );
@@ -701,10 +717,55 @@ static void print_event_property_value(
     ULONG pointer_size,
     const EVENT_PROPERTY_INFO *properties,
     ULONG property_count,
+    const BYTE *buffer,
     ULONG buffer_size)
 {
     ULONG flags = (ULONG)property->Flags;
     ULONG element_index;
+
+    if ((flags & PropertyStruct) != 0U) {
+        ULONG member_start = property->structType.StructStartIndex;
+        ULONG member_count = property->structType.NumOfStructMembers;
+        ULONG member_index;
+
+        if (member_start > property_count || member_count > property_count - member_start) {
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_struct_members\n", (unsigned long)index, name);
+            return;
+        }
+
+        for (member_index = member_start; member_index < member_start + member_count; ++member_index) {
+            const EVENT_PROPERTY_INFO *member = &properties[member_index];
+            ULONG name_offset = member->NameOffset;
+            ULONG remaining;
+            ULONG name_length = 0U;
+            const wchar_t *member_name;
+
+            if (name_offset >= buffer_size || (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+                wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_member_name\n", (unsigned long)index, name);
+                continue;
+            }
+
+            member_name = (const wchar_t *)(buffer + name_offset);
+            remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+            while (name_length < remaining && member_name[name_length] != L'\0') {
+                ++name_length;
+            }
+            if (name_length == remaining) {
+                wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=unterminated_member_name\n", (unsigned long)index, name);
+                continue;
+            }
+
+            if ((member->Flags & PropertyStruct) != 0U) {
+                wprintf(L"  property_value[%lu] name=%ls.%ls status=skipped reason=nested_struct\n", (unsigned long)index, name, member_name);
+                continue;
+            }
+
+            print_event_property_value_element(
+                event_record, member, member_name, name, index, 0xFFFFFFFFUL, pointer_size
+            );
+        }
+        return;
+    }
 
     if ((flags & PropertyParamCount) != 0U) {
         ULONG count;
@@ -717,7 +778,7 @@ static void print_event_property_value(
 
         for (element_index = 0U; element_index < count; ++element_index) {
             print_event_property_value_element(
-                event_record, property, name, index, element_index, pointer_size
+                event_record, property, name, NULL, index, element_index, pointer_size
             );
         }
         return;
@@ -727,14 +788,14 @@ static void print_event_property_value(
         (flags & PropertyParamCount) == 0U) {
         for (element_index = 0U; element_index < (ULONG)property->count; ++element_index) {
             print_event_property_value_element(
-                event_record, property, name, index, element_index, pointer_size
+                event_record, property, name, NULL, index, element_index, pointer_size
             );
         }
         return;
     }
 
     print_event_property_value_element(
-        event_record, property, name, index, 0xFFFFFFFFUL, pointer_size
+        event_record, property, name, NULL, index, 0xFFFFFFFFUL, pointer_size
     );
 }
 
@@ -745,6 +806,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
     ULONG status;
     ULONG available_count;
     ULONG property_count;
+    ULONG top_level_property_count;
     ULONG index;
     BYTE *buffer;
     TRACE_EVENT_INFO *event_info;
@@ -790,18 +852,22 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
 
     event_info = (TRACE_EVENT_INFO *)buffer;
     available_count = (ULONG)((buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO));
-    property_count = event_info->TopLevelPropertyCount;
+    property_count = event_info->PropertyCount;
+    top_level_property_count = event_info->TopLevelPropertyCount;
 
     if (property_count > available_count) {
         property_count = available_count;
     }
-    if (property_count > 64U) {
-        property_count = 64U;
+    if (top_level_property_count > property_count) {
+        top_level_property_count = property_count;
+    }
+    if (top_level_property_count > 64U) {
+        top_level_property_count = 64U;
     }
 
-    wprintf(L"  payload_properties=%lu\n", (unsigned long)property_count);
+    wprintf(L"  payload_properties=%lu\n", (unsigned long)top_level_property_count);
 
-    for (index = 0U; index < property_count; ++index) {
+    for (index = 0U; index < top_level_property_count; ++index) {
         const EVENT_PROPERTY_INFO *property =
             &event_info->EventPropertyInfoArray[index];
         ULONG name_offset = property->NameOffset;
@@ -845,9 +911,9 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             );
         }
         if (index < 8U) {
-            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer_size);
+            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size);
         } else if (index == 8U) {
-            wprintf(L"  payload_value_limit=8 remaining=%lu\n" , (unsigned long)(property_count - 8U));
+            wprintf(L"  payload_value_limit=8 remaining=%lu\n" , (unsigned long)(top_level_property_count - 8U));
         }
     }
 
