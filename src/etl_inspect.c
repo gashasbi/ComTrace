@@ -105,11 +105,12 @@ static void print_timestamp(const EVENT_RECORD *event_record)
     }
 }
 
-static void print_event_property_value(
+static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
     ULONG index,
+    ULONG array_index,
     ULONG pointer_size)
 {
     PROPERTY_DATA_DESCRIPTOR descriptor;
@@ -118,10 +119,16 @@ static void print_event_property_value(
     ULONG status;
     ULONG flags = (ULONG)property->Flags;
     USHORT in_type = property->nonStructType.InType;
+    wchar_t display_name[256];
+
+    if (array_index == 0xFFFFFFFFUL) {
+        wcsncpy_s(display_name, _countof(display_name), name, _TRUNCATE);
+    } else {
+        _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls[%lu]", name, (unsigned long)array_index);
+    }
 
     if ((flags & PropertyStruct) != 0U ||
         (flags & PropertyParamCount) != 0U ||
-        (flags & PropertyParamFixedCount) != 0U ||
         (flags & PropertyParamLength) != 0U ||
         (flags & PropertyParamFixedLength) != 0U ||
         (flags & PropertyWBEMXmlFragment) != 0U ||
@@ -129,7 +136,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=skipped reason=complex_property\n",
             (unsigned long)index,
-            name
+            display_name
         );
         return;
     }
@@ -164,7 +171,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=skipped reason=unsupported_type in_type=%u\n",
             (unsigned long)index,
-            name,
+            display_name,
             (unsigned int)in_type
         );
         return;
@@ -172,7 +179,7 @@ static void print_event_property_value(
 
     ZeroMemory(&descriptor, sizeof(descriptor));
     descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)name;
-    descriptor.ArrayIndex = 0xFFFFFFFFUL;
+    descriptor.ArrayIndex = array_index;
 
     status = TdhGetPropertySize(
         (PEVENT_RECORD)event_record,
@@ -187,7 +194,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=unavailable reason=size_query_failed tdh_status=%lu\n",
             (unsigned long)index,
-            name,
+            display_name,
             (unsigned long)status
         );
         return;
@@ -197,7 +204,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=unavailable reason=zero_size\n",
             (unsigned long)index,
-            name
+            display_name
         );
         return;
     }
@@ -206,7 +213,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=skipped reason=value_too_large size=%lu limit=%lu\n",
             (unsigned long)index,
-            name,
+            display_name,
             (unsigned long)value_size,
             (unsigned long)sizeof(value)
         );
@@ -227,7 +234,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls status=unavailable reason=read_failed tdh_status=%lu\n",
             (unsigned long)index,
-            name,
+            display_name,
             (unsigned long)status
         );
         return;
@@ -236,7 +243,7 @@ static void print_event_property_value(
     wprintf(
         L"  property_value[%lu] name=%ls ",
         (unsigned long)index,
-        name
+        display_name
     );
 
     switch (in_type) {
@@ -601,6 +608,31 @@ static void print_event_property_value(
         wprintf(L"status=skipped reason=unsupported_type\n");
         return;
     }
+}
+
+static void print_event_property_value(
+    const EVENT_RECORD *event_record,
+    const EVENT_PROPERTY_INFO *property,
+    const wchar_t *name,
+    ULONG index,
+    ULONG pointer_size)
+{
+    ULONG flags = (ULONG)property->Flags;
+    ULONG element_index;
+
+    if ((flags & PropertyParamFixedCount) != 0U &&
+        (flags & PropertyParamCount) == 0U) {
+        for (element_index = 0U; element_index < (ULONG)property->count; ++element_index) {
+            print_event_property_value_element(
+                event_record, property, name, index, element_index, pointer_size
+            );
+        }
+        return;
+    }
+
+    print_event_property_value_element(
+        event_record, property, name, index, 0xFFFFFFFFUL, pointer_size
+    );
 }
 
 static void print_event_properties(const EVENT_RECORD *event_record, ULONG pointer_size)

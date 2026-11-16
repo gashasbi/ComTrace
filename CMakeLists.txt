@@ -2,7 +2,7 @@
 
 cmake_policy(SET CMP0091 NEW)
 
-project(ComTrace VERSION 0.2.0 LANGUAGES C)
+project(ComTrace VERSION 0.2.0 LANGUAGES C RC)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -55,6 +55,13 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    file(GLOB COMTRACE_WINDOWS_SDK_BIN_DIRS "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+    list(SORT COMTRACE_WINDOWS_SDK_BIN_DIRS COMPARE NATURAL ORDER DESCENDING)
+    find_program(COMTRACE_MC_EXECUTABLE mc.exe HINTS ${COMTRACE_WINDOWS_SDK_BIN_DIRS})
+    if(NOT COMTRACE_MC_EXECUTABLE)
+        message(FATAL_ERROR "Message Compiler mc.exe was not found.")
+    endif()
+
     add_executable(ComTraceComEventTests
         tests/test_com_event.c
         src/com_event.c
@@ -199,6 +206,42 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/archive_cli_case.cmake"
         )
     endforeach()
+    add_executable(ComTraceArrayFixture tests/array_fixture.c)
+    target_link_libraries(ComTraceArrayFixture PRIVATE Advapi32)
+    set(COMTRACE_ARRAY_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/array-fixture/$<CONFIG>")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tests/array_fixture.man" COMTRACE_ARRAY_MANIFEST_CONTENT)
+    string(REPLACE "COMTRACE_ARRAY_FIXTURE_PATH" "$<TARGET_FILE:ComTraceArrayFixture>" COMTRACE_ARRAY_MANIFEST_CONTENT "${COMTRACE_ARRAY_MANIFEST_CONTENT}")
+    file(GENERATE OUTPUT "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.man" CONTENT "${COMTRACE_ARRAY_MANIFEST_CONTENT}")
+    set(COMTRACE_ARRAY_GENERATED_FILES
+        "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.h"
+        "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.rc"
+        "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixtureTEMP.BIN"
+        "${COMTRACE_ARRAY_FIXTURE_DIR}/MSG00001.bin"
+    )
+    add_custom_command(
+        OUTPUT ${COMTRACE_ARRAY_GENERATED_FILES}
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${COMTRACE_ARRAY_FIXTURE_DIR}"
+        COMMAND "${COMTRACE_MC_EXECUTABLE}" -um -h "${COMTRACE_ARRAY_FIXTURE_DIR}" -r "${COMTRACE_ARRAY_FIXTURE_DIR}" "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.man"
+        DEPENDS "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.man" "${CMAKE_CURRENT_SOURCE_DIR}/tests/array_fixture.man"
+        VERBATIM
+    )
+    target_sources(ComTraceArrayFixture PRIVATE "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.rc" "${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.h")
+    target_include_directories(ComTraceArrayFixture PRIVATE "${COMTRACE_ARRAY_FIXTURE_DIR}")
+    if(MSVC)
+        target_compile_options(ComTraceArrayFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArrayFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(
+        NAME comtrace_inspect_fixed_array
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceArrayFixture>"
+            "-DMANIFEST_FILE=${COMTRACE_ARRAY_FIXTURE_DIR}/array_fixture.man"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/array-cli-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/array_cli_case.cmake"
+    )
+    set_tests_properties(comtrace_inspect_fixed_array PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)

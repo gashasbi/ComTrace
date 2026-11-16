@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<instrumentationManifest xmlns="http://schemas.microsoft.com/win/2004/08/events" xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<instrumentation><events><provider name="ComTraceArrayFixture" guid="{4F8A2C31-7D65-4B90-A123-56789ABCDEF0}" symbol="COMTRACE_ARRAY_PROVIDER" resourceFileName="COMTRACE_ARRAY_FIXTURE_PATH" messageFileName="COMTRACE_ARRAY_FIXTURE_PATH">
+<templates><template tid="ArrayTemplate"><data name="Values" inType="win:Int32" count="3"/></template></templates>
+<events><event value="1" level="win:Informational" template="ArrayTemplate" symbol="ArrayEvent"/></events>
+</provider></events></instrumentation></instrumentationManifest>
