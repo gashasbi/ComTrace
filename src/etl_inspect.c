@@ -105,6 +105,92 @@ static void print_timestamp(const EVENT_RECORD *event_record)
     }
 }
 
+static int read_event_property_count(
+    const EVENT_RECORD *event_record,
+    const EVENT_PROPERTY_INFO *properties,
+    ULONG property_count,
+    ULONG buffer_size,
+    const EVENT_PROPERTY_INFO *property,
+    ULONG *count)
+{
+    PROPERTY_DATA_DESCRIPTOR descriptor;
+    const EVENT_PROPERTY_INFO *count_property;
+    const wchar_t *count_name;
+    ULONG count_index = (ULONG)property->countPropertyIndex;
+    ULONG name_offset;
+    ULONG remaining;
+    ULONG name_length = 0U;
+    ULONG value_size = 0U;
+    ULONG expected_size;
+    ULONG status;
+    USHORT in_type;
+    BYTE value[8];
+    ULONGLONG count_value = 0ULL;
+
+    if (count_index >= property_count || count == NULL) {
+        return 0;
+    }
+
+    count_property = &properties[count_index];
+    if ((count_property->Flags & PropertyStruct) != 0U) {
+        return 0;
+    }
+
+    name_offset = count_property->NameOffset;
+    if (name_offset >= buffer_size ||
+        (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        return 0;
+    }
+
+    count_name = (const wchar_t *)((const BYTE *)properties - offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) + name_offset);
+    remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+    while (name_length < remaining && count_name[name_length] != L'\0') {
+        ++name_length;
+    }
+    if (name_length == remaining) {
+        return 0;
+    }
+
+    in_type = count_property->nonStructType.InType;
+    switch (in_type) {
+    case TDH_INTYPE_UINT8:
+        expected_size = 1U;
+        break;
+    case TDH_INTYPE_UINT16:
+        expected_size = 2U;
+        break;
+    case TDH_INTYPE_UINT32:
+        expected_size = 4U;
+        break;
+    case TDH_INTYPE_UINT64:
+        expected_size = 8U;
+        break;
+    default:
+        return 0;
+    }
+
+    ZeroMemory(&descriptor, sizeof(descriptor));
+    descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)count_name;
+    descriptor.ArrayIndex = 0xFFFFFFFFUL;
+    status = TdhGetPropertySize((PEVENT_RECORD)event_record, 0U, NULL, 1U, &descriptor, &value_size);
+    if (status != ERROR_SUCCESS || value_size != expected_size) {
+        return 0;
+    }
+
+    status = TdhGetProperty((PEVENT_RECORD)event_record, 0U, NULL, 1U, &descriptor, value_size, value);
+    if (status != ERROR_SUCCESS) {
+        return 0;
+    }
+
+    CopyMemory(&count_value, value, value_size);
+    if (count_value > 4096ULL) {
+        return 0;
+    }
+
+    *count = (ULONG)count_value;
+    return 1;
+}
+
 static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
@@ -128,8 +214,6 @@ static void print_event_property_value_element(
     }
 
     if ((flags & PropertyStruct) != 0U ||
-        (flags & PropertyParamCount) != 0U ||
-        (flags & PropertyParamLength) != 0U ||
         (flags & PropertyParamFixedLength) != 0U ||
         (flags & PropertyWBEMXmlFragment) != 0U ||
         (flags & PropertyHasCustomSchema) != 0U) {
@@ -162,7 +246,6 @@ static void print_event_property_value_element(
     case TDH_INTYPE_POINTER:
     case TDH_INTYPE_FILETIME:
     case TDH_INTYPE_SYSTEMTIME:
-    case TDH_INTYPE_HEXINT32:
     case TDH_INTYPE_HEXINT64:
     case TDH_INTYPE_SIZET:
     case TDH_INTYPE_HEXDUMP:
@@ -615,10 +698,30 @@ static void print_event_property_value(
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
     ULONG index,
-    ULONG pointer_size)
+    ULONG pointer_size,
+    const EVENT_PROPERTY_INFO *properties,
+    ULONG property_count,
+    ULONG buffer_size)
 {
     ULONG flags = (ULONG)property->Flags;
     ULONG element_index;
+
+    if ((flags & PropertyParamCount) != 0U) {
+        ULONG count;
+
+        if (!read_event_property_count(
+                event_record, properties, property_count, buffer_size, property, &count)) {
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
+            return;
+        }
+
+        for (element_index = 0U; element_index < count; ++element_index) {
+            print_event_property_value_element(
+                event_record, property, name, index, element_index, pointer_size
+            );
+        }
+        return;
+    }
 
     if ((flags & PropertyParamFixedCount) != 0U &&
         (flags & PropertyParamCount) == 0U) {
@@ -742,7 +845,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             );
         }
         if (index < 8U) {
-            print_event_property_value(event_record, property, name, index, pointer_size);
+            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer_size);
         } else if (index == 8U) {
             wprintf(L"  payload_value_limit=8 remaining=%lu\n" , (unsigned long)(property_count - 8U));
         }

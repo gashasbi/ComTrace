@@ -242,6 +242,42 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/array_cli_case.cmake"
     )
     set_tests_properties(comtrace_inspect_fixed_array PROPERTIES RUN_SERIAL TRUE)
+    add_executable(ComTraceDynamicFixture tests/dynamic_fixture.c)
+    target_link_libraries(ComTraceDynamicFixture PRIVATE Advapi32)
+    set(COMTRACE_DYNAMIC_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/dynamic-fixture/$<CONFIG>")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tests/dynamic_fixture.man" COMTRACE_DYNAMIC_MANIFEST_CONTENT)
+    string(REPLACE "COMTRACE_DYNAMIC_FIXTURE_PATH" "$<TARGET_FILE:ComTraceDynamicFixture>" COMTRACE_DYNAMIC_MANIFEST_CONTENT "${COMTRACE_DYNAMIC_MANIFEST_CONTENT}")
+    file(GENERATE OUTPUT "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.man" CONTENT "${COMTRACE_DYNAMIC_MANIFEST_CONTENT}")
+    set(COMTRACE_DYNAMIC_GENERATED_FILES
+        "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.h"
+        "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.rc"
+        "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixtureTEMP.BIN"
+        "${COMTRACE_DYNAMIC_FIXTURE_DIR}/MSG00001.bin"
+    )
+    add_custom_command(
+        OUTPUT ${COMTRACE_DYNAMIC_GENERATED_FILES}
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${COMTRACE_DYNAMIC_FIXTURE_DIR}"
+        COMMAND "${COMTRACE_MC_EXECUTABLE}" -um -h "${COMTRACE_DYNAMIC_FIXTURE_DIR}" -r "${COMTRACE_DYNAMIC_FIXTURE_DIR}" "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.man"
+        DEPENDS "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.man" "${CMAKE_CURRENT_SOURCE_DIR}/tests/dynamic_fixture.man"
+        VERBATIM
+    )
+    target_sources(ComTraceDynamicFixture PRIVATE "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.rc" "${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.h")
+    target_include_directories(ComTraceDynamicFixture PRIVATE "${COMTRACE_DYNAMIC_FIXTURE_DIR}")
+    if(MSVC)
+        target_compile_options(ComTraceDynamicFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceDynamicFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(
+        NAME comtrace_inspect_dynamic_properties
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceDynamicFixture>"
+            "-DMANIFEST_FILE=${COMTRACE_DYNAMIC_FIXTURE_DIR}/dynamic_fixture.man"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/dynamic-cli-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/dynamic_cli_case.cmake"
+    )
+    set_tests_properties(comtrace_inspect_dynamic_properties PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
