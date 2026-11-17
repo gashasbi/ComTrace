@@ -260,13 +260,7 @@ static void print_event_property_value_element(
     case TDH_INTYPE_HEXDUMP:
         break;
     default:
-        wprintf(
-            L"  property_value[%lu] name=%ls status=skipped reason=unsupported_type in_type=%u\n",
-            (unsigned long)index,
-            display_name,
-            (unsigned int)in_type
-        );
-        goto cleanup;
+        break;
     }
 
     ZeroMemory(descriptors, sizeof(descriptors));
@@ -702,9 +696,19 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
-    default:
-        wprintf(L"status=skipped reason=unsupported_type\n");
+    default: {
+        ULONG displayed = value_size > 64U ? 64U : value_size;
+        ULONG offset;
+        wprintf(L"value=hex:");
+        for (offset = 0U; offset < displayed; ++offset) {
+            wprintf(L"%02x", (unsigned int)value[offset]);
+        }
+        if (displayed < value_size) {
+            wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - displayed));
+        }
+        wprintf(L"\n");
         goto cleanup;
+    }
     }
 cleanup:
     if (allocated_value) {

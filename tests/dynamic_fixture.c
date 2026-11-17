@@ -33,6 +33,8 @@ int wmain(int argc, wchar_t **argv)
     unsigned char fixed_data[4] = { 0x11, 0x22, 0x33, 0x44 };
     wchar_t fixed_text[] = L"Fixed";
     unsigned char large_data[5000];
+    SID_IDENTIFIER_AUTHORITY sid_authority = SECURITY_NT_AUTHORITY;
+    PSID test_sid = NULL;
     int registered = 0;
     int result = 1;
 
@@ -101,9 +103,14 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
+    if (!AllocateAndInitializeSid(&sid_authority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &test_sid)) {
+        fwprintf(stderr, L"AllocateAndInitializeSid failed: %lu\n", (unsigned long)GetLastError());
+        goto cleanup;
+    }
+
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, test_sid);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
@@ -112,6 +119,9 @@ int wmain(int argc, wchar_t **argv)
     result = 0;
 
 cleanup:
+    if (test_sid != NULL) {
+        FreeSid(test_sid);
+    }
     if (registered) {
         EventUnregisterComTraceDynamicFixture();
     }
