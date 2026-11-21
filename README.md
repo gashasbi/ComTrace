@@ -83,7 +83,9 @@ ComTraceArchive.exe --help
 ComTraceArchive.exe --version
 ```
 
-The first command converts an ETL trace to the CTRA archive format. `--inspect` validates an archive and reports its event and trace-footer statistics. `--recover` scans recoverable records and reports the recovered count, stopping offset, and stop reason. Recovery mode is a read-only scan; it does not write a replacement archive.
+The first command converts an ETL trace to the CTRA archive format. New archives use **CTRA version 2** and store a CRC-32 checksum over the file header and event records in the footer. `--inspect` validates the archive checksum and reports its event and trace-footer statistics. The reader remains backward-compatible with **CTRA version 1** archives, which do not contain a checksum.
+
+`--recover` scans recoverable records and reports the recovered count, stopping offset, and stop reason. When a version 2 checksum is invalid, recovery preserves the records that could be read but reports `checksum invalid` and does not mark the archive as complete. Recovery mode is a read-only scan; it does not write a replacement archive.
 
 ## COM/OLE analysis and limitations
 
