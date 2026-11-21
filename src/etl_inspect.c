@@ -29,6 +29,9 @@ typedef struct {
     ULONG sample_limit;
     ULONG pointer_size;
     ULONG sampled_events;
+    ULONGLONG matched_events;
+    BOOL has_filters;
+    COMTRACE_ETL_FILTERS filters;
     COMTRACE_EVENT_CATALOG event_catalog;
     COMTRACE_EVENT_RECORD_STATUS record_status;
     COMTRACE_EVENT_CATALOG_STATUS catalog_status;
@@ -1570,8 +1573,83 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
         return;
     }
 
+static int event_matches_filters(
+    const ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+
+    if (context == NULL || event_record == NULL) {
+        return 0;
+    }
+
+    if (!context->has_filters) {
+        return 1;
+    }
+
+    if (context->filters.has_provider_id &&
+        memcmp(
+            &event_record->EventHeader.ProviderId,
+            &context->filters.provider_id,
+            sizeof(GUID)
+        ) != 0) {
+        return 0;
+    }
+
+    if (context->filters.has_event_id &&
+        event_record->EventHeader.EventDescriptor.Id != context->filters.event_id) {
+        return 0;
+    }
+
+    if (context->filters.has_process_id &&
+        event_record->EventHeader.ProcessId != context->filters.process_id) {
+        return 0;
+    }
+
+    if (context->filters.has_thread_id &&
+        event_record->EventHeader.ThreadId != context->filters.thread_id) {
+        return 0;
+    }
+
+    if (context->filters.com_only &&
+        !comtrace_classify_com_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase
+        )) {
+        return 0;
+    }
+
+    operation = NULL;
+    phase = NULL;
+    if (context->filters.ole_only &&
+        !comtrace_classify_ole_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase
+        )) {
+        return 0;
+    }
+
+    return 1;
+}
+
     context = (ETL_INSPECT_CONTEXT *)event_record->UserContext;
     ++context->total_events;
+
+    if (!event_matches_filters(context, event_record)) {
+        return;
+    }
+
+    ++context->matched_events;
 
     catalog_status = comtrace_event_catalog_add(
         &context->event_catalog,
@@ -1629,9 +1707,10 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     comtrace_event_record_destroy(owned_record);
 }
-int comtrace_inspect_etl(
+static int inspect_etl_internal(
     const wchar_t *etl_path,
-    const wchar_t *limit_text
+    const wchar_t *limit_text,
+    const COMTRACE_ETL_FILTERS *filters
 )
 {
     ETL_INSPECT_CONTEXT context;
@@ -1658,7 +1737,17 @@ int comtrace_inspect_etl(
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
 
-    if (!parse_sample_limit(limit_text, &context.sample_limit)) {
+    if (filters != NULL) {
+        context.has_filters = TRUE;
+        context.filters = *filters;
+        context.sample_limit = filters->sample_limit;
+        if (context.sample_limit == 0U ||
+            context.sample_limit > MAX_SAMPLE_EVENTS ||
+            (filters->com_only && filters->ole_only)) {
+            fwprintf(stderr, L"Invalid ETL search filters.\n");
+            return EXIT_FAILURE;
+        }
+    } else if (!parse_sample_limit(limit_text, &context.sample_limit)) {
         fwprintf(
             stderr,
             L"Invalid max-events value. Use an integer from 1 to 10000.\n"
@@ -1709,7 +1798,7 @@ int comtrace_inspect_etl(
     }
 
     wprintf(L"ComTrace 0.2.0\n");
-    wprintf(L"ETL inspection\n");
+    wprintf(L"%ls\n", context.has_filters ? L"ETL search" : L"ETL inspection");
     wprintf(L"Input: %ls\n", etl_path);
     wprintf(L"Sample limit: %lu\n\n", (unsigned long)context.sample_limit);
     wprintf(L"Event samples:\n");
@@ -1725,6 +1814,10 @@ int comtrace_inspect_etl(
     wprintf(
         L"Events processed: %llu\n",
         (unsigned long long)context.total_events
+    );
+    wprintf(
+        L"Events matching filters: %llu\n",
+        (unsigned long long)context.matched_events
     );
     wprintf(
         L"Event samples printed: %lu\n",
@@ -1835,4 +1928,24 @@ int comtrace_inspect_etl(
     comtrace_event_catalog_destroy(&context.event_catalog);
 
     return result;
+}
+
+int comtrace_inspect_etl(
+    const wchar_t *etl_path,
+    const wchar_t *limit_text
+)
+{
+    return inspect_etl_internal(etl_path, limit_text, NULL);
+}
+
+int comtrace_search_etl(
+    const wchar_t *etl_path,
+    const COMTRACE_ETL_FILTERS *filters
+)
+{
+    if (filters == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    return inspect_etl_internal(etl_path, NULL, filters);
 }
