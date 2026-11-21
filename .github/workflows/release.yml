@@ -51,4 +51,5 @@ jobs:
             ComTrace-${{ inputs.tag || github.ref_name }}-win-x64.zip
             ComTrace.exe
             ComTraceArchive.exe
+            ComTraceOleActivityFixture.exe
             SHA256SUMS.txt
