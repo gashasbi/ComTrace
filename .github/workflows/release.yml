@@ -47,10 +47,25 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP 'ComTrace-release'
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item $exe, $archiveExe, 'README.md', 'LICENSE' -Destination $stage
+          Copy-Item -Path 'docs', 'scripts' -Destination $stage -Recurse
 
           $zipName = "ComTrace-$env:RELEASE_TAG-win-x64.zip"
           $zipPath = Join-Path $env:GITHUB_WORKSPACE $zipName
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $package = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $entries = @($package.Entries | ForEach-Object { $_.FullName })
+            foreach ($requiredEntry in @('docs/REAL_TRACE_VALIDATION.md', 'docs/CTRA_FORMAT.md', 'docs/COMPARISON_JSON.md', 'scripts/validate-real-trace.ps1')) {
+              if ($entries -notcontains $requiredEntry) {
+                throw "Release package is missing $requiredEntry"
+              }
+            }
+          }
+          finally {
+            $package.Dispose()
+          }
 
           $exeAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTrace.exe'
           $archiveAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTraceArchive.exe'
