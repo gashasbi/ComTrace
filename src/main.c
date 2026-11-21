@@ -398,13 +398,13 @@ static int run_etl_search(int argc, wchar_t **argv)
                 filters.event_id = (USHORT)value;
                 filters.has_event_id = TRUE;
             } else if (wcscmp(option, L"--pid") == 0) {
-                if (!parse_decimal_value(argument, MAXULONG, &filters.process_id)) {
+                if (!parse_decimal_value(argument, 0xFFFFFFFFUL, &filters.process_id)) {
                     fwprintf(stderr, L"Invalid process ID.\n");
                     return EXIT_FAILURE;
                 }
                 filters.has_process_id = TRUE;
             } else if (wcscmp(option, L"--tid") == 0) {
-                if (!parse_decimal_value(argument, MAXULONG, &filters.thread_id)) {
+                if (!parse_decimal_value(argument, 0xFFFFFFFFUL, &filters.thread_id)) {
                     fwprintf(stderr, L"Invalid thread ID.\n");
                     return EXIT_FAILURE;
                 }
