@@ -216,6 +216,20 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_event_catalog COMMAND ComTraceEventCatalogTests)
 
+    add_executable(ComTraceArchiveChecksumTests
+        tests/test_archive_checksum.c
+        src/archive_checksum.c
+    )
+    target_include_directories(ComTraceArchiveChecksumTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceArchiveChecksumTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArchiveChecksumTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_archive_checksum COMMAND ComTraceArchiveChecksumTests)
+
     add_executable(ComTraceArchiveWriterTests
         tests/test_archive_writer.c
         src/archive_writer.c
