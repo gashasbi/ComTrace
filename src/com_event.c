@@ -61,6 +61,13 @@ int comtrace_classify_com_event(
 {
     size_t index;
 
+    if (operation != NULL) {
+        *operation = NULL;
+    }
+    if (phase != NULL) {
+        *phase = NULL;
+    }
+
     if (provider_id == NULL ||
         operation == NULL ||
         phase == NULL ||
