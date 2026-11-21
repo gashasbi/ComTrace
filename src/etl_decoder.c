@@ -8,13 +8,16 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
-    const wchar_t *parent_name,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
     ULONG array_index,
     COMTRACE_ETL_PROPERTY_VALUE *value
 )
 {
-    PROPERTY_DATA_DESCRIPTOR descriptors[2];
-    ULONG descriptor_count = 1U;
+    PROPERTY_DATA_DESCRIPTOR descriptors[9];
+    ULONG descriptor_count;
+    ULONG index;
     ULONG status;
 
     if (value != NULL) {
@@ -24,7 +27,10 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     if (event_record == NULL ||
         property == NULL ||
         name == NULL ||
-        value == NULL) {
+        value == NULL ||
+        parent_count > 8U ||
+        (parent_count != 0U &&
+            (parent_names == NULL || parent_indices == NULL))) {
         return COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT;
     }
 
@@ -37,16 +43,18 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     }
 
     ZeroMemory(descriptors, sizeof(descriptors));
-    if (parent_name == NULL) {
-        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)name;
-        descriptors[0].ArrayIndex = array_index;
-    } else {
-        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)parent_name;
-        descriptors[0].ArrayIndex = 0U;
-        descriptors[1].PropertyName = (ULONGLONG)(ULONG_PTR)name;
-        descriptors[1].ArrayIndex = array_index;
-        descriptor_count = 2U;
+    for (index = 0U; index < parent_count; ++index) {
+        if (parent_names[index] == NULL) {
+            return COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT;
+        }
+        descriptors[index].PropertyName =
+            (ULONGLONG)(ULONG_PTR)parent_names[index];
+        descriptors[index].ArrayIndex = parent_indices[index];
     }
+
+    descriptors[parent_count].PropertyName = (ULONGLONG)(ULONG_PTR)name;
+    descriptors[parent_count].ArrayIndex = array_index;
+    descriptor_count = parent_count + 1U;
 
     status = TdhGetPropertySize(
         (PEVENT_RECORD)event_record,
