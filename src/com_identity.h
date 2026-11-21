@@ -41,6 +41,11 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     ULONGLONG *value
 );
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_call_trace_id(
+    const EVENT_RECORD *event_record,
+    ULONGLONG *value
+);
+
 typedef struct {
     GUID activity_id;
     GUID related_activity_id;
