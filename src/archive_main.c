@@ -75,6 +75,15 @@ static int inspect_archive(const wchar_t *path)
     wprintf(L"Buffers lost: %lu\n", (unsigned long)reader.footer.buffers_lost);
     wprintf(L"Trace clock type: %lu\n", (unsigned long)reader.footer.trace_clock_type);
     wprintf(L"Pointer size: %lu\n", (unsigned long)reader.footer.pointer_size);
+    if (reader.footer.checksum_present) {
+        wprintf(
+            L"Checksum: CRC32 %ls (0x%08lx)\n",
+            reader.footer.checksum_valid ? L"valid" : L"invalid",
+            (unsigned long)reader.footer.checksum
+        );
+    } else {
+        wprintf(L"Checksum: not present (CTRA version 1)\n");
+    }
 
     comtrace_archive_reader_close(&reader);
     return EXIT_SUCCESS;
@@ -102,6 +111,8 @@ static const wchar_t *recovery_stop_reason_name(
         return L"record invalid";
     case COMTRACE_ARCHIVE_RECOVERY_STOP_TRAILING_DATA:
         return L"trailing data";
+    case COMTRACE_ARCHIVE_RECOVERY_STOP_CHECKSUM_INVALID:
+        return L"checksum invalid";
     default:
         return L"unknown";
     }
