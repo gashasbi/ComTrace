@@ -136,6 +136,8 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         &decoder_property,
         L"ClassId",
         NULL,
+        NULL,
+        0U,
         0xFFFFFFFFUL,
         &decoded_value
     );
@@ -153,6 +155,8 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         &decoder_property,
         L"ClassId",
         NULL,
+        NULL,
+        0U,
         0xFFFFFFFFUL,
         &decoded_value
     );
