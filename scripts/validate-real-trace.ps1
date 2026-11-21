@@ -222,8 +222,20 @@ if ($comEventCount -eq 0) {
     throw "No COM Performance events were found in the ETL. Review the capture conditions and $searchPath"
 }
 
-$identityPattern = "(?im)\b(?:clsid|iid|ipid|oid)="
+$identityPattern = "(?im)(?:com_)?(?:clsid|iid|ipid|oid)="
 $identityValueCount = [regex]::Matches($searchOutput, $identityPattern).Count
+
+$matchedTimeline = [regex]::Match($searchOutput, "Matched start/stop:\s*(\d+)")
+$missingCallTrace = [regex]::Match($searchOutput, "Missing CallTraceId:\s*(\d+)")
+if (-not $matchedTimeline.Success -or -not $missingCallTrace.Success) {
+    throw "The COM timeline summary did not contain its pairing counters. Review $searchPath"
+}
+
+$comTimelineMatched = [UInt64]::Parse($matchedTimeline.Groups[1].Value)
+$comTimelineMissingCallTrace = [UInt64]::Parse($missingCallTrace.Groups[1].Value)
+if ($comTimelineMatched -eq 0) {
+    throw "No COM start/stop pairs were matched. Review CallTraceId property schemas in $searchPath"
+}
 
 Write-Host "Converting ETL to CTRA."
 $archiveOutput = Invoke-NativeCommand -Executable $ComTraceArchiveExe -Arguments @($EtlPath, $archivePath) -Description "ETL to CTRA conversion"
@@ -292,6 +304,8 @@ $summary = [ordered]@{
     event_types = $report.left.event_types
     com_events = $comEventCount
     identity_values_reported = $identityValueCount
+    com_timeline_matched = $comTimelineMatched
+    com_timeline_missing_call_trace_id = $comTimelineMissingCallTrace
     com_activations_succeeded = $activationCount
     com_activation_failures = @($activationFailures.ToArray())
     checksum = "CRC32 valid"
@@ -310,6 +324,8 @@ Write-Host "Events: $($report.left.events)"
 Write-Host "Distinct event types: $($report.left.event_types)"
 Write-Host "COM Performance events: $comEventCount"
 Write-Host "Identity values reported: $identityValueCount"
+Write-Host "COM start/stop pairs matched: $comTimelineMatched"
+Write-Host "COM events missing CallTraceId: $comTimelineMissingCallTrace"
 Write-Host "CTRA checksum: CRC32 valid"
 Write-Host "ETL and CTRA comparison: identical"
 Write-Host "Validation summary: $summaryPath"
