@@ -291,7 +291,7 @@ if(BUILD_TESTING)
         target_compile_options(ComTraceArchiveTestFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
 
-    foreach(case_name help version no_arguments invalid_arguments missing_input recover_valid)
+    foreach(case_name help version no_arguments invalid_arguments missing_input inspect_valid recover_valid)
         add_test(
             NAME comtrace_archive_cli_${case_name}
             COMMAND "${CMAKE_COMMAND}"
