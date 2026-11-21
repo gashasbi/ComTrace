@@ -19,6 +19,7 @@ add_executable(ComTrace
     src/ole_event.c
     src/event_record.c
     src/event_catalog.c
+    src/com_identity.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -76,6 +77,19 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+
+    add_executable(ComTraceComIdentityTests
+        tests/test_com_identity.c
+        src/com_identity.c
+    )
+    target_include_directories(ComTraceComIdentityTests PRIVATE src)
+    target_link_libraries(ComTraceComIdentityTests PRIVATE Tdh Advapi32)
+
+    if(MSVC)
+        target_compile_options(ComTraceComIdentityTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceComIdentityTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
 
     add_executable(ComTraceOleEventTests
         tests/test_ole_event.c
@@ -278,6 +292,42 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/struct_cli_case.cmake"
     )
     set_tests_properties(comtrace_inspect_struct PROPERTIES RUN_SERIAL TRUE)
+    add_executable(ComTraceIdentityFixture tests/identity_fixture.c)
+    target_link_libraries(ComTraceIdentityFixture PRIVATE Advapi32)
+    set(COMTRACE_IDENTITY_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/identity-fixture/$<CONFIG>")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tests/identity_fixture.man" COMTRACE_IDENTITY_MANIFEST_CONTENT)
+    string(REPLACE "COMTRACE_IDENTITY_FIXTURE_PATH" "$<TARGET_FILE:ComTraceIdentityFixture>" COMTRACE_IDENTITY_MANIFEST_CONTENT "${COMTRACE_IDENTITY_MANIFEST_CONTENT}")
+    file(GENERATE OUTPUT "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.man" CONTENT "${COMTRACE_IDENTITY_MANIFEST_CONTENT}")
+    set(COMTRACE_IDENTITY_GENERATED_FILES
+        "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.h"
+        "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.rc"
+        "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixtureTEMP.BIN"
+        "${COMTRACE_IDENTITY_FIXTURE_DIR}/MSG00001.bin"
+    )
+    add_custom_command(
+        OUTPUT ${COMTRACE_IDENTITY_GENERATED_FILES}
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${COMTRACE_IDENTITY_FIXTURE_DIR}"
+        COMMAND "${COMTRACE_MC_EXECUTABLE}" -um -h "${COMTRACE_IDENTITY_FIXTURE_DIR}" -r "${COMTRACE_IDENTITY_FIXTURE_DIR}" "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.man"
+        DEPENDS "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.man" "${CMAKE_CURRENT_SOURCE_DIR}/tests/identity_fixture.man"
+        VERBATIM
+    )
+    target_sources(ComTraceIdentityFixture PRIVATE "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.rc" "${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.h")
+    target_include_directories(ComTraceIdentityFixture PRIVATE "${COMTRACE_IDENTITY_FIXTURE_DIR}")
+    if(MSVC)
+        target_compile_options(ComTraceIdentityFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceIdentityFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(
+        NAME comtrace_com_identity
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceIdentityFixture>"
+            "-DTEST_EXE=$<TARGET_FILE:ComTraceComIdentityTests>"
+            "-DMANIFEST_FILE=${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.man"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/identity-cli-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_identity_case.cmake"
+    )
+    set_tests_properties(comtrace_com_identity PROPERTIES RUN_SERIAL TRUE)
     add_executable(ComTraceDynamicFixture tests/dynamic_fixture.c)
     target_link_libraries(ComTraceDynamicFixture PRIVATE Advapi32)
     set(COMTRACE_DYNAMIC_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/dynamic-fixture/$<CONFIG>")
