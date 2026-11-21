@@ -275,6 +275,13 @@ if ($comTimelineMatched -eq 0) {
     throw "No COM start/stop pairs were matched. Review CallTraceId and ActivityId data in $searchPath"
 }
 
+$comMatchTotal = $comTimelineMatchedByCallTrace +
+                 $comTimelineMatchedByActivity +
+                 $comTimelineMatchedByProcessThread
+if ($comMatchTotal -ne $comTimelineMatched) {
+    throw "COM match-source counts do not add up to the total matched operations."
+}
+
 Write-Host "Checking for OLE Performance events."
 $oleSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--ole", "--max-events", "10000") -Description "OLE event search"
 Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
@@ -298,6 +305,11 @@ $oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
 
 if ($oleEventCount -eq 0 -or $oleClipboardOperations -eq 0 -or $oleTimelineMatched -eq 0) {
     throw "OLE validation requires OLE events, clipboard operations, and a matched start/stop pair. Review $oleSearchPath"
+}
+
+$oleMatchTotal = $oleTimelineMatchedByActivity + $oleTimelineMatchedByProcessThread
+if ($oleMatchTotal -ne $oleTimelineMatched) {
+    throw "OLE match-source counts do not add up to the total matched operations."
 }
 
 Write-Host "Converting ETL to CTRA."
