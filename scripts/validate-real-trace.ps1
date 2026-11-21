@@ -275,9 +275,12 @@ $leftComTimeline = ConvertTo-Json -InputObject $report.timeline_summary.left_com
 $rightComTimeline = ConvertTo-Json -InputObject $report.timeline_summary.right_com -Compress -Depth 5
 $leftOleTimeline = ConvertTo-Json -InputObject $report.timeline_summary.left_ole -Compress -Depth 5
 $rightOleTimeline = ConvertTo-Json -InputObject $report.timeline_summary.right_ole -Compress -Depth 5
+$leftOperationTimings = ConvertTo-Json -InputObject @($report.timeline.left) -Compress -Depth 5
+$rightOperationTimings = ConvertTo-Json -InputObject @($report.timeline.right) -Compress -Depth 5
 
 if ($leftComTimeline -ne $rightComTimeline -or
-    $leftOleTimeline -ne $rightOleTimeline) {
+    $leftOleTimeline -ne $rightOleTimeline -or
+    $leftOperationTimings -ne $rightOperationTimings) {
     throw "ETL and CTRA timeline summaries do not match."
 }
 
