@@ -508,6 +508,55 @@ static int test_checksum_mismatch(void)
 
     comtrace_archive_event_destroy(&event);
     comtrace_archive_reader_close(&reader);
+
+    delete_test_paths(path);
+    if (!create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return failures + 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 4U) {
+        free(data);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+
+    data[size - 1U] ^= 0x01U;
+    if (!write_file_bytes(path, data, size)) {
+        free(data);
+        delete_test_paths(path);
+        return failures + 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+    check_condition(
+        comtrace_archive_reader_open(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Archive with a damaged checksum field opens its header",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Event before a damaged checksum field is readable",
+            &failures
+        );
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_CHECKSUM_MISMATCH,
+            "Strict reader rejects a damaged checksum field",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
     delete_test_paths(path);
     return failures;
 }
