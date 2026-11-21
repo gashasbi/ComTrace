@@ -29,4 +29,16 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
     ULONG *value
 );
 
+typedef struct {
+    GUID activity_id;
+    GUID related_activity_id;
+    BOOL has_activity_id;
+    BOOL has_related_activity_id;
+} COMTRACE_ACTIVITY_IDS;
+
+COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
+    const EVENT_RECORD *event_record,
+    COMTRACE_ACTIVITY_IDS *activity_ids
+);
+
 #endif
