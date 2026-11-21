@@ -48,6 +48,8 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
 {
     const wchar_t *operation = NULL;
     const wchar_t *phase = NULL;
+    const wchar_t *ole_operation = NULL;
+    const wchar_t *ole_phase = NULL;
     COMTRACE_COM_OBJECT_IDENTITY identity;
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_ACTIVITY_IDS *activity_ids_ptr = NULL;
@@ -87,8 +89,8 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
         event_record->EventHeader.EventDescriptor.Id,
         event_record->EventHeader.EventDescriptor.Version,
         event_record->EventHeader.EventDescriptor.Opcode,
-        &operation,
-        &phase
+        &ole_operation,
+        &ole_phase
     );
 
     if (!is_com_event && !is_ole_event) {
@@ -124,13 +126,13 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
     if (is_ole_event) {
         COMTRACE_OLE_TIMELINE_EVENT ole_event;
 
-        if (wcscmp(phase, L"Start") != 0 && wcscmp(phase, L"Stop") != 0) {
+        if (wcscmp(ole_phase, L"Start") != 0 && wcscmp(ole_phase, L"Stop") != 0) {
             return COMTRACE_TRACE_COMPARE_SUCCESS;
         }
 
         ZeroMemory(&ole_event, sizeof(ole_event));
-        ole_event.operation = operation;
-        ole_event.phase = wcscmp(phase, L"Start") == 0
+        ole_event.operation = ole_operation;
+        ole_event.phase = wcscmp(ole_phase, L"Start") == 0
             ? COMTRACE_OLE_TIMELINE_PHASE_START
             : COMTRACE_OLE_TIMELINE_PHASE_STOP;
         ole_event.process_id = event_record->EventHeader.ProcessId;
