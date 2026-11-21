@@ -50,6 +50,8 @@ typedef struct {
     ULONGLONG records_written;
     DWORD win32_error;
     COMTRACE_ARCHIVE_STATUS status;
+    ULONG checksum_state;
+    BOOL checksum_enabled;
 } COMTRACE_ARCHIVE_WRITER;
 
 COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_open(
