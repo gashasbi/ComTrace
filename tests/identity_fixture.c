@@ -55,6 +55,8 @@ int wmain(int argc, wchar_t **argv)
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
     EVENT_DATA_DESCRIPTOR data[9];
+    EVENT_DATA_DESCRIPTOR call_trace_data;
+    ULONG call_trace_id_32 = 0x12345678UL;
     ULONG target_process_id = 0x12345678UL;
     ULONG target_thread_id = 0x87654321UL;
     LONG hresult = (LONG)0x80004005UL;
@@ -161,6 +163,23 @@ int wmain(int argc, wchar_t **argv)
     );
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWrite failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    descriptor.Id = 3U;
+    EventDataDescCreate(
+        &call_trace_data,
+        &call_trace_id_32,
+        (ULONG)sizeof(call_trace_id_32)
+    );
+    status = EventWrite(
+        provider,
+        &descriptor,
+        1U,
+        &call_trace_data
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"32-bit CallTraceId event write failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
