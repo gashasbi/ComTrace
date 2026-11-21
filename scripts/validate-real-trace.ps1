@@ -195,7 +195,7 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
         }
     }
 
-    Write-Host "Generating OLE clipboard activity."
+    Write-Host "Generating OLE clipboard and drag-drop registration activity."
     $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE clipboard activity fixture"
     Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
 
@@ -311,8 +311,10 @@ $oleDataObjectPropertyCount = [regex]::Matches(
     "(?im)^\s*property\[\d+\] name=[^\r\n]*DataObject"
 ).Count
 
-if ($oleEventCount -eq 0 -or $oleClipboardOperations -eq 0 -or $oleTimelineMatched -eq 0) {
-    throw "OLE validation requires OLE events, clipboard operations, and a matched start/stop pair. Review $oleSearchPath"
+if ($oleEventCount -eq 0 -or
+    ($oleClipboardOperations -eq 0 -and $oleDragDropOperations -eq 0) -or
+    $oleTimelineMatched -eq 0) {
+    throw "OLE validation requires at least one clipboard or drag-and-drop operation and a matched start/stop pair. Review $oleSearchPath"
 }
 
 $oleMatchTotal = $oleTimelineMatchedByActivity + $oleTimelineMatchedByProcessThread
