@@ -1,6 +1,7 @@
 #ifndef COMTRACE_RELATIONSHIP_GRAPH_H
 #define COMTRACE_RELATIONSHIP_GRAPH_H
 
+#include <stddef.h>
 #include "com_identity.h"
 
 typedef enum {
