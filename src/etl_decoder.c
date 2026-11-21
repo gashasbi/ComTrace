@@ -168,6 +168,7 @@ int comtrace_etl_read_property_count(
         expected_size = 1U;
         break;
     case TDH_INTYPE_UINT16:
+    case TDH_INTYPE_HEXINT16:
         expected_size = 2U;
         break;
     case TDH_INTYPE_UINT32:
@@ -175,6 +176,7 @@ int comtrace_etl_read_property_count(
         expected_size = 4U;
         break;
     case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_HEXINT64:
         expected_size = 8U;
         break;
     default:
