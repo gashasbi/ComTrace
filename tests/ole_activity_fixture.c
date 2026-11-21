@@ -82,7 +82,7 @@ static HRESULT STDMETHODCALLTYPE data_object_enum_d_advise(
     IEnumSTATDATA **enumerator
 );
 
-static const IDataObjectVtbl data_object_vtable = {
+static IDataObjectVtbl data_object_vtable = {
     data_object_query_interface,
     data_object_add_ref,
     data_object_release,
