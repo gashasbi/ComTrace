@@ -292,8 +292,6 @@ static COMTRACE_TRACE_COMPARE_STATUS load_ctra(
         return COMTRACE_TRACE_COMPARE_ARCHIVE_FAILED;
     }
 
-    summary->trace_frequency = reader.footer.perf_frequency;
-
     for (;;) {
         status = comtrace_archive_reader_next(&reader, &event);
         if (status == COMTRACE_ARCHIVE_READER_END) {
@@ -310,6 +308,10 @@ static COMTRACE_TRACE_COMPARE_STATUS load_ctra(
         if (result != COMTRACE_TRACE_COMPARE_SUCCESS) {
             break;
         }
+    }
+
+    if (result == COMTRACE_TRACE_COMPARE_SUCCESS) {
+        summary->trace_frequency = reader.footer.perf_frequency;
     }
 
     comtrace_archive_event_destroy(&event);
