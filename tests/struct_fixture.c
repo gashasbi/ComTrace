@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <evntrace.h>
+#include <evntprov.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,12 +23,13 @@ int wmain(int argc, wchar_t **argv)
     ULONG path_offset;
     ULONG status;
     ULONG stop_status;
+    REGHANDLE registration_handle = 0;
+    EVENT_DATA_DESCRIPTOR descriptors[5];
     USHORT values_count = 2U;
-    BYTE values[12] = {
-        0x44, 0x33, 0x22, 0x11, 0x66, 0x55,
-        0x88, 0x77, 0x66, 0x55, 0xAA, 0x99
-    };
-    int registered = 0;
+    ULONG first_code = 0x11223344UL;
+    USHORT first_status = 0x5566U;
+    ULONG second_code = 0x55667788UL;
+    USHORT second_status = 0x99AAU;
     int result = 1;
 
     if (argc != 2) {
@@ -74,12 +76,11 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    status = EventRegisterComTraceStructFixture();
+    status = EventRegister(&COMTRACE_STRUCT_PROVIDER, NULL, NULL, &registration_handle);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventRegister failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
-    registered = 1;
 
     status = EnableTraceEx2(
         session,
@@ -95,7 +96,12 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    status = EventWriteStructEvent(values_count, sizeof(values), values);
+    EventDataDescCreate(&descriptors[0], &values_count, sizeof(values_count));
+    EventDataDescCreate(&descriptors[1], &first_code, sizeof(first_code));
+    EventDataDescCreate(&descriptors[2], &first_status, sizeof(first_status));
+    EventDataDescCreate(&descriptors[3], &second_code, sizeof(second_code));
+    EventDataDescCreate(&descriptors[4], &second_status, sizeof(second_status));
+    status = EventWrite(registration_handle, &StructEvent, 5U, descriptors);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteStructEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
@@ -104,8 +110,8 @@ int wmain(int argc, wchar_t **argv)
     result = 0;
 
 cleanup:
-    if (registered) {
-        EventUnregisterComTraceStructFixture();
+    if (registration_handle != 0) {
+        EventUnregister(registration_handle);
     }
 
     if (session != 0) {
