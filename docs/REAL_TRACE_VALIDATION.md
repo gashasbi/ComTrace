@@ -34,13 +34,13 @@ Use a trace that contains COM Performance and OLE Performance events, including 
 ## What the script verifies
 
 1. The ETL opens and can be processed by `ComTrace.exe --inspect` without event-processing failures.
-2. `ComTrace.exe --search <trace.etl> --com` finds COM Performance events, reports matched COM calls by `CallTraceId` and `ActivityId`, and counts events missing each identifier.
+2. `ComTrace.exe --search <trace.etl> --com` finds COM Performance events, reports matched COM calls by `CallTraceId`, `ActivityId`, and the weaker process/thread/operation fallback, and counts events missing each identifier.
 3. `ComTrace.exe --search <trace.etl> --ole` finds OLE Performance events and validates clipboard activity, OLE start/stop pairing, and missing ActivityId counts.
 4. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
 5. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
 6. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
 
-The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both COM events lack it, ComTrace can pair them only when their non-empty `ActivityId`, process ID, thread ID, and operation all match. Nested starts use last-in-first-out pairing. A one-sided `CallTraceId`, missing `ActivityId`, or mismatched key is never treated as a match.
+The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both COM events lack it, matching non-empty `ActivityId`, process ID, thread ID, and operation are used as the second level. When both events lack both identifiers, the same process ID, thread ID, and operation can be used as a weaker third level; the report keeps that count separate so it is not confused with identifier-based matching. Nested starts use last-in-first-out pairing. One-sided or mismatched identifiers are never treated as matches.
 
 OLE operation pairs report whether they matched through ActivityId or through the weaker process ID, thread ID, and operation fallback. The fallback is used only when both events lack ActivityId; mismatched or one-sided Activity IDs are not paired. This distinction is included in the inspection and comparison reports.
 
