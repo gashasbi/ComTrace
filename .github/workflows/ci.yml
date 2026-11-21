@@ -34,6 +34,14 @@ jobs:
             throw "Real trace validation script contains syntax errors."
           }
 
+      - name: Validate real COM ETL and CTRA round trip
+        shell: pwsh
+        run: |
+          $comTrace = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTrace.exe'
+          $comTraceArchive = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTraceArchive.exe'
+          $outputDirectory = Join-Path $env:RUNNER_TEMP 'ComTraceRealValidation'
+          & $scriptPath -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 15 -OutputDirectory $outputDirectory
+
       - name: Inspect OLE provider schema
         shell: pwsh
         run: |
