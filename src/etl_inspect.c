@@ -985,6 +985,7 @@ static void add_com_timeline_event(
     COMTRACE_COM_OBJECT_IDENTITY object_identity;
     COMTRACE_ACTIVITY_IDS activity_ids;
     ULONGLONG call_trace_id = 0ULL;
+    ULONG hresult_bits = 0U;
     LONG hresult = 0;
     COMTRACE_IDENTITY_STATUS identity_status;
 
@@ -1037,14 +1038,23 @@ static void add_com_timeline_event(
         timeline_event.activity_ids = &activity_ids;
     }
 
-    if (timeline_event.phase == COMTRACE_TIMELINE_PHASE_STOP &&
-        comtrace_extract_int32_property(
+    if (timeline_event.phase == COMTRACE_TIMELINE_PHASE_STOP) {
+        identity_status = comtrace_extract_int32_property(
             event_record,
             L"HRESULT",
             &hresult
-        ) == COMTRACE_IDENTITY_SUCCESS) {
-        timeline_event.has_hresult = TRUE;
-        timeline_event.hresult = (HRESULT)hresult;
+        );
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.has_hresult = TRUE;
+            timeline_event.hresult = (HRESULT)hresult;
+        } else if (comtrace_extract_uint32_property(
+                       event_record,
+                       L"HRESULT",
+                       &hresult_bits
+                   ) == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.has_hresult = TRUE;
+            timeline_event.hresult = (HRESULT)hresult_bits;
+        }
     }
 
     if (comtrace_timeline_add_event(&context->timeline, &timeline_event) !=
@@ -1142,8 +1152,32 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
                 record->hresult < 0 ? L"failed" : L"succeeded"
             );
         }
-        if (record->has_object_identity && record->object_identity.has_oid) {
-            wprintf(L" oid=0x%llx", (unsigned long long)record->object_identity.oid);
+        if (record->has_object_identity) {
+            if (record->object_identity.has_clsid) {
+                wprintf(L" clsid=");
+                print_guid(&record->object_identity.clsid);
+            }
+            if (record->object_identity.has_iid) {
+                wprintf(L" iid=");
+                print_guid(&record->object_identity.iid);
+            }
+            if (record->object_identity.has_ipid) {
+                wprintf(L" ipid=");
+                print_guid(&record->object_identity.ipid);
+            }
+            if (record->object_identity.has_oid) {
+                wprintf(L" oid=0x%llx", (unsigned long long)record->object_identity.oid);
+            }
+        }
+        if (record->has_activity_ids) {
+            if (record->activity_ids.has_activity_id) {
+                wprintf(L" activity_id=");
+                print_guid(&record->activity_ids.activity_id);
+            }
+            if (record->activity_ids.has_related_activity_id) {
+                wprintf(L" related_activity_id=");
+                print_guid(&record->activity_ids.related_activity_id);
+            }
         }
         wprintf(L"\n");
     }
