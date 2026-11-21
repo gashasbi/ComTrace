@@ -89,7 +89,7 @@ The first command converts an ETL trace to the CTRA archive format. New archives
 
 ## Real ETL validation
 
-Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows machine to capture or supply a trace with COM and OLE activity, confirm both providers' events and operation timelines, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`; new captures also run `ComTraceOleActivityFixture.exe` to generate OLE clipboard traffic. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
+Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows machine to capture or supply a trace with COM and OLE activity, confirm both providers' events and operation timelines, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`; new captures also run `ComTraceOleActivityFixture.exe` to generate OLE clipboard and drag-drop registration traffic. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
 
 ## COM/OLE analysis and limitations
 
