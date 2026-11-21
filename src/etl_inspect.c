@@ -1032,6 +1032,23 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
         if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
             wprintf(L"  com_source_tid=%lu\n", (unsigned long)peer_value);
         }
+
+        {
+            COMTRACE_ACTIVITY_IDS activity_ids;
+            if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+                COMTRACE_IDENTITY_SUCCESS) {
+                if (activity_ids.has_activity_id) {
+                    wprintf(L"  com_activity_id=");
+                    print_guid(&activity_ids.activity_id);
+                    wprintf(L"\n");
+                }
+                if (activity_ids.has_related_activity_id) {
+                    wprintf(L"  com_related_activity_id=");
+                    print_guid(&activity_ids.related_activity_id);
+                    wprintf(L"\n");
+                }
+            }
+        }
     }
 }
 
