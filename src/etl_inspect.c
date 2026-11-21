@@ -1088,13 +1088,14 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
 
         if (record->has_start && record->has_stop) {
             ++matched;
-            if (record->has_hresult && record->hresult < 0) {
-                ++failed_operations;
-            }
         } else if (record->has_start) {
             ++incomplete_starts;
         } else if (record->has_stop) {
             ++unmatched_stops;
+        }
+
+        if (record->has_stop && record->has_hresult && record->hresult < 0) {
+            ++failed_operations;
         }
     }
 
