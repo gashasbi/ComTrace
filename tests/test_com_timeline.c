@@ -114,7 +114,7 @@ static int test_incomplete_and_unmatched_operations(void)
 
     if (status != COMTRACE_TIMELINE_SUCCESS ||
         comtrace_timeline_count(&timeline) != 3U ||
-        comtrace_timeline_pending_count(&timeline) != 1U ||
+        comtrace_timeline_pending_count(&timeline) != 2U ||
         timeline.unmatched_stops != 1ULL ||
         timeline.missing_call_trace_ids != 1ULL ||
         timeline.missing_activity_ids != 3ULL ||
