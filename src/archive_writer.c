@@ -618,9 +618,6 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
         );
     }
 
-    checksum = comtrace_archive_checksum_finish(writer->checksum_state);
-    writer->checksum_enabled = FALSE;
-
     status = write_bytes(writer, footer_magic, sizeof(footer_magic));
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
 
@@ -695,6 +692,9 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
 
     status = write_u64(writer, summary->perf_frequency);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
+
+    checksum = comtrace_archive_checksum_finish(writer->checksum_state);
+    writer->checksum_enabled = FALSE;
 
     status = write_u32(writer, checksum);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
