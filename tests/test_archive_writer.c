@@ -1,4 +1,5 @@
 #include "archive_writer.h"
+#include "archive_checksum.h"
 
 void comtrace_archive_writer_test_fail_allocation_on_call(LONG call_index);
 void comtrace_archive_writer_test_fail_write(BOOL enabled);
@@ -335,12 +336,12 @@ static int test_archive_round_trip(void)
     }
 
     check_condition(
-        archive_size == 288U,
+        archive_size == 292U,
         "Archive has expected complete size",
         &failures
     );
 
-    if (archive_size >= 288U) {
+    if (archive_size >= 292U) {
         check_condition(
             memcmp(archive, expected_magic, sizeof(expected_magic)) == 0,
             "Archive signature is correct",
@@ -348,7 +349,7 @@ static int test_archive_round_trip(void)
         );
 
         check_condition(
-            read_u32(archive + 8U) == 1U &&
+            read_u32(archive + 8U) == 2U &&
             read_u32(archive + 12U) == 24U &&
             read_u32(archive + 16U) == 1U,
             "Archive header version and flags are correct",
@@ -461,8 +462,8 @@ static int test_archive_round_trip(void)
         );
 
         check_condition(
-            read_u32(archive + footer_offset + 8U) == 1U &&
-            read_u32(archive + footer_offset + 12U) == 124U &&
+            read_u32(archive + footer_offset + 8U) == 2U &&
+            read_u32(archive + footer_offset + 12U) == 128U &&
             read_u64(archive + footer_offset + 16U) == 1ULL,
             "Archive footer version and record count are correct",
             &failures
@@ -504,6 +505,13 @@ static int test_archive_round_trip(void)
                 0x2122232425262728ULL &&
             read_u64(archive + footer_offset + 116U) == 10000000ULL,
             "Trace time base metadata is preserved",
+            &failures
+        );
+
+        check_condition(
+            read_u32(archive + footer_offset + 124U) ==
+                comtrace_archive_checksum(archive, footer_offset),
+            "Footer contains CRC32 of the archive header and records",
             &failures
         );
     }
