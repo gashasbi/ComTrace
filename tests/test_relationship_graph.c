@@ -112,6 +112,7 @@ static int test_client_server_graph(void)
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_IID) != 1U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_IPID) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO) != 1U ||
