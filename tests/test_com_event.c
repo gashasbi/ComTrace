@@ -74,13 +74,8 @@ static int run_rejection_case(
         return 0;
     }
 
-    if (wcscmp(operation, L"unchanged_operation") != 0) {
-        fputs("Operation output changed after rejected classification\n", stderr);
-        return 0;
-    }
-
-    if (wcscmp(phase, L"unchanged_phase") != 0) {
-        fputs("Phase output changed after rejected classification\n", stderr);
+    if (operation != NULL || phase != NULL) {
+        fputs("Rejected COM classification did not clear output values\n", stderr);
         return 0;
     }
 
@@ -96,8 +91,8 @@ static int run_null_argument_cases(void)
     phase = L"unchanged_phase";
     if (comtrace_classify_com_event(
             NULL, 5U, 0U, 1U, &operation, &phase) ||
-        wcscmp(operation, L"unchanged_operation") != 0 ||
-        wcscmp(phase, L"unchanged_phase") != 0) {
+        operation != NULL ||
+        phase != NULL) {
         fputs("Null provider handling failed\n", stderr);
         return 0;
     }
@@ -106,7 +101,7 @@ static int run_null_argument_cases(void)
     phase = L"unchanged_phase";
     if (comtrace_classify_com_event(
             &com_perf_provider, 5U, 0U, 1U, NULL, &phase) ||
-        wcscmp(phase, L"unchanged_phase") != 0) {
+        phase != NULL) {
         fputs("Null operation output handling failed\n", stderr);
         return 0;
     }
@@ -115,7 +110,7 @@ static int run_null_argument_cases(void)
     phase = L"unchanged_phase";
     if (comtrace_classify_com_event(
             &com_perf_provider, 5U, 0U, 1U, &operation, NULL) ||
-        wcscmp(operation, L"unchanged_operation") != 0) {
+        operation != NULL) {
         fputs("Null phase output handling failed\n", stderr);
         return 0;
     }
