@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 typedef struct {
-    IDataObject interface;
+    IDataObject data_object_iface;
     LONG references;
 } COMTRACE_TEST_DATA_OBJECT;
 
@@ -20,52 +20,52 @@ static const IID COMTRACE_IID_IDATAOBJECT = {
 };
 
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     REFIID interface_id,
     void **result
 );
 
-static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *interface);
-static ULONG STDMETHODCALLTYPE data_object_release(IDataObject *interface);
+static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *data_object_iface);
+static ULONG STDMETHODCALLTYPE data_object_release(IDataObject *data_object_iface);
 
 static HRESULT STDMETHODCALLTYPE data_object_get_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_get_data_here(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_query_get_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_get_canonical_format_etc(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *input,
     FORMATETC *output
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_set_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium,
     BOOL release
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_enum_format_etc(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     DWORD direction,
     IEnumFORMATETC **enumerator
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_d_advise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     DWORD flags,
     IAdviseSink *sink,
@@ -73,12 +73,12 @@ static HRESULT STDMETHODCALLTYPE data_object_d_advise(
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_d_unadvise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     DWORD connection
 );
 
 static HRESULT STDMETHODCALLTYPE data_object_enum_d_advise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     IEnumSTATDATA **enumerator
 );
 
@@ -98,7 +98,7 @@ static const IDataObjectVtbl data_object_vtable = {
 };
 
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     REFIID interface_id,
     void **result
 )
@@ -111,26 +111,26 @@ static HRESULT STDMETHODCALLTYPE data_object_query_interface(
 
     if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
         IsEqualGUID(interface_id, &COMTRACE_IID_IDATAOBJECT)) {
-        *result = interface;
-        data_object_add_ref(interface);
+        *result = data_object_iface;
+        data_object_add_ref(data_object_iface);
         return S_OK;
     }
 
     return E_NOINTERFACE;
 }
 
-static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *interface)
+static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *data_object_iface)
 {
     COMTRACE_TEST_DATA_OBJECT *object =
-        (COMTRACE_TEST_DATA_OBJECT *)interface;
+        (COMTRACE_TEST_DATA_OBJECT *)data_object_iface;
 
     return (ULONG)InterlockedIncrement(&object->references);
 }
 
-static ULONG STDMETHODCALLTYPE data_object_release(IDataObject *interface)
+static ULONG STDMETHODCALLTYPE data_object_release(IDataObject *data_object_iface)
 {
     COMTRACE_TEST_DATA_OBJECT *object =
-        (COMTRACE_TEST_DATA_OBJECT *)interface;
+        (COMTRACE_TEST_DATA_OBJECT *)data_object_iface;
     LONG references = InterlockedDecrement(&object->references);
 
     if (references == 0) {
@@ -141,11 +141,11 @@ static ULONG STDMETHODCALLTYPE data_object_release(IDataObject *interface)
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_query_get_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
 
     if (format == NULL) {
         return E_POINTER;
@@ -171,7 +171,7 @@ static HRESULT STDMETHODCALLTYPE data_object_query_get_data(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_get_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium
 )
@@ -181,7 +181,7 @@ static HRESULT STDMETHODCALLTYPE data_object_get_data(
     void *buffer;
     HRESULT result;
 
-    result = data_object_query_get_data(interface, format);
+    result = data_object_query_get_data(data_object_iface, format);
     if (FAILED(result)) {
         return result;
     }
@@ -212,24 +212,24 @@ static HRESULT STDMETHODCALLTYPE data_object_get_data(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_get_data_here(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
     UNREFERENCED_PARAMETER(format);
     UNREFERENCED_PARAMETER(medium);
     return E_NOTIMPL;
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_get_canonical_format_etc(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *input,
     FORMATETC *output
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
 
     if (input == NULL || output == NULL) {
         return E_POINTER;
@@ -241,13 +241,13 @@ static HRESULT STDMETHODCALLTYPE data_object_get_canonical_format_etc(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_set_data(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     STGMEDIUM *medium,
     BOOL release
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
     UNREFERENCED_PARAMETER(format);
     UNREFERENCED_PARAMETER(medium);
     UNREFERENCED_PARAMETER(release);
@@ -255,14 +255,14 @@ static HRESULT STDMETHODCALLTYPE data_object_set_data(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_enum_format_etc(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     DWORD direction,
     IEnumFORMATETC **enumerator
 )
 {
     FORMATETC format;
 
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
 
     if (enumerator == NULL) {
         return E_POINTER;
@@ -283,14 +283,14 @@ static HRESULT STDMETHODCALLTYPE data_object_enum_format_etc(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_d_advise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     FORMATETC *format,
     DWORD flags,
     IAdviseSink *sink,
     DWORD *connection
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
     UNREFERENCED_PARAMETER(format);
     UNREFERENCED_PARAMETER(flags);
     UNREFERENCED_PARAMETER(sink);
@@ -303,21 +303,21 @@ static HRESULT STDMETHODCALLTYPE data_object_d_advise(
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_d_unadvise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     DWORD connection
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
     UNREFERENCED_PARAMETER(connection);
     return OLE_E_ADVISENOTSUPPORTED;
 }
 
 static HRESULT STDMETHODCALLTYPE data_object_enum_d_advise(
-    IDataObject *interface,
+    IDataObject *data_object_iface,
     IEnumSTATDATA **enumerator
 )
 {
-    UNREFERENCED_PARAMETER(interface);
+    UNREFERENCED_PARAMETER(data_object_iface);
 
     if (enumerator != NULL) {
         *enumerator = NULL;
@@ -339,9 +339,9 @@ static IDataObject *create_data_object(void)
         return NULL;
     }
 
-    object->interface.lpVtbl = &data_object_vtable;
+    object->data_object_iface.lpVtbl = &data_object_vtable;
     object->references = 1;
-    return &object->interface;
+    return &object->data_object_iface;
 }
 
 int main(void)
