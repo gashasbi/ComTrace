@@ -173,9 +173,8 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
         timeline_event.object_identity = &identity;
         timeline_event.activity_ids = activity_ids_ptr;
 
-        if (comtrace_extract_uint64_property(
+        if (comtrace_extract_call_trace_id(
                 event_record,
-                L"CallTraceId",
                 &call_trace_id
             ) == COMTRACE_IDENTITY_SUCCESS) {
             timeline_event.has_call_trace_id = TRUE;
