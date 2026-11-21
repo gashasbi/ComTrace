@@ -40,21 +40,25 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $configurationDir = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release'
           $exe = Join-Path $configurationDir 'ComTrace.exe'
+          $archiveExe = Join-Path $configurationDir 'ComTraceArchive.exe'
           if (-not (Test-Path $exe)) { throw "Release executable not found: $exe" }
+          if (-not (Test-Path $archiveExe)) { throw "Archive executable not found: $archiveExe" }
 
           $stage = Join-Path $env:RUNNER_TEMP 'ComTrace-release'
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item $exe, 'README.md', 'LICENSE' -Destination $stage
+          Copy-Item $exe, $archiveExe, 'README.md', 'LICENSE' -Destination $stage
 
           $zipName = "ComTrace-$env:RELEASE_TAG-win-x64.zip"
           $zipPath = Join-Path $env:GITHUB_WORKSPACE $zipName
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal
 
           $exeAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTrace.exe'
+          $archiveAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTraceArchive.exe'
           Copy-Item $exe $exeAsset
+          Copy-Item $archiveExe $archiveAsset
 
           $checksumLines = @()
-          foreach ($file in @($zipPath, $exeAsset)) {
+          foreach ($file in @($zipPath, $exeAsset, $archiveAsset)) {
             $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
             $checksumLines += "$hash  $(Split-Path $file -Leaf)"
           }
@@ -69,4 +73,5 @@ jobs:
           files: |
             ComTrace-${{ inputs.tag || github.ref_name }}-win-x64.zip
             ComTrace.exe
+            ComTraceArchive.exe
             SHA256SUMS.txt
