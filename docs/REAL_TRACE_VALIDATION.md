@@ -44,6 +44,8 @@ The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UIn
 
 OLE operation pairs report whether they matched through ActivityId or through the weaker process ID, thread ID, and operation fallback. The fallback is used only when both events lack ActivityId; mismatched or one-sided Activity IDs are not paired. This distinction is included in the inspection and comparison reports.
 
+The OLE Performance provider schema inspected on Windows Server 2022 defines events but provides no payload templates or data fields. The OLE fixture verifies real clipboard activity; it does not make the DataObject pointer or identity available in ETW. ComTrace therefore reports OLE operation and ActivityId information where available, but does not infer a DataObject identity from raw payload bytes.
+
 A successful run prints `Real ETL validation: PASS` and writes a JSON validation summary. The ETL, CTRA archive, and text/JSON reports are preserved in the output directory. By default this directory is `comtrace-validation` under the current directory; set `-OutputDirectory` to choose another location.
 
 The number of CLSID, IID, IPID, or OID values reported is included for review, but is not a pass/fail requirement. A specific provider event may not expose those fields in its installed TDH schema. ComTrace does not infer missing identities from arbitrary payload bytes.
