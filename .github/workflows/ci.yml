@@ -22,5 +22,15 @@ jobs:
       - name: Build Release
         run: cmake --build --preset windows-vs2022-x64-release --parallel
 
+      - name: Inspect OLE provider schema
+        shell: pwsh
+        run: |
+          $schema = & wevtutil.exe gp Microsoft-Windows-OLE-Perf /ge:true /gm:true /f:XML 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            $schema | Select-String -Pattern 'OLE_|DataObject|Clipboard|DragDrop|IID|IPID|CLSID|GUID' -Context 1, 1
+          } else {
+            Write-Host "OLE-Perf provider schema is not available on this runner."
+          }
+
       - name: Run tests
         run: ctest --preset windows-vs2022-x64-release
