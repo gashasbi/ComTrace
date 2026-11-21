@@ -1,6 +1,6 @@
 # Real ETL Validation
 
-This validation runs on a Windows machine and uses the installed COM Performance and OLE Performance providers. A new capture generates both COM activation traffic and real OLE clipboard activity through `ComTraceOleActivityFixture.exe`. It checks the resulting ETL and verifies that converting it to CTRA preserves the event stream and the derived COM/OLE analysis.
+This validation runs on a Windows machine and uses the installed COM Performance and OLE Performance providers. A new capture generates COM activation traffic plus OLE clipboard and drag-drop registration activity through `ComTraceOleActivityFixture.exe`. It checks the resulting ETL and verifies that converting it to CTRA preserves the event stream and the derived COM/OLE analysis.
 
 ## Capture and validate
 
@@ -10,9 +10,9 @@ Open **64-bit PowerShell as Administrator** in the repository directory after bu
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 -ComTraceExe .\out\build\windows-vs2022-x64\Release\ComTrace.exe -ComTraceArchiveExe .\out\build\windows-vs2022-x64\Release\ComTraceArchive.exe
 ```
 
-The script captures a 30-second ETL by default. During capture it activates several built-in Windows COM components, including Shell.Application, Scripting.Dictionary, and WScript.Shell. It also runs `ComTraceOleActivityFixture.exe`, which publishes a test `IDataObject` to the OLE clipboard, reads it back, checks the current clipboard object, and flushes it. Increase the duration with `-CaptureSeconds 60` when you also need time to reproduce an application-specific operation.
+The script captures a 30-second ETL by default. During capture it activates several built-in Windows COM components, including Shell.Application, Scripting.Dictionary, and WScript.Shell. It also runs `ComTraceOleActivityFixture.exe`, which publishes a test `IDataObject` to the OLE clipboard, reads it back, checks the current clipboard object, flushes it, and registers then revokes a hidden OLE drop target. Increase the duration with `-CaptureSeconds 60` when you also need time to reproduce an application-specific operation.
 
-The fixture executable is built with the project and is included in the Windows release package. The script requires successful COM activation and OLE clipboard activity, plus events classified by both the COM Performance and OLE Performance providers. If the installed Windows image does not provide the required COM/OLE services, use an existing ETL captured on a machine where both types of activity occurred.
+The fixture executable is built with the project and is included in the Windows release package. The script requires successful COM activation and at least one matched OLE clipboard or drag-and-drop operation, plus events classified by both the COM Performance and OLE Performance providers. If the installed Windows image does not provide the required COM/OLE services, use an existing ETL captured on a machine where both types of activity occurred.
 
 When using the Windows ZIP release, extract the archive and run the same command with the executables in the extracted directory:
 
@@ -29,13 +29,13 @@ An existing ETL can be checked without starting an ETW session or running as Adm
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 -ComTraceExe .\out\build\windows-vs2022-x64\Release\ComTrace.exe -ComTraceArchiveExe .\out\build\windows-vs2022-x64\Release\ComTraceArchive.exe -EtlPath C:\Traces\application.etl
 ```
 
-Use a trace that contains COM Performance and OLE Performance events, including OLE clipboard operations with at least one matched start/stop pair. A trace without either type of activity will fail validation.
+Use a trace that contains COM Performance and OLE Performance events, including OLE clipboard or drag-and-drop operations with at least one matched start/stop pair. A trace without either type of activity will fail validation.
 
 ## What the script verifies
 
 1. The ETL opens and can be processed by `ComTrace.exe --inspect` without event-processing failures.
 2. `ComTrace.exe --search <trace.etl> --com` finds COM Performance events, reports matched COM calls by `CallTraceId`, `ActivityId`, and the weaker process/thread/operation fallback, and counts events missing each identifier.
-3. `ComTrace.exe --search <trace.etl> --ole` finds OLE Performance events and validates clipboard activity, OLE start/stop pairing, and missing ActivityId counts.
+3. `ComTrace.exe --search <trace.etl> --ole` finds OLE Performance events and validates clipboard or drag-and-drop activity, OLE start/stop pairing, and missing ActivityId counts.
 4. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
 5. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
 6. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
