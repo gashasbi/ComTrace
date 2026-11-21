@@ -223,6 +223,34 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
     return status;
 }
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_int32_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    LONG *value
+)
+{
+    LONG candidate;
+    COMTRACE_IDENTITY_STATUS status;
+
+    if (value == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    status = extract_property_value(
+        event_record,
+        property_name,
+        TDH_INTYPE_INT32,
+        (BYTE *)&candidate,
+        (ULONG)sizeof(candidate)
+    );
+
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = candidate;
+    }
+
+    return status;
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     const EVENT_RECORD *event_record,
     const wchar_t *property_name,
