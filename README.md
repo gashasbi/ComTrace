@@ -71,7 +71,7 @@ ComTrace.exe --compare before.etl after.ctra --json
 
 Filters can be combined. For example, `--search trace.etl --provider {B8D6861B-D20F-4EEC-BBAE-87E0DD80602B} --event-id 39 --pid 1234` selects COM Performance events matching all supplied filters.
 
-**Compare** accepts ETL or CTRA input files. It reports event-type count changes, COM object changes keyed by process and OID, changes to available CLSID/IID/IPID identity fields, COM and OLE timeline counts, and per-operation timing summaries. Add `--json` for the versioned JSON report (currently schema version 1).
+**Compare** accepts ETL or CTRA input files. It reports event-type count changes, COM object changes keyed by process and OID, changes to available CLSID/IID/IPID identity fields, COM and OLE timeline counts, and per-operation timing summaries. Add `--json` for the versioned JSON report (currently schema version 1); its fields and data types are documented in [COMPARISON_JSON.md](docs/COMPARISON_JSON.md).
 
 ### ComTraceArchive.exe
 
