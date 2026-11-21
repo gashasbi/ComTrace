@@ -92,6 +92,11 @@ static COMTRACE_TIMELINE_MATCH_TYPE get_match_type(
     const COMTRACE_TIMELINE_EVENT *event
 )
 {
+    BOOL record_has_activity_id =
+        record->has_activity_ids && record->activity_ids.has_activity_id;
+    BOOL event_has_activity_id =
+        event->activity_ids != NULL && event->activity_ids->has_activity_id;
+
     if (record->process_id != event->process_id ||
         record->thread_id != event->thread_id ||
         wcscmp(record->operation, event->operation) != 0) {
@@ -108,19 +113,23 @@ static COMTRACE_TIMELINE_MATCH_TYPE get_match_type(
         return COMTRACE_TIMELINE_MATCH_NONE;
     }
 
-    if (!record->has_activity_ids ||
-        !record->activity_ids.has_activity_id ||
-        event->activity_ids == NULL ||
-        !event->activity_ids->has_activity_id ||
-        memcmp(
-            &record->activity_ids.activity_id,
-            &event->activity_ids->activity_id,
-            sizeof(GUID)
-        ) != 0) {
+    if (record_has_activity_id && event_has_activity_id) {
+        if (memcmp(
+                &record->activity_ids.activity_id,
+                &event->activity_ids->activity_id,
+                sizeof(GUID)
+            ) == 0) {
+            return COMTRACE_TIMELINE_MATCH_ACTIVITY_ID;
+        }
+
         return COMTRACE_TIMELINE_MATCH_NONE;
     }
 
-    return COMTRACE_TIMELINE_MATCH_ACTIVITY_ID;
+    if (!record_has_activity_id && !event_has_activity_id) {
+        return COMTRACE_TIMELINE_MATCH_PROCESS_THREAD;
+    }
+
+    return COMTRACE_TIMELINE_MATCH_NONE;
 }
 
 static void copy_event_data(
@@ -237,8 +246,7 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
             return COMTRACE_TIMELINE_ALLOCATION_FAILED;
         }
 
-        if ((event->has_call_trace_id || has_activity_id) &&
-            !ensure_pending_capacity(timeline)) {
+        if (!ensure_pending_capacity(timeline)) {
             return COMTRACE_TIMELINE_ALLOCATION_FAILED;
         }
 
@@ -258,10 +266,8 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
         record->start_timestamp = event->timestamp;
         ++timeline->record_count;
 
-        if (event->has_call_trace_id || has_activity_id) {
-            timeline->pending_indices[timeline->pending_count] = record_index;
-            ++timeline->pending_count;
-        }
+        timeline->pending_indices[timeline->pending_count] = record_index;
+        ++timeline->pending_count;
 
         return COMTRACE_TIMELINE_SUCCESS;
     }
