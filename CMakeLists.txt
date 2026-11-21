@@ -14,6 +14,7 @@ add_executable(ComTrace
     src/main.c
     src/etw_capture.c
     src/etl_inspect.c
+    src/etl_decoder.c
     src/etl_value.c
     src/com_event.c
     src/ole_event.c
