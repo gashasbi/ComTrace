@@ -27,7 +27,6 @@ typedef struct {
     COMTRACE_TIMELINE_PHASE phase;
     BOOL has_call_trace_id;
     ULONGLONG call_trace_id;
-    COMTRACE_TIMELINE_MATCH_TYPE match_type;
     DWORD process_id;
     DWORD thread_id;
     ULONGLONG timestamp;
@@ -49,6 +48,7 @@ typedef struct {
     BOOL has_start;
     BOOL has_stop;
     BOOL has_duration;
+    COMTRACE_TIMELINE_MATCH_TYPE match_type;
     BOOL has_hresult;
     HRESULT hresult;
     BOOL has_object_identity;
