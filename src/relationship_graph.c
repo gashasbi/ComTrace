@@ -639,6 +639,31 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             return status;
         }
 
+        if (identity->has_call_trace_id) {
+            status = add_node(
+                graph,
+                COMTRACE_GRAPH_NODE_CALL,
+                0U,
+                0U,
+                NULL,
+                identity->call_trace_id,
+                &call_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+
+            status = add_edge(
+                graph,
+                COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT,
+                call_index,
+                object_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+
         if (class_index != (size_t)-1) {
             status = add_edge(
                 graph,
