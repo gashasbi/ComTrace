@@ -275,3 +275,50 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
     CopyMemory(activity_ids, &result, sizeof(result));
     return COMTRACE_IDENTITY_SUCCESS;
 }
+
+BOOL comtrace_get_process_image_path(
+    DWORD process_id,
+    wchar_t *path,
+    DWORD path_capacity
+)
+{
+    HANDLE process;
+    DWORD path_length;
+    BOOL result;
+
+    if (path == NULL || path_capacity == 0U) {
+        return FALSE;
+    }
+
+    path[0] = L'\0';
+    if (process_id == 0U) {
+        return FALSE;
+    }
+
+    process = OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION,
+        FALSE,
+        process_id
+    );
+    if (process == NULL) {
+        return FALSE;
+    }
+
+    path_length = path_capacity;
+    result = QueryFullProcessImageNameW(
+        process,
+        0U,
+        path,
+        &path_length
+    );
+
+    CloseHandle(process);
+
+    if (!result || path_length == 0U || path_length >= path_capacity) {
+        path[0] = L'\0';
+        return FALSE;
+    }
+
+    path[path_length] = L'\0';
+    return TRUE;
+}
