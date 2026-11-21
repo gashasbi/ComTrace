@@ -50,6 +50,72 @@ if(NOT test_status EQUAL 0)
 endif()
 
 execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "{D3A24C71-91B6-4B02-8C37-5A6D7E8091AF}" --event-id 1 --max-events 10
+    RESULT_VARIABLE search_status
+    OUTPUT_VARIABLE search_output
+    ERROR_VARIABLE search_error
+)
+
+if(NOT search_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Filtered ETL search failed: ${search_error}${search_output}")
+endif()
+
+string(FIND "${search_output}" "Events matching filters: 1" search_match)
+if(search_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Provider and Event ID filters did not select the expected event: ${search_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "{D3A24C71-91B6-4B02-8C37-5A6D7E8091AF}" --event-id 2
+    RESULT_VARIABLE no_match_status
+    OUTPUT_VARIABLE no_match_output
+    ERROR_VARIABLE no_match_error
+)
+
+if(NOT no_match_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Empty ETL search failed: ${no_match_error}${no_match_output}")
+endif()
+
+string(FIND "${no_match_output}" "Events matching filters: 0" no_match)
+if(no_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Non-matching Event ID returned results: ${no_match_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --com
+    RESULT_VARIABLE com_filter_status
+    OUTPUT_VARIABLE com_filter_output
+    ERROR_VARIABLE com_filter_error
+)
+
+if(NOT com_filter_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "COM search filter failed: ${com_filter_error}${com_filter_output}")
+endif()
+
+string(FIND "${com_filter_output}" "Events matching filters: 0" com_filter_match)
+if(com_filter_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "COM filter selected a non-COM fixture: ${com_filter_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --event-id 65536
+    RESULT_VARIABLE invalid_filter_status
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
+
+if(invalid_filter_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Invalid Event ID filter was accepted.")
+endif()
+
+execute_process(
     COMMAND "${COMTRACE_ARCHIVE_EXE}" "${ETL_FILE}" "${CTRA_FILE}"
     RESULT_VARIABLE archive_status
     OUTPUT_VARIABLE archive_output
