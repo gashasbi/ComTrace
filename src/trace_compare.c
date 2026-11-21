@@ -873,6 +873,42 @@ static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
     return counts;
 }
 
+typedef struct {
+    ULONGLONG matched;
+    ULONGLONG incomplete;
+    ULONGLONG unmatched;
+    ULONGLONG activity_sequences;
+    ULONGLONG missing_activity_ids;
+} COMTRACE_OLE_TIMELINE_COUNTS;
+
+static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
+    const COMTRACE_TRACE_SUMMARY *summary
+)
+{
+    COMTRACE_OLE_TIMELINE_COUNTS counts;
+    size_t index;
+
+    ZeroMemory(&counts, sizeof(counts));
+
+    for (index = 0U; index < summary->ole_timeline.record_count; ++index) {
+        const COMTRACE_OLE_TIMELINE_RECORD *record =
+            &summary->ole_timeline.records[index];
+
+        if (record->has_start && record->has_stop) {
+            ++counts.matched;
+        } else if (record->has_start) {
+            ++counts.incomplete;
+        } else if (record->has_stop) {
+            ++counts.unmatched;
+        }
+    }
+
+    counts.activity_sequences =
+        (ULONGLONG)comtrace_ole_timeline_sequence_count(&summary->ole_timeline);
+    counts.missing_activity_ids = summary->ole_timeline.missing_activity_ids;
+    return counts;
+}
+
 void comtrace_trace_comparison_write_text(
     const COMTRACE_TRACE_COMPARISON *comparison
 )
@@ -880,6 +916,8 @@ void comtrace_trace_comparison_write_text(
     size_t index;
     COMTRACE_TIMELINE_COUNTS left_timeline;
     COMTRACE_TIMELINE_COUNTS right_timeline;
+    COMTRACE_OLE_TIMELINE_COUNTS left_ole_timeline;
+    COMTRACE_OLE_TIMELINE_COUNTS right_ole_timeline;
 
     if (comparison == NULL) {
         return;
@@ -887,6 +925,8 @@ void comtrace_trace_comparison_write_text(
 
     left_timeline = get_timeline_counts(&comparison->left);
     right_timeline = get_timeline_counts(&comparison->right);
+    left_ole_timeline = get_ole_timeline_counts(&comparison->left);
+    right_ole_timeline = get_ole_timeline_counts(&comparison->right);
 
     wprintf(L"ComTrace trace comparison\n");
     wprintf(
@@ -926,9 +966,14 @@ void comtrace_trace_comparison_write_text(
         wprintf(L"  provider=");
         print_guid_text(&diff->provider_id);
         wprintf(
-            L" event_id=%u version=%u left=%llu right=%llu\n",
+            L" event_id=%u version=%u channel=%u level=%u opcode=%u task=%u keyword=0x%llx left=%llu right=%llu\n",
             (unsigned int)diff->descriptor.Id,
             (unsigned int)diff->descriptor.Version,
+            (unsigned int)diff->descriptor.Channel,
+            (unsigned int)diff->descriptor.Level,
+            (unsigned int)diff->descriptor.Opcode,
+            (unsigned int)diff->descriptor.Task,
+            (unsigned long long)diff->descriptor.Keyword,
             (unsigned long long)diff->left_count,
             (unsigned long long)diff->right_count
         );
@@ -958,7 +1003,21 @@ void comtrace_trace_comparison_write_text(
         (unsigned long long)right_timeline.failed
     );
 
-    wprintf(L"COM operation timings\n");
+    wprintf(
+        L"OLE Timeline: left matched=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu; right matched=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu\n",
+        (unsigned long long)left_ole_timeline.matched,
+        (unsigned long long)left_ole_timeline.incomplete,
+        (unsigned long long)left_ole_timeline.unmatched,
+        (unsigned long long)left_ole_timeline.activity_sequences,
+        (unsigned long long)left_ole_timeline.missing_activity_ids,
+        (unsigned long long)right_ole_timeline.matched,
+        (unsigned long long)right_ole_timeline.incomplete,
+        (unsigned long long)right_ole_timeline.unmatched,
+        (unsigned long long)right_ole_timeline.activity_sequences,
+        (unsigned long long)right_ole_timeline.missing_activity_ids
+    );
+
+    wprintf(L"Operation timings\n");
     for (index = 0U; index < comparison->left.operation_timing_count; ++index) {
         const COMTRACE_OPERATION_TIMING *left =
             &comparison->left.operation_timings[index];
