@@ -1201,18 +1201,38 @@ void comtrace_trace_comparison_write_json(
             index == 0U ? L"\n" : L",\n"
         );
         print_guid_text(&diff->provider_id);
-        wprintf(
-            L"\", \"event_id\": %u, \"version\": %u, \"channel\": %u, \"level\": %u, \"opcode\": %u, \"task\": %u, \"keyword\": \"0x%llx\", \"left_count\": %llu, \"right_count\": %llu}",
-            (unsigned int)diff->descriptor.Id,
-            (unsigned int)diff->descriptor.Version,
-            (unsigned int)diff->descriptor.Channel,
-            (unsigned int)diff->descriptor.Level,
-            (unsigned int)diff->descriptor.Opcode,
-            (unsigned int)diff->descriptor.Task,
-            (unsigned long long)diff->descriptor.Keyword,
-            (unsigned long long)diff->left_count,
-            (unsigned long long)diff->right_count
-        );   }
+        putwchar(L'"');
+        wprintf(L", ");
+        write_json_string(L"event_id");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Id);
+        write_json_string(L"version");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Version);
+        write_json_string(L"channel");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Channel);
+        write_json_string(L"level");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Level);
+        write_json_string(L"opcode");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Opcode);
+        write_json_string(L"task");
+        wprintf(L": %u, ", (unsigned int)diff->descriptor.Task);
+        write_json_string(L"keyword");
+        wprintf(L": ");
+        {
+            wchar_t keyword_text[19];
+
+            swprintf_s(
+                keyword_text,
+                sizeof(keyword_text) / sizeof(keyword_text[0]),
+                L"0x%llx",
+                (unsigned long long)diff->descriptor.Keyword
+            );
+            write_json_string(keyword_text);
+        }
+        wprintf(L", ");
+        write_json_string(L"left_count");
+        wprintf(L": %llu, ", (unsigned long long)diff->left_count);
+        write_json_string(L"right_count");
+        wprintf(L": %llu}", (unsigned long long)diff->right_count);  }
     if (comparison->event_type_diff_count != 0U) {
         wprintf(L"\n  ");
     }
