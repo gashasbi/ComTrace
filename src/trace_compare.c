@@ -247,7 +247,9 @@ static COMTRACE_TRACE_COMPARE_STATUS load_etl(
     context.status = COMTRACE_TRACE_COMPARE_SUCCESS;
 
     logfile.LogFileName = (LPWSTR)path;
-    logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
+    logfile.ProcessTraceMode =
+        PROCESS_TRACE_MODE_EVENT_RECORD |
+        PROCESS_TRACE_MODE_RAW_TIMESTAMP;
     logfile.EventRecordCallback = trace_compare_event_callback;
     logfile.Context = &context;
 
