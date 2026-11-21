@@ -484,7 +484,6 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     ULONG record_flags;
     USHORT extended_count;
     USHORT user_data_length;
-    ULONG checksum_state_before_frame;
     size_t cursor;
     USHORT index;
 
@@ -548,14 +547,11 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
-    checksum_state_before_frame = reader->checksum_state;
-
     if (!read_exact(reader, frame, 8U)) {
         return reader->status;
     }
 
     if (memcmp(frame, footer_magic, sizeof(footer_magic)) == 0) {
-        reader->checksum_state = checksum_state_before_frame;
         reader->checksum_enabled = reader->format_version == 2U;
         return read_footer(reader, frame);
     }
