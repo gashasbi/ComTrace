@@ -552,7 +552,8 @@ cleanup:
     OleUninitialize();
 
     if (exit_code == 0) {
-        puts("OLE clipboard and drag-drop activity succeeded.");
+        puts("OLE clipboard activity succeeded.");
+        puts("OLE drag-drop activity succeeded.");
     }
 
     return exit_code;
