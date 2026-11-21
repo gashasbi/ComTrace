@@ -3,6 +3,12 @@ if(NOT DEFINED FIXTURE_EXE OR NOT DEFINED TEST_EXE OR NOT DEFINED COMTRACE_EXE O
 endif()
 
 file(MAKE_DIRECTORY "${TEST_DIR}")
+file(READ "${MANIFEST_FILE}" manifest_content)
+string(REGEX MATCH "guid=\"\\{[0-9A-Fa-f-]+\\}\"" provider_attribute "${manifest_content}")
+if(NOT provider_attribute)
+    message(FATAL_ERROR "Identity fixture Provider GUID was not found.")
+endif()
+string(REGEX REPLACE "guid=\"([^"]+)\"" "\\1" COMTRACE_IDENTITY_PROVIDER_GUID "${provider_attribute}")
 set(ETL_FILE "${TEST_DIR}/identity_test.etl")
 set(CTRA_FILE "${TEST_DIR}/identity_test.ctra")
 file(REMOVE "${ETL_FILE}" "${CTRA_FILE}")
@@ -50,7 +56,7 @@ if(NOT test_status EQUAL 0)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "{D3A24C71-91B6-4B02-8C37-5A6D7E8091AF}" --event-id 1 --max-events 10
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 1 --max-events 10
     RESULT_VARIABLE search_status
     OUTPUT_VARIABLE search_output
     ERROR_VARIABLE search_error
@@ -68,7 +74,7 @@ if(search_match EQUAL -1)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "{D3A24C71-91B6-4B02-8C37-5A6D7E8091AF}" --event-id 2
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 2
     RESULT_VARIABLE no_match_status
     OUTPUT_VARIABLE no_match_output
     ERROR_VARIABLE no_match_error
