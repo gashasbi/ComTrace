@@ -5,6 +5,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ComTraceArchiveExe,
 
+    [string]$ComTraceOleActivityFixtureExe,
+
     [string]$EtlPath,
 
     [string]$OutputDirectory = (Join-Path (Get-Location).Path "comtrace-validation"),
@@ -78,6 +80,19 @@ if (-not (Test-Path -LiteralPath $ComTraceArchiveExe -PathType Leaf)) {
 
 $ComTraceExe = (Resolve-Path -LiteralPath $ComTraceExe).Path
 $ComTraceArchiveExe = (Resolve-Path -LiteralPath $ComTraceArchiveExe).Path
+$captureNewTrace = [string]::IsNullOrWhiteSpace($EtlPath)
+
+if ([string]::IsNullOrWhiteSpace($ComTraceOleActivityFixtureExe)) {
+    $ComTraceOleActivityFixtureExe = Join-Path (Split-Path -Parent $ComTraceExe) "ComTraceOleActivityFixture.exe"
+}
+
+if ($captureNewTrace) {
+    if (-not (Test-Path -LiteralPath $ComTraceOleActivityFixtureExe -PathType Leaf)) {
+        throw "ComTraceOleActivityFixture.exe was not found: $ComTraceOleActivityFixtureExe"
+    }
+
+    $ComTraceOleActivityFixtureExe = (Resolve-Path -LiteralPath $ComTraceOleActivityFixtureExe).Path
+}
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
@@ -86,6 +101,8 @@ $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 $archivePath = Join-Path $OutputDirectory "comtrace-$runId.ctra"
 $inspectPath = Join-Path $OutputDirectory "comtrace-$runId-inspect.txt"
 $searchPath = Join-Path $OutputDirectory "comtrace-$runId-com-search.txt"
+$oleSearchPath = Join-Path $OutputDirectory "comtrace-$runId-ole-search.txt"
+$oleFixturePath = Join-Path $OutputDirectory "comtrace-$runId-ole-fixture.txt"
 $archiveInspectPath = Join-Path $OutputDirectory "comtrace-$runId-archive-inspect.txt"
 $comparePath = Join-Path $OutputDirectory "comtrace-$runId-compare.json"
 $summaryPath = Join-Path $OutputDirectory "comtrace-$runId-validation.json"
@@ -178,6 +195,14 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
         }
     }
 
+    Write-Host "Generating OLE clipboard activity."
+    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE clipboard activity fixture"
+    Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
+
+    if ($oleFixtureOutput -notmatch "OLE clipboard activity succeeded") {
+        throw "The OLE activity fixture did not report success. Review $oleFixturePath"
+    }
+
     if (-not $captureProcess.WaitForExit(($CaptureSeconds + 30) * 1000)) {
         throw "ETW capture did not finish within the expected time. Process ID: $($captureProcess.Id)"
     }
@@ -244,7 +269,30 @@ $comTimelineMatchedByActivity = [UInt64]::Parse($matchedByActivity.Groups[1].Val
 $comTimelineMissingCallTrace = [UInt64]::Parse($missingCallTrace.Groups[1].Value)
 $comTimelineMissingActivity = [UInt64]::Parse($missingActivity.Groups[1].Value)
 if ($comTimelineMatched -eq 0) {
-    throw "No COM start/stop pairs were matched. Review CallTraceId property schemas in $searchPath"
+    throw "No COM start/stop pairs were matched. Review CallTraceId and ActivityId data in $searchPath"
+}
+
+Write-Host "Checking for OLE Performance events."
+$oleSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--ole", "--max-events", "10000") -Description "OLE event search"
+Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
+
+$oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
+$oleSummaryMatch = [regex]::Match(
+    $oleSearchOutput,
+    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Missing ActivityId:\s*(\d+)"
+)
+if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
+    throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
+}
+
+$oleEventCount = [UInt64]::Parse($oleEventMatch.Groups[1].Value)
+$oleClipboardOperations = [UInt64]::Parse($oleSummaryMatch.Groups[1].Value)
+$oleDragDropOperations = [UInt64]::Parse($oleSummaryMatch.Groups[2].Value)
+$oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
+$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
+
+if ($oleEventCount -eq 0 -or $oleClipboardOperations -eq 0 -or $oleTimelineMatched -eq 0) {
+    throw "OLE validation requires OLE events, clipboard operations, and a matched start/stop pair. Review $oleSearchPath"
 }
 
 Write-Host "Converting ETL to CTRA."
@@ -313,6 +361,11 @@ $summary = [ordered]@{
     events = $report.left.events
     event_types = $report.left.event_types
     com_events = $comEventCount
+    ole_events = $oleEventCount
+    ole_clipboard_operations = $oleClipboardOperations
+    ole_drag_drop_operations = $oleDragDropOperations
+    ole_timeline_matched = $oleTimelineMatched
+    ole_timeline_missing_activity_id = $oleTimelineMissingActivity
     identity_values_reported = $identityValueCount
     com_timeline_matched = $comTimelineMatched
     com_timeline_matched_by_call_trace_id = $comTimelineMatchedByCallTrace
@@ -325,6 +378,8 @@ $summary = [ordered]@{
     comparison_schema_version = $report.schema_version
     inspect_report = $inspectPath
     com_search_report = $searchPath
+    ole_search_report = $oleSearchPath
+    ole_fixture_report = if ($captureNewTrace) { $oleFixturePath } else { $null }
     archive_inspect_report = $archiveInspectPath
     comparison_report = $comparePath
 }
@@ -336,6 +391,11 @@ Write-Host "Real ETL validation: PASS"
 Write-Host "Events: $($report.left.events)"
 Write-Host "Distinct event types: $($report.left.event_types)"
 Write-Host "COM Performance events: $comEventCount"
+Write-Host "OLE Performance events: $oleEventCount"
+Write-Host "OLE clipboard operations: $oleClipboardOperations"
+Write-Host "OLE drag and drop operations: $oleDragDropOperations"
+Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
+Write-Host "OLE events missing ActivityId: $oleTimelineMissingActivity"
 Write-Host "Identity values reported: $identityValueCount"
 Write-Host "COM start/stop pairs matched: $comTimelineMatched"
 Write-Host "Matched by CallTraceId: $comTimelineMatchedByCallTrace"
