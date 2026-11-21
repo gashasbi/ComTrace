@@ -33,6 +33,7 @@ static const GUID expected_ipid = {
 
 static const ULONGLONG expected_oid = 0x1122334455667788ULL;
 static const ULONGLONG expected_call_trace_id = 0x8877665544332211ULL;
+static const ULONGLONG expected_call_trace_id_32 = 0x12345678ULL;
 
 static const GUID expected_activity_id = {
     0x20314253, 0x6475, 0x8697,
@@ -78,6 +79,55 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     }
 
     ++context->events_seen;
+
+    if (event_record->EventHeader.EventDescriptor.Id == 3U) {
+        status = comtrace_extract_call_trace_id(event_record, &wide_number);
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            wide_number != expected_call_trace_id_32) {
+            fwprintf(stderr, L"32-bit CallTraceId extraction failed: status=%u value=%llu\\n", (unsigned int)status, (unsigned long long)wide_number);
+            ++context->failures;
+        }
+
+        status = comtrace_extract_uint32_property(
+            event_record,
+            L"CallTraceId",
+            &number
+        );
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            (ULONGLONG)number != expected_call_trace_id_32) {
+            fwprintf(stderr, L"32-bit CallTraceId typed extraction failed: status=%u value=%lu\\n", (unsigned int)status, (unsigned long)number);
+            ++context->failures;
+        }
+
+        status = comtrace_extract_uint64_property(
+            event_record,
+            L"CallTraceId",
+            &wide_number
+        );
+        if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+            fwprintf(stderr, L"32-bit CallTraceId type rejection failed: status=%u\\n", (unsigned int)status);
+            ++context->failures;
+        }
+
+        status = comtrace_extract_com_object_identity(
+            event_record,
+            &object_identity
+        );
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            !object_identity.has_call_trace_id ||
+            object_identity.call_trace_id != expected_call_trace_id_32) {
+            fwprintf(stderr, L"32-bit CallTraceId identity model failed: status=%u\\n", (unsigned int)status);
+            ++context->failures;
+        }
+
+        return;
+    }
+
+    if (event_record->EventHeader.EventDescriptor.Id != 1U) {
+        fwprintf(stderr, L"Unexpected identity fixture event ID: %u\\n", (unsigned int)event_record->EventHeader.EventDescriptor.Id);
+        ++context->failures;
+        return;
+    }
 
     ZeroMemory(&decoder_property, sizeof(decoder_property));
     ZeroMemory(&decoded_value, sizeof(decoded_value));
@@ -268,7 +318,7 @@ static int verify_event(const wchar_t *etl_path)
         return 0;
     }
 
-    if (context.events_seen != 1U || context.failures != 0U) {
+    if (context.events_seen != 2U || context.failures != 0U) {
         fwprintf(
             stderr,
             L"Identity validation failed. Events: %lu Failures: %lu\n",
