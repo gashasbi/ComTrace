@@ -27,7 +27,7 @@ jobs:
         run: |
           $schema = & wevtutil.exe gp Microsoft-Windows-OLE-Perf /ge:true /gm:true /f:XML 2>&1
           if ($LASTEXITCODE -eq 0) {
-            $schema | Select-String -Pattern 'OLE_|DataObject|Clipboard|DragDrop|IID|IPID|CLSID|GUID' -Context 1, 1
+            $schema | Select-String -Pattern '<channel |<task |<event |<template |<data |<opcode |<keyword |OLE_|DataObject|Clipboard|DragDrop|IID|IPID|CLSID|GUID' -Context 0, 1
           } else {
             Write-Host "OLE-Perf provider schema is not available on this runner."
           }
