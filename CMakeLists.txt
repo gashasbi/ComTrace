@@ -21,6 +21,7 @@ add_executable(ComTrace
     src/event_record.c
     src/event_catalog.c
     src/com_identity.c
+    src/com_timeline.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -78,6 +79,20 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+
+    add_executable(ComTraceTimelineTests
+        tests/test_com_timeline.c
+        src/com_timeline.c
+    )
+    target_include_directories(ComTraceTimelineTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceTimelineTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceTimelineTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_timeline COMMAND ComTraceTimelineTests)
 
     add_executable(ComTraceComIdentityTests
         tests/test_com_identity.c
