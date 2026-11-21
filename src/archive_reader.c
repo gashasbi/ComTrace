@@ -1,4 +1,5 @@
 #include "archive_reader.h"
+#include "archive_checksum.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -9,7 +10,8 @@
 #define ARCHIVE_RECORD_HEADER_SIZE 24ULL
 #define ARCHIVE_EVENT_HEADER_SIZE 80ULL
 #define ARCHIVE_EVENT_METADATA_SIZE 88ULL
-#define ARCHIVE_FOOTER_SIZE 124ULL
+#define ARCHIVE_FOOTER_V1_SIZE 124ULL
+#define ARCHIVE_FOOTER_V2_SIZE 128ULL
 #define ARCHIVE_RECORD_TYPE_EVENT 1U
 
 static const BYTE archive_magic[8] = {
@@ -87,6 +89,14 @@ static BOOL read_exact(
             reader->status = COMTRACE_ARCHIVE_READER_TRUNCATED;
             reader->win32_error = ERROR_HANDLE_EOF;
             return FALSE;
+        }
+
+        if (reader->checksum_enabled) {
+            reader->checksum_state = comtrace_archive_checksum_update(
+                reader->checksum_state,
+                buffer + total,
+                (size_t)received
+            );
         }
 
         total += (size_t)received;
@@ -174,12 +184,15 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     const BYTE *prefix
 )
 {
-    BYTE footer_data[ARCHIVE_FOOTER_SIZE];
+    BYTE footer_data[ARCHIVE_FOOTER_V2_SIZE];
     ULONGLONG remaining;
     ULONGLONG footer_offset = reader->offset - 8ULL;
+    ULONG footer_size = reader->format_version == 2U
+        ? (ULONG)ARCHIVE_FOOTER_V2_SIZE
+        : (ULONG)ARCHIVE_FOOTER_V1_SIZE;
 
     memcpy(footer_data, prefix, 8U);
-    if (reader->file_size - reader->offset < ARCHIVE_FOOTER_SIZE - 8ULL) {
+    if (reader->file_size - reader->offset < (ULONGLONG)footer_size - 8ULL) {
         if (reader->recovery_mode) {
             return finish_recovery(
                 reader,
@@ -200,12 +213,12 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     if (!read_exact(
             reader,
             footer_data + 8U,
-            (size_t)ARCHIVE_FOOTER_SIZE - 8U)) {
+            (size_t)footer_size - 8U)) {
         return reader->status;
     }
 
-    if (decode_u32(footer_data + 8U) != 1U ||
-        decode_u32(footer_data + 12U) != ARCHIVE_FOOTER_SIZE) {
+    if (decode_u32(footer_data + 8U) != reader->format_version ||
+        decode_u32(footer_data + 12U) != footer_size) {
         if (reader->recovery_mode) {
             return finish_recovery(
                 reader,
@@ -243,6 +256,32 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
             COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
             ERROR_INVALID_DATA
         );
+    }
+
+    if (reader->format_version == 2U) {
+        reader->footer.checksum_present = TRUE;
+        reader->footer.checksum = decode_u32(footer_data + 124U);
+        reader->footer.checksum_valid =
+            reader->footer.checksum ==
+            comtrace_archive_checksum_finish(reader->checksum_state);
+
+        if (!reader->footer.checksum_valid) {
+            if (reader->recovery_mode) {
+                return finish_recovery(
+                    reader,
+                    COMTRACE_ARCHIVE_RECOVERY_STOP_CHECKSUM_INVALID,
+                    footer_offset,
+                    FALSE,
+                    FALSE
+                );
+            }
+
+            return set_failure(
+                reader,
+                COMTRACE_ARCHIVE_READER_CHECKSUM_MISMATCH,
+                ERROR_CRC
+            );
+        }
     }
 
     remaining = reader->file_size - reader->offset;
@@ -299,6 +338,8 @@ static COMTRACE_ARCHIVE_READER_STATUS archive_reader_open_internal(
     reader->file = INVALID_HANDLE_VALUE;
     reader->status = COMTRACE_ARCHIVE_READER_SUCCESS;
     reader->recovery_mode = recovery_mode;
+    reader->checksum_state = comtrace_archive_checksum_begin();
+    reader->checksum_enabled = TRUE;
 
     if (path == NULL || path[0] == L'\0') {
         return set_failure(
@@ -349,7 +390,7 @@ static COMTRACE_ARCHIVE_READER_STATUS archive_reader_open_internal(
 
     if (reader->file_size < ARCHIVE_HEADER_SIZE ||
         (!recovery_mode &&
-         reader->file_size < ARCHIVE_HEADER_SIZE + ARCHIVE_FOOTER_SIZE)) {
+         reader->file_size < ARCHIVE_HEADER_SIZE + ARCHIVE_FOOTER_V1_SIZE)) {
         status = set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
@@ -363,8 +404,10 @@ static COMTRACE_ARCHIVE_READER_STATUS archive_reader_open_internal(
         goto failure;
     }
 
+    reader->format_version = decode_u32(header + 8U);
+
     if (memcmp(header, archive_magic, sizeof(archive_magic)) != 0 ||
-        decode_u32(header + 8U) != 1U ||
+        (reader->format_version != 1U && reader->format_version != 2U) ||
         decode_u32(header + 12U) != ARCHIVE_HEADER_SIZE ||
         decode_u32(header + 16U) != 1U ||
         decode_u32(header + 20U) != 0U) {
@@ -374,6 +417,10 @@ static COMTRACE_ARCHIVE_READER_STATUS archive_reader_open_internal(
             ERROR_INVALID_DATA
         );
         goto failure;
+    }
+
+    if (reader->format_version == 1U) {
+        reader->checksum_enabled = FALSE;
     }
 
     return COMTRACE_ARCHIVE_READER_SUCCESS;
@@ -427,6 +474,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     ULONG record_flags;
     USHORT extended_count;
     USHORT user_data_length;
+    ULONG checksum_state_before_frame;
     size_t cursor;
     USHORT index;
 
@@ -490,11 +538,15 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
+    checksum_state_before_frame = reader->checksum_state;
+
     if (!read_exact(reader, frame, 8U)) {
         return reader->status;
     }
 
     if (memcmp(frame, footer_magic, sizeof(footer_magic)) == 0) {
+        reader->checksum_state = checksum_state_before_frame;
+        reader->checksum_enabled = FALSE;
         return read_footer(reader, frame);
     }
 
@@ -510,7 +562,10 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
                 FALSE
             );
         }
-    } else if (remaining < ARCHIVE_RECORD_HEADER_SIZE + ARCHIVE_FOOTER_SIZE - 8ULL) {
+    } else if (remaining < ARCHIVE_RECORD_HEADER_SIZE +
+                   (reader->format_version == 2U
+                        ? ARCHIVE_FOOTER_V2_SIZE
+                        : ARCHIVE_FOOTER_V1_SIZE) - 8ULL) {
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
