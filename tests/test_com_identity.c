@@ -22,6 +22,9 @@ static const GUID expected_interface_id = {
     { 0x98, 0xa9, 0xba, 0xcb, 0xdc, 0xed, 0xfe, 0x0f }
 };
 
+static const ULONG expected_target_process_id = 0x12345678UL;
+static const ULONG expected_target_thread_id = 0x87654321UL;
+
 typedef struct {
     ULONG events_seen;
     ULONG failures;
@@ -31,6 +34,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
 {
     IDENTITY_TEST_CONTEXT *context;
     GUID value;
+    ULONG number = 0U;
     COMTRACE_IDENTITY_STATUS status;
 
     if (event_record == NULL || event_record->UserContext == NULL) {
@@ -58,6 +62,31 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     status = comtrace_extract_guid_property(event_record, L"TargetInterface", &value);
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         memcmp(&value, &expected_interface_id, sizeof(value)) != 0) {
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"TargetProcessId",
+        &number
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        number != expected_target_process_id) {
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"TargetThreadId",
+        &number
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        number != expected_target_thread_id) {
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint32_property(event_record, L"NotGuid", &number);
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
         ++context->failures;
     }
 
