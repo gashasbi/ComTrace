@@ -41,4 +41,10 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
     COMTRACE_ACTIVITY_IDS *activity_ids
 );
 
+BOOL comtrace_get_process_image_path(
+    DWORD process_id,
+    wchar_t *path,
+    DWORD path_capacity
+);
+
 #endif
