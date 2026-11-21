@@ -5,6 +5,7 @@
 #include "relationship_graph.h"
 #include "com_timeline.h"
 #include "ole_timeline.h"
+#include "object_identity_compare.h"
 
 typedef enum {
     COMTRACE_TRACE_COMPARE_SUCCESS = 0,
@@ -24,10 +25,6 @@ typedef struct {
     ULONGLONG left_count;
     ULONGLONG right_count;
 } COMTRACE_EVENT_TYPE_DIFF;
-
-#define COMTRACE_OBJECT_CHANGE_CLSID 0x00000001UL
-#define COMTRACE_OBJECT_CHANGE_IID 0x00000002UL
-#define COMTRACE_OBJECT_CHANGE_IPID 0x00000004UL
 
 typedef struct {
     DWORD process_id;
