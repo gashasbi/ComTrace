@@ -1071,6 +1071,22 @@ static void add_com_timeline_event(
     }
 }
 
+static const wchar_t *com_timeline_match_name(
+    COMTRACE_TIMELINE_MATCH_TYPE match_type
+)
+{
+    switch (match_type) {
+    case COMTRACE_TIMELINE_MATCH_CALL_TRACE_ID:
+        return L"CallTraceId";
+    case COMTRACE_TIMELINE_MATCH_ACTIVITY_ID:
+        return L"ActivityId";
+    case COMTRACE_TIMELINE_MATCH_PROCESS_THREAD:
+        return L"process_thread_operation";
+    default:
+        return L"none";
+    }
+}
+
 static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
 {
     size_t count;
@@ -1159,6 +1175,13 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
             (unsigned long)record->process_id,
             (unsigned long)record->thread_id
         );
+
+        if (record->has_start && record->has_stop) {
+            wprintf(
+                L" match=%ls",
+                com_timeline_match_name(record->match_type)
+            );
+        }
 
         if (record->has_call_trace_id) {
             wprintf(L" call_trace_id=0x%llx", (unsigned long long)record->call_trace_id);
@@ -1270,6 +1293,20 @@ static void add_ole_timeline_event(
     }
 }
 
+static const wchar_t *ole_timeline_match_name(
+    COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type
+)
+{
+    switch (match_type) {
+    case COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID:
+        return L"ActivityId";
+    case COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD:
+        return L"process_thread_operation";
+    default:
+        return L"none";
+    }
+}
+
 static void print_ole_timeline_summary(
     const ETL_INSPECT_CONTEXT *context
 )
@@ -1356,6 +1393,13 @@ static void print_ole_timeline_summary(
             (unsigned long)record->process_id,
             (unsigned long)record->thread_id
         );
+
+        if (record->has_start && record->has_stop) {
+            wprintf(
+                L" match=%ls",
+                ole_timeline_match_name(record->match_type)
+            );
+        }
 
         if (record->has_start) {
             wprintf(L" start=%llu", (unsigned long long)record->start_timestamp);
