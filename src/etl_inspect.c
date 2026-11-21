@@ -1708,6 +1708,18 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     comtrace_event_record_destroy(owned_record);
 }
+static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
+{
+    if (context == NULL) {
+        return;
+    }
+
+    comtrace_relationship_graph_destroy(&context->relationship_graph);
+    comtrace_ole_timeline_destroy(&context->ole_timeline);
+    comtrace_timeline_destroy(&context->timeline);
+    comtrace_event_catalog_destroy(&context->event_catalog);
+}
+
 static int inspect_etl_internal(
     const wchar_t *etl_path,
     const wchar_t *limit_text,
@@ -1726,11 +1738,13 @@ static int inspect_etl_internal(
 
     if (etl_path == NULL || etl_path[0] == L'\0') {
         fwprintf(stderr, L"An ETL input path is required.\n");
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
     ZeroMemory(&context, sizeof(context));
     ZeroMemory(&logfile, sizeof(logfile));
+    comtrace_event_catalog_init(&context.event_catalog);
     comtrace_timeline_init(&context.timeline);
     context.timeline_status = COMTRACE_TIMELINE_SUCCESS;
     comtrace_ole_timeline_init(&context.ole_timeline);
@@ -1743,16 +1757,18 @@ static int inspect_etl_internal(
         context.filters = *filters;
         context.sample_limit = filters->sample_limit;
         if (context.sample_limit == 0U ||
-            context.sample_limit > MAX_SAMPLE_EVENTS ||
+            context.sample_limit > 10000UL ||
             (filters->com_only && filters->ole_only)) {
             fwprintf(stderr, L"Invalid ETL search filters.\n");
-            return EXIT_FAILURE;
+            destroy_inspect_context(&context);
+        return EXIT_FAILURE;
         }
     } else if (!parse_sample_limit(limit_text, &context.sample_limit)) {
         fwprintf(
             stderr,
             L"Invalid max-events value. Use an integer from 1 to 10000.\n"
         );
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
@@ -1764,15 +1780,15 @@ static int inspect_etl_internal(
             L"Unable to access ETL input path. Win32 error: %lu\n",
             (unsigned long)error_code
         );
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
     if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) {
         fwprintf(stderr, L"ETL input path is a directory.\n");
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
-
-    comtrace_event_catalog_init(&context.event_catalog);
 
     logfile.LogFileName = (LPWSTR)etl_path;
     logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
@@ -1787,6 +1803,7 @@ static int inspect_etl_internal(
             L"OpenTraceW failed with Win32 error %lu.\n",
             (unsigned long)GetLastError()
         );
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
@@ -1795,6 +1812,7 @@ static int inspect_etl_internal(
     if (context.pointer_size != 4U && context.pointer_size != 8U) {
         fwprintf(stderr, L"Unsupported trace pointer size: %lu.\n", (unsigned long)context.pointer_size);
         CloseTrace(trace_handle);
+        destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
@@ -1923,10 +1941,7 @@ static int inspect_etl_internal(
         result = EXIT_FAILURE;
     }
 
-    comtrace_relationship_graph_destroy(&context.relationship_graph);
-    comtrace_ole_timeline_destroy(&context.ole_timeline);
-    comtrace_timeline_destroy(&context.timeline);
-    comtrace_event_catalog_destroy(&context.event_catalog);
+    destroy_inspect_context(&context);
 
     return result;
 }
