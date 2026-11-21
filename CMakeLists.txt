@@ -82,6 +82,7 @@ if(BUILD_TESTING)
     add_executable(ComTraceComIdentityTests
         tests/test_com_identity.c
         src/com_identity.c
+        src/etl_decoder.c
     )
     target_include_directories(ComTraceComIdentityTests PRIVATE src)
     target_link_libraries(ComTraceComIdentityTests PRIVATE Tdh Advapi32)
