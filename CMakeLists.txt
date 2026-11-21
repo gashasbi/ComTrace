@@ -27,10 +27,9 @@ add_executable(ComTrace
     src/object_identity_compare.c
     src/trace_compare.c
     src/archive_reader.c
+    src/archive_checksum.c
 )
 
-target_sources(ComTrace PRIVATE src/archive_checksum.c)
-target_sources(ComTraceArchive PRIVATE src/archive_checksum.c)
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
 
@@ -49,6 +48,7 @@ add_executable(ComTraceArchive
     src/etl_archive.c
     src/archive_writer.c
     src/archive_reader.c
+    src/archive_checksum.c
 )
 
 target_include_directories(ComTraceArchive PRIVATE src)
@@ -236,6 +236,7 @@ if(BUILD_TESTING)
     add_executable(ComTraceArchiveWriterTests
         tests/test_archive_writer.c
         src/archive_writer.c
+        src/archive_checksum.c
     )
 
     target_include_directories(ComTraceArchiveWriterTests PRIVATE src)
@@ -254,6 +255,7 @@ if(BUILD_TESTING)
         src/etl_archive.c
         src/archive_writer.c
         src/archive_reader.c
+        src/archive_checksum.c
     )
     target_include_directories(ComTraceArchiveEtlTests PRIVATE src)
     target_link_libraries(ComTraceArchiveEtlTests PRIVATE Advapi32)
@@ -268,6 +270,7 @@ if(BUILD_TESTING)
         tests/test_archive_reader.c
         src/archive_reader.c
         src/archive_writer.c
+        src/archive_checksum.c
     )
 
     target_include_directories(ComTraceArchiveReaderTests PRIVATE src)
@@ -281,7 +284,7 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_archive_reader COMMAND ComTraceArchiveReaderTests)
 
-    add_executable(ComTraceArchiveTestFixture tests/archive_cli_fixture.c src/archive_writer.c)
+    add_executable(ComTraceArchiveTestFixture tests/archive_cli_fixture.c src/archive_writer.c src/archive_checksum.c)
     target_include_directories(ComTraceArchiveTestFixture PRIVATE src)
     target_link_libraries(ComTraceArchiveTestFixture PRIVATE Advapi32)
 
