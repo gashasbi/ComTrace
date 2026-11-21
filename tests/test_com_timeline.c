@@ -129,6 +129,137 @@ static int test_incomplete_and_unmatched_operations(void)
     return 1;
 }
 
+static int test_mismatched_keys_remain_unmatched(void)
+{
+    COMTRACE_TIMELINE timeline;
+    COMTRACE_TIMELINE_EVENT event;
+    const COMTRACE_TIMELINE_RECORD *record;
+
+    comtrace_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"COM_ClientSyncCall";
+    event.phase = COMTRACE_TIMELINE_PHASE_START;
+    event.has_call_trace_id = TRUE;
+    event.call_trace_id = 55ULL;
+    event.process_id = 100U;
+    event.thread_id = 200U;
+    event.timestamp = 1000ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_TIMELINE_PHASE_STOP;
+    event.process_id = 101U;
+    event.timestamp = 1200ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS ||
+        comtrace_timeline_pending_count(&timeline) != 1U ||
+        comtrace_timeline_count(&timeline) != 2U) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.process_id = 100U;
+    event.operation = L"COM_ServerSyncCall";
+    event.timestamp = 1300ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS ||
+        comtrace_timeline_pending_count(&timeline) != 1U ||
+        comtrace_timeline_count(&timeline) != 3U) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.operation = L"COM_ClientSyncCall";
+    event.thread_id = 201U;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS ||
+        comtrace_timeline_pending_count(&timeline) != 1U ||
+        comtrace_timeline_count(&timeline) != 4U) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.thread_id = 200U;
+    event.timestamp = 1400ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS ||
+        comtrace_timeline_pending_count(&timeline) != 0U ||
+        comtrace_timeline_count(&timeline) != 4U) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_timeline_get(&timeline, 0U);
+    if (record == NULL || !record->has_duration ||
+        record->duration_ticks != 400ULL) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_timeline_get(&timeline, 1U);
+    if (record == NULL || record->has_start || !record->has_stop) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_out_of_order_timestamps(void)
+{
+    COMTRACE_TIMELINE timeline;
+    COMTRACE_TIMELINE_EVENT event;
+    const COMTRACE_TIMELINE_RECORD *record;
+
+    comtrace_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"COM_ClientAsyncCall";
+    event.phase = COMTRACE_TIMELINE_PHASE_START;
+    event.has_call_trace_id = TRUE;
+    event.call_trace_id = 77ULL;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 500ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_TIMELINE_PHASE_STOP;
+    event.timestamp = 400ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_start ||
+        !record->has_stop ||
+        record->has_duration) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_invalid_input(void)
 {
     COMTRACE_TIMELINE timeline;
@@ -153,6 +284,8 @@ int main(void)
 {
     if (!test_matched_operation() ||
         !test_incomplete_and_unmatched_operations() ||
+        !test_mismatched_keys_remain_unmatched() ||
+        !test_out_of_order_timestamps() ||
         !test_invalid_input()) {
         fputs("COM timeline tests failed.\n", stderr);
         return 1;
