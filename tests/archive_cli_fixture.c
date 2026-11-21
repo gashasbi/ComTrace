@@ -19,6 +19,17 @@ int wmain(int argc, wchar_t **argv)
     ZeroMemory(&summary, sizeof(summary));
     ZeroMemory(&event, sizeof(event));
 
+    event.EventHeader.ProviderId.Data1 = 0x12345678UL;
+    event.EventHeader.ProviderId.Data2 = 0x9ABCU;
+    event.EventHeader.ProviderId.Data3 = 0xDEF0U;
+    event.EventHeader.ProviderId.Data4[0] = 0x12U;
+    event.EventHeader.ProviderId.Data4[1] = 0x34U;
+    event.EventHeader.ProviderId.Data4[2] = 0x56U;
+    event.EventHeader.ProviderId.Data4[3] = 0x78U;
+    event.EventHeader.ProviderId.Data4[4] = 0x9AU;
+    event.EventHeader.ProviderId.Data4[5] = 0xBCU;
+    event.EventHeader.ProviderId.Data4[6] = 0xDEU;
+    event.EventHeader.ProviderId.Data4[7] = 0xF0U;
     event.EventHeader.Size = 462U;
     event.EventHeader.ThreadId = 42U;
     event.EventHeader.ProcessId = 24U;
