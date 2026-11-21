@@ -805,15 +805,56 @@ static const COMTRACE_OPERATION_TIMING *find_operation_timing(
     return NULL;
 }
 
+typedef struct {
+    ULONGLONG matched;
+    ULONGLONG incomplete;
+    ULONGLONG unmatched;
+    ULONGLONG failed;
+} COMTRACE_TIMELINE_COUNTS;
+
+static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
+    const COMTRACE_TRACE_SUMMARY *summary
+)
+{
+    COMTRACE_TIMELINE_COUNTS counts;
+    size_t index;
+
+    ZeroMemory(&counts, sizeof(counts));
+
+    for (index = 0U; index < summary->com_timeline.record_count; ++index) {
+        const COMTRACE_TIMELINE_RECORD *record =
+            &summary->com_timeline.records[index];
+
+        if (record->has_start && record->has_stop) {
+            ++counts.matched;
+        } else if (record->has_start) {
+            ++counts.incomplete;
+        } else if (record->has_stop) {
+            ++counts.unmatched;
+        }
+
+        if (record->has_stop && record->has_hresult && record->hresult < 0) {
+            ++counts.failed;
+        }
+    }
+
+    return counts;
+}
+
 void comtrace_trace_comparison_write_text(
     const COMTRACE_TRACE_COMPARISON *comparison
 )
 {
     size_t index;
+    COMTRACE_TIMELINE_COUNTS left_timeline;
+    COMTRACE_TIMELINE_COUNTS right_timeline;
 
     if (comparison == NULL) {
         return;
     }
+
+    left_timeline = get_timeline_counts(&comparison->left);
+    right_timeline = get_timeline_counts(&comparison->right);
 
     wprintf(L"ComTrace trace comparison\n");
     wprintf(
@@ -874,17 +915,15 @@ void comtrace_trace_comparison_write_text(
     }
 
     wprintf(
-        L"COM Timeline: left matched=%llu incomplete=%llu failed=%llu; right matched=%llu incomplete=%llu failed=%llu\n",
-        (unsigned long long)comtrace_timeline_count(&comparison->left.com_timeline) -
-            (unsigned long long)comtrace_timeline_pending_count(&comparison->left.com_timeline) -
-            comparison->left.com_timeline.unmatched_stops,
-        (unsigned long long)comtrace_timeline_pending_count(&comparison->left.com_timeline),
-        (unsigned long long)comparison->left.com_timeline.unmatched_stops,
-        (unsigned long long)comtrace_timeline_count(&comparison->right.com_timeline) -
-            (unsigned long long)comtrace_timeline_pending_count(&comparison->right.com_timeline) -
-            comparison->right.com_timeline.unmatched_stops,
-        (unsigned long long)comtrace_timeline_pending_count(&comparison->right.com_timeline),
-        (unsigned long long)comparison->right.com_timeline.unmatched_stops
+        L"COM Timeline: left matched=%llu incomplete=%llu unmatched=%llu failed=%llu; right matched=%llu incomplete=%llu unmatched=%llu failed=%llu\n",
+        (unsigned long long)left_timeline.matched,
+        (unsigned long long)left_timeline.incomplete,
+        (unsigned long long)left_timeline.unmatched,
+        (unsigned long long)left_timeline.failed,
+        (unsigned long long)right_timeline.matched,
+        (unsigned long long)right_timeline.incomplete,
+        (unsigned long long)right_timeline.unmatched,
+        (unsigned long long)right_timeline.failed
     );
 
     wprintf(L"COM operation timings\n");
