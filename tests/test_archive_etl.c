@@ -91,9 +91,9 @@ static int create_etl(const wchar_t *etl_path)
         &test_provider_id,
         EVENT_CONTROL_CODE_ENABLE_PROVIDER,
         TRACE_LEVEL_VERBOSE,
-        0ULL,
+        UINT64_MAX,
         0U,
-          5000U,
+        5000U,
         NULL);
     if (status != ERROR_SUCCESS) {
         goto stop_session;
@@ -103,6 +103,10 @@ static int create_etl(const wchar_t *etl_path)
     descriptor.Id = 1U;
     descriptor.Level = TRACE_LEVEL_INFORMATION;
     descriptor.Keyword = 1ULL;
+    if (!EventEnabled(provider, &descriptor)) {
+        fwprintf(stderr, L"Test ETW provider is not enabled.\n");
+        goto stop_session;
+    }
     EventDataDescCreate(&data, (PVOID)payload_one, (ULONG)(sizeof(payload_one) - 1U));
     status = EventWrite(provider, &descriptor, 1U, &data);
     if (status != ERROR_SUCCESS) {
@@ -253,7 +257,7 @@ int wmain(void)
     }
 
     if (!verify_archive(archive_path)) {
-        fwprintf(stderr, L"CTRA readback validation failed.\n");
+        fwprintf(stderr, L"CTRA readback validation failed. Expected two events from the test provider.\n");
         goto cleanup;
     }
 
