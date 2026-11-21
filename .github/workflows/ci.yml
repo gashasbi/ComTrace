@@ -22,6 +22,20 @@ jobs:
       - name: Build Release
         run: cmake --build --preset windows-vs2022-x64-release --parallel
 
+      - name: Verify release package contents
+        shell: pwsh
+        run: |
+          $configurationDir = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release'
+          $outputDirectory = Join-Path $env:RUNNER_TEMP 'ComTracePackageCheck'
+          $packageScript = Join-Path $env:GITHUB_WORKSPACE 'scripts/package-release.ps1'
+          & $packageScript -ConfigurationDirectory $configurationDir -ReleaseTag 'ci-validation' -OutputDirectory $outputDirectory
+          if (-not (Test-Path (Join-Path $outputDirectory 'ComTrace-ci-validation-win-x64.zip'))) {
+            throw "Release ZIP was not created."
+          }
+          if (-not (Test-Path (Join-Path $outputDirectory 'SHA256SUMS.txt'))) {
+            throw "Release checksum file was not created."
+          }
+
       - name: Check real trace validation script syntax
         shell: pwsh
         run: |
