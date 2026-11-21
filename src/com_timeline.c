@@ -266,7 +266,7 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
         return COMTRACE_TIMELINE_SUCCESS;
     }
 
-remove stop bypass    for (pending_position = timeline->pending_count;
+    for (pending_position = timeline->pending_count;
          pending_position > 0U;
          --pending_position) {
         size_t index = pending_position - 1U;
