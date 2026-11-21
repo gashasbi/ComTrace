@@ -174,6 +174,30 @@ static int test_interface_without_object_id(void)
     return 1;
 }
 
+static int test_oid_without_known_process(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    identity.process_id = 300U;
+    identity.has_process_id = FALSE;
+    identity.has_oid = TRUE;
+    identity.oid = 0x1122334455667788ULL;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_COM_OBJECT) != 0U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_PROCESS) != 0U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_missing_relationship_fields(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -207,6 +231,7 @@ int main(void)
 {
     if (!test_client_server_graph() ||
         !test_interface_without_object_id() ||
+        !test_oid_without_known_process() ||
         !test_missing_relationship_fields()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
