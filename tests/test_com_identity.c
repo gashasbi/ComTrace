@@ -55,7 +55,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         ++context->failures;
     }
 
-    status = comtrace_extract_guid_property(event_record, L"InterfaceId", &value);
+    status = comtrace_extract_guid_property(event_record, L"TargetInterface", &value);
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         memcmp(&value, &expected_interface_id, sizeof(value)) != 0) {
         ++context->failures;
