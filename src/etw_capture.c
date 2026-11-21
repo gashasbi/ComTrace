@@ -32,6 +32,8 @@ static const GUID ole_perf_provider_guid = {
     {0xb3, 0x3d, 0x07, 0xfa, 0xbb, 0x87, 0x96, 0x26}
 };
 
+static const ULONGLONG ole_perf_keyword = 0x8000000000000000ULL;
+
 static HANDLE g_stop_event = NULL;
 
 static BOOL WINAPI comtrace_console_handler(DWORD control_type)
@@ -344,7 +346,7 @@ int comtrace_capture_com_perf(
         &ole_perf_provider_guid,
         EVENT_CONTROL_CODE_ENABLE_PROVIDER,
         TRACE_LEVEL_VERBOSE,
-        0U,
+        ole_perf_keyword,
         0U,
         0U,
         NULL
