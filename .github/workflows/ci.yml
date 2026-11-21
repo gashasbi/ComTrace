@@ -67,5 +67,20 @@ jobs:
             Write-Host "OLE-Perf provider schema is not available on this runner."
           }
 
+      - name: Inspect COM Performance provider schema
+        shell: pwsh
+        run: |
+          $schema = & wevtutil.exe gp Microsoft-Windows-COM-Perf /ge:true /gm:true /f:XML 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            [xml]$manifest = ($schema | Out-String)
+            $eventCount = $manifest.SelectNodes("//*[local-name()='event']").Count
+            $templateCount = $manifest.SelectNodes("//*[local-name()='template']").Count
+            $dataCount = $manifest.SelectNodes("//*[local-name()='data']").Count
+            Write-Host "COM-Perf manifest schema: events=$eventCount templates=$templateCount data_fields=$dataCount"
+            $schema | Select-String -Pattern '<event |<template |<data |ClassId|CLSID|TargetInterface|IPID|OID|CallTraceId|TargetProcessId|SourceProcessId|HRESULT' -Context 0, 1
+          } else {
+            Write-Host "COM-Perf provider schema is not available on this runner."
+          }
+
       - name: Run tests
         run: ctest --preset windows-vs2022-x64-release
