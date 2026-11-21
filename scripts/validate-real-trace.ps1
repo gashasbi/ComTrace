@@ -56,7 +56,7 @@ function Invoke-ComActivation {
         return $true
     }
     catch {
-        $Failures.Add("$ProgId : $($_.Exception.Message)")
+        [void]$Failures.Add("$ProgId : $($_.Exception.Message)")
         return $false
     }
     finally {
