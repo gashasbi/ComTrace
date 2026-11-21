@@ -36,7 +36,9 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
-    EVENT_DATA_DESCRIPTOR data[3];
+    EVENT_DATA_DESCRIPTOR data[5];
+    ULONG target_process_id = 0x12345678UL;
+    ULONG target_thread_id = 0x87654321UL;
     ULONG not_guid = 123U;
     int result = 1;
 
@@ -122,9 +124,11 @@ int wmain(int argc, wchar_t **argv)
 
     EventDataDescCreate(&data[0], (PVOID)&class_id, (ULONG)sizeof(class_id));
     EventDataDescCreate(&data[1], (PVOID)&interface_id, (ULONG)sizeof(interface_id));
-    EventDataDescCreate(&data[2], &not_guid, (ULONG)sizeof(not_guid));
+    EventDataDescCreate(&data[2], &target_process_id, (ULONG)sizeof(target_process_id));
+    EventDataDescCreate(&data[3], &target_thread_id, (ULONG)sizeof(target_thread_id));
+    EventDataDescCreate(&data[4], &not_guid, (ULONG)sizeof(not_guid));
 
-    status = EventWrite(provider, &descriptor, 3U, data);
+    status = EventWrite(provider, &descriptor, 5U, data);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWrite failed: %lu\n", (unsigned long)status);
         goto cleanup;
