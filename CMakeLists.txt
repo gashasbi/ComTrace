@@ -29,6 +29,9 @@ add_executable(ComTrace
     src/archive_reader.c
 )
 
+target_sources(ComTrace PRIVATE src/archive_checksum.c)
+target_sources(ComTraceArchive PRIVATE src/archive_checksum.c)
+
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
 
 if(MINGW)
@@ -479,6 +482,14 @@ if(BUILD_TESTING)
                 "-DCASE=${case_name}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/inspect_cli_case.cmake"
         )
+    endforeach()
+    foreach(target
+        ComTraceArchiveWriterTests
+        ComTraceArchiveEtlTests
+        ComTraceArchiveReaderTests
+        ComTraceArchiveTestFixture
+    )
+        target_sources(${target} PRIVATE src/archive_checksum.c)
     endforeach()
 endif()
 
