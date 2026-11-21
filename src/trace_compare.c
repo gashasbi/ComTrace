@@ -996,7 +996,7 @@ void comtrace_trace_comparison_write_text(
         wprintf(L"  provider=");
         print_guid_text(&diff->provider_id);
         wprintf(
-            L" event_id=%u version=%u channel=%u level=%u opcode=%u task=%u keyword=0x%llx left=%llu right=%llu\n",
+            L"\\", \"event_id\": %u, \"version\": %u, \"channel\": %u, \"level\": %u, \"opcode\": %u, \"task\": %u, \"keyword\": \"0x%llx\", \"left_count\": %llu, \"right_count\": %llu}",
             (unsigned int)diff->descriptor.Id,
             (unsigned int)diff->descriptor.Version,
             (unsigned int)diff->descriptor.Channel,
@@ -1006,8 +1006,7 @@ void comtrace_trace_comparison_write_text(
             (unsigned long long)diff->descriptor.Keyword,
             (unsigned long long)diff->left_count,
             (unsigned long long)diff->right_count
-        );
-    }
+        );    }
 
     for (index = 0U; index < comparison->object_diff_count; ++index) {
         const COMTRACE_OBJECT_DIFF *diff = &comparison->object_diffs[index];
