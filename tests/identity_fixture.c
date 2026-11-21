@@ -54,9 +54,10 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
-    EVENT_DATA_DESCRIPTOR data[8];
+    EVENT_DATA_DESCRIPTOR data[9];
     ULONG target_process_id = 0x12345678UL;
     ULONG target_thread_id = 0x87654321UL;
+    LONG hresult = (LONG)0x80004005UL;
     ULONG not_guid = 123U;
     int result = 1;
 
@@ -147,14 +148,15 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&data[4], (PVOID)&interface_pointer_id, (ULONG)sizeof(interface_pointer_id));
     EventDataDescCreate(&data[5], (PVOID)&object_id, (ULONG)sizeof(object_id));
     EventDataDescCreate(&data[6], (PVOID)&call_trace_id, (ULONG)sizeof(call_trace_id));
-    EventDataDescCreate(&data[7], &not_guid, (ULONG)sizeof(not_guid));
+    EventDataDescCreate(&data[7], &hresult, (ULONG)sizeof(hresult));
+    EventDataDescCreate(&data[8], &not_guid, (ULONG)sizeof(not_guid));
 
     status = EventWriteTransfer(
         provider,
         &descriptor,
         &activity_id,
         &related_activity_id,
-        8U,
+        9U,
         data
     );
     if (status != ERROR_SUCCESS) {
