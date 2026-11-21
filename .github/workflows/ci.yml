@@ -43,6 +43,15 @@ jobs:
           $validationScript = Join-Path $env:GITHUB_WORKSPACE 'scripts/validate-real-trace.ps1'
           & $validationScript -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 15 -OutputDirectory $outputDirectory
 
+      - name: Upload real COM validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comtrace-real-com-validation
+          path: ${{ runner.temp }}/ComTraceRealValidation
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Inspect OLE provider schema
         shell: pwsh
         run: |
