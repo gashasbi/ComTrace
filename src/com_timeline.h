@@ -16,11 +16,18 @@ typedef enum {
     COMTRACE_TIMELINE_PHASE_STOP
 } COMTRACE_TIMELINE_PHASE;
 
+typedef enum {
+    COMTRACE_TIMELINE_MATCH_NONE = 0,
+    COMTRACE_TIMELINE_MATCH_CALL_TRACE_ID,
+    COMTRACE_TIMELINE_MATCH_ACTIVITY_ID
+} COMTRACE_TIMELINE_MATCH_TYPE;
+
 typedef struct {
     const wchar_t *operation;
     COMTRACE_TIMELINE_PHASE phase;
     BOOL has_call_trace_id;
     ULONGLONG call_trace_id;
+    COMTRACE_TIMELINE_MATCH_TYPE match_type;
     DWORD process_id;
     DWORD thread_id;
     ULONGLONG timestamp;
@@ -58,6 +65,7 @@ typedef struct {
     size_t pending_count;
     size_t pending_capacity;
     ULONGLONG missing_call_trace_ids;
+    ULONGLONG missing_activity_ids;
     ULONGLONG unmatched_stops;
 } COMTRACE_TIMELINE;
 
