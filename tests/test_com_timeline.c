@@ -514,10 +514,11 @@ static int test_activity_id_fallback_rejects_one_sided_call_trace_id(void)
     return 1;
 }
 
-static int test_missing_activity_ids_are_not_paired(void)
+static int test_missing_activity_ids_use_process_thread_fallback(void)
 {
     COMTRACE_TIMELINE timeline;
     COMTRACE_TIMELINE_EVENT event;
+    const COMTRACE_TIMELINE_RECORD *record;
 
     comtrace_timeline_init(&timeline);
     ZeroMemory(&event, sizeof(event));
@@ -539,11 +540,76 @@ static int test_missing_activity_ids_are_not_paired(void)
 
     if (comtrace_timeline_add_event(&timeline, &event) !=
         COMTRACE_TIMELINE_SUCCESS ||
-        timeline.record_count != 2U ||
+        timeline.record_count != 1U ||
         timeline.pending_count != 0U ||
-        timeline.unmatched_stops != 1ULL ||
+        timeline.unmatched_stops != 0ULL ||
         timeline.missing_call_trace_ids != 2ULL ||
         timeline.missing_activity_ids != 2ULL) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_start ||
+        !record->has_stop ||
+        !record->has_duration ||
+        record->duration_ticks != 100ULL ||
+        record->match_type != COMTRACE_TIMELINE_MATCH_PROCESS_THREAD) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_one_sided_activity_id_does_not_pair(void)
+{
+    COMTRACE_TIMELINE timeline;
+    COMTRACE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_TIMELINE_RECORD *start_record;
+    const COMTRACE_TIMELINE_RECORD *stop_record;
+
+    comtrace_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id = activity_one;
+    event.operation = L"COM_ServerSyncCall";
+    event.phase = COMTRACE_TIMELINE_PHASE_START;
+    event.process_id = 30U;
+    event.thread_id = 40U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_TIMELINE_PHASE_STOP;
+    event.timestamp = 200ULL;
+    event.activity_ids = NULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+            COMTRACE_TIMELINE_SUCCESS ||
+        timeline.record_count != 2U ||
+        timeline.pending_count != 1U ||
+        timeline.unmatched_stops != 1ULL) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    start_record = comtrace_timeline_get(&timeline, 0U);
+    stop_record = comtrace_timeline_get(&timeline, 1U);
+    if (start_record == NULL || stop_record == NULL ||
+        !start_record->has_start || start_record->has_stop ||
+        !stop_record->has_stop ||
+        stop_record->match_type != COMTRACE_TIMELINE_MATCH_NONE) {
         comtrace_timeline_destroy(&timeline);
         return 0;
     }
@@ -581,7 +647,8 @@ int main(void)
         !test_activity_id_mismatch_remains_unmatched() ||
         !test_activity_id_pairing_uses_lifo_order() ||
         !test_activity_id_fallback_rejects_one_sided_call_trace_id() ||
-        !test_missing_activity_ids_are_not_paired() ||
+        !test_missing_activity_ids_use_process_thread_fallback() ||
+        !test_one_sided_activity_id_does_not_pair() ||
         !test_out_of_order_timestamps() ||
         !test_invalid_input()) {
         fputs("COM timeline tests failed.\n", stderr);
