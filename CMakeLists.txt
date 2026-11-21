@@ -505,6 +505,8 @@ install(TARGETS ComTrace ComTraceArchive
     RUNTIME DESTINATION .
  )
 install(FILES README.md LICENSE DESTINATION .)
+install(DIRECTORY docs DESTINATION .)
+install(DIRECTORY scripts DESTINATION .)
 
 set(CPACK_PACKAGE_NAME "ComTrace")
 set(CPACK_PACKAGE_VENDOR "ComTrace")
