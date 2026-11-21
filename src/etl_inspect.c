@@ -16,6 +16,7 @@
 #include "event_record.h"
 #include "event_catalog.h"
 #include "com_identity.h"
+#include "etl_decoder.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -110,86 +111,20 @@ static int read_event_property_count(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *properties,
     ULONG property_count,
+    const BYTE *buffer,
     ULONG buffer_size,
     const EVENT_PROPERTY_INFO *property,
     ULONG *count)
 {
-    PROPERTY_DATA_DESCRIPTOR descriptor;
-    const EVENT_PROPERTY_INFO *count_property;
-    const wchar_t *count_name;
-    ULONG count_index = (ULONG)property->countPropertyIndex;
-    ULONG name_offset;
-    ULONG remaining;
-    ULONG name_length = 0U;
-    ULONG value_size = 0U;
-    ULONG expected_size;
-    ULONG status;
-    USHORT in_type;
-    BYTE value[8];
-    ULONGLONG count_value = 0ULL;
-
-    if (count_index >= property_count || count == NULL) {
-        return 0;
-    }
-
-    count_property = &properties[count_index];
-    if ((count_property->Flags & PropertyStruct) != 0U) {
-        return 0;
-    }
-
-    name_offset = count_property->NameOffset;
-    if (name_offset >= buffer_size ||
-        (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
-        return 0;
-    }
-
-    count_name = (const wchar_t *)((const BYTE *)properties - offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) + name_offset);
-    remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-    while (name_length < remaining && count_name[name_length] != L'\0') {
-        ++name_length;
-    }
-    if (name_length == remaining) {
-        return 0;
-    }
-
-    in_type = count_property->nonStructType.InType;
-    switch (in_type) {
-    case TDH_INTYPE_UINT8:
-        expected_size = 1U;
-        break;
-    case TDH_INTYPE_UINT16:
-        expected_size = 2U;
-        break;
-    case TDH_INTYPE_UINT32:
-        expected_size = 4U;
-        break;
-    case TDH_INTYPE_UINT64:
-        expected_size = 8U;
-        break;
-    default:
-        return 0;
-    }
-
-    ZeroMemory(&descriptor, sizeof(descriptor));
-    descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)count_name;
-    descriptor.ArrayIndex = 0xFFFFFFFFUL;
-    status = TdhGetPropertySize((PEVENT_RECORD)event_record, 0U, NULL, 1U, &descriptor, &value_size);
-    if (status != ERROR_SUCCESS || value_size != expected_size) {
-        return 0;
-    }
-
-    status = TdhGetProperty((PEVENT_RECORD)event_record, 0U, NULL, 1U, &descriptor, value_size, value);
-    if (status != ERROR_SUCCESS) {
-        return 0;
-    }
-
-    CopyMemory(&count_value, value, value_size);
-    if (count_value > 4096ULL) {
-        return 0;
-    }
-
-    *count = (ULONG)count_value;
-    return 1;
+    return comtrace_etl_read_property_count(
+        event_record,
+        properties,
+        property_count,
+        buffer,
+        buffer_size,
+        property,
+        count
+    );
 }
 
 static void print_event_property_value_element(
@@ -201,16 +136,15 @@ static void print_event_property_value_element(
     ULONG array_index,
     ULONG pointer_size)
 {
-    PROPERTY_DATA_DESCRIPTOR descriptors[2];
-    ULONG descriptor_count = 1U;
-    BYTE stack_value[4096];
-    BYTE *value = stack_value;
-    int allocated_value = 0;
-    ULONG value_size = 0U;
-    ULONG status;
+    COMTRACE_ETL_PROPERTY_VALUE decoded_value;
+    COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
+    BYTE *value;
+    ULONG value_size;
     ULONG flags = (ULONG)property->Flags;
     USHORT in_type = property->nonStructType.InType;
     wchar_t display_name[256];
+
+    ZeroMemory(&decoded_value, sizeof(decoded_value));
 
     if (parent_name != NULL) {
         if (array_index == 0xFFFFFFFFUL) {
@@ -235,103 +169,41 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
-    switch (in_type) {
-    case TDH_INTYPE_UNICODESTRING:
-    case TDH_INTYPE_ANSISTRING:
-    case TDH_INTYPE_INT8:
-    case TDH_INTYPE_ANSICHAR:
-    case TDH_INTYPE_UINT8:
-    case TDH_INTYPE_INT16:
-    case TDH_INTYPE_UNICODECHAR:
-    case TDH_INTYPE_UINT16:
-    case TDH_INTYPE_INT32:
-    case TDH_INTYPE_UINT32:
-    case TDH_INTYPE_INT64:
-    case TDH_INTYPE_UINT64:
-    case TDH_INTYPE_FLOAT:
-    case TDH_INTYPE_DOUBLE:
-    case TDH_INTYPE_BOOLEAN:
-    case TDH_INTYPE_BINARY:
-    case TDH_INTYPE_GUID:
-    case TDH_INTYPE_POINTER:
-    case TDH_INTYPE_FILETIME:
-    case TDH_INTYPE_SYSTEMTIME:
-    case TDH_INTYPE_HEXINT64:
-    case TDH_INTYPE_SIZET:
-    case TDH_INTYPE_HEXDUMP:
-        break;
-    default:
-        break;
-    }
-
-    ZeroMemory(descriptors, sizeof(descriptors));
-    if (parent_name == NULL) {
-        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)name;
-        descriptors[0].ArrayIndex = array_index;
-    } else {
-        descriptors[0].PropertyName = (ULONGLONG)(ULONG_PTR)parent_name;
-        descriptors[0].ArrayIndex = 0U;
-        descriptors[1].PropertyName = (ULONGLONG)(ULONG_PTR)name;
-        descriptors[1].ArrayIndex = array_index;
-        descriptor_count = 2U;
-    }
-
-    status = TdhGetPropertySize(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        descriptor_count,
-        descriptors,
-        &value_size
+    read_status = comtrace_etl_read_property_value(
+        event_record,
+        property,
+        name,
+        parent_name,
+        array_index,
+        &decoded_value
     );
 
-    if (status != ERROR_SUCCESS) {
-        wprintf(
-            L"  property_value[%lu] name=%ls status=unavailable reason=size_query_failed tdh_status=%lu\n",
-            (unsigned long)index,
-            display_name,
-            (unsigned long)status
-        );
-        goto cleanup;
-    }
-
-    if (value_size == 0U) {
-        wprintf(
-            L"  property_value[%lu] name=%ls status=unavailable reason=zero_size\n",
-            (unsigned long)index,
-            display_name
-        );
-        goto cleanup;
-    }
-
-    if (value_size > (ULONG)sizeof(stack_value)) {
-        value = (BYTE *)malloc(value_size);
-        if (value == NULL) {
-            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=allocation_failed size=%lu\n", (unsigned long)index, display_name, (unsigned long)value_size);
-            goto cleanup;
+    if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
+        switch (read_status) {
+        case COMTRACE_ETL_PROPERTY_READ_UNSUPPORTED:
+            wprintf(L"  property_value[%lu] name=%ls status=skipped reason=complex_property\n", (unsigned long)index, display_name);
+            break;
+        case COMTRACE_ETL_PROPERTY_READ_SIZE_QUERY_FAILED:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=size_query_failed tdh_status=%lu\n", (unsigned long)index, display_name, (unsigned long)decoded_value.tdh_status);
+            break;
+        case COMTRACE_ETL_PROPERTY_READ_ZERO_SIZE:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=zero_size\n", (unsigned long)index, display_name);
+            break;
+        case COMTRACE_ETL_PROPERTY_READ_ALLOCATION_FAILED:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=allocation_failed\n", (unsigned long)index, display_name);
+            break;
+        case COMTRACE_ETL_PROPERTY_READ_FAILED:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=read_failed tdh_status=%lu\n", (unsigned long)index, display_name, (unsigned long)decoded_value.tdh_status);
+            break;
+        default:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_argument\n", (unsigned long)index, display_name);
+            break;
         }
-        allocated_value = 1;
-    }
-
-    status = TdhGetProperty(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        descriptor_count,
-        descriptors,
-        value_size,
-        value
-    );
-
-    if (status != ERROR_SUCCESS) {
-        wprintf(
-            L"  property_value[%lu] name=%ls status=unavailable reason=read_failed tdh_status=%lu\n",
-            (unsigned long)index,
-            display_name,
-            (unsigned long)status
-        );
         goto cleanup;
     }
+
+    value = decoded_value.data;
+    value_size = decoded_value.size;
 
     wprintf(
         L"  property_value[%lu] name=%ls ",
@@ -712,9 +584,7 @@ static void print_event_property_value_element(
     }
     }
 cleanup:
-    if (allocated_value) {
-        free(value);
-    }
+    comtrace_etl_property_value_destroy(&decoded_value);
 }
 
 static void print_event_property_value(
@@ -779,7 +649,8 @@ static void print_event_property_value(
         ULONG count;
 
         if (!read_event_property_count(
-                event_record, properties, property_count, buffer_size, property, &count)) {
+                event_record, properties, property_count, buffer, buffer_size,
+                property, &count)) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
             return;
         }
