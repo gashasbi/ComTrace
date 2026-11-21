@@ -40,7 +40,9 @@ Use a trace that contains COM Performance and OLE Performance events, including 
 5. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
 6. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
 
-The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both events lack it, ComTrace can pair them only when their non-empty `ActivityId`, process ID, thread ID, and operation all match. Nested starts use last-in-first-out pairing. A one-sided `CallTraceId`, missing `ActivityId`, or mismatched key is never treated as a match.
+The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both COM events lack it, ComTrace can pair them only when their non-empty `ActivityId`, process ID, thread ID, and operation all match. Nested starts use last-in-first-out pairing. A one-sided `CallTraceId`, missing `ActivityId`, or mismatched key is never treated as a match.
+
+OLE operation pairs report whether they matched through ActivityId or through the weaker process ID, thread ID, and operation fallback. The fallback is used only when both events lack ActivityId; mismatched or one-sided Activity IDs are not paired. This distinction is included in the inspection and comparison reports.
 
 A successful run prints `Real ETL validation: PASS` and writes a JSON validation summary. The ETL, CTRA archive, and text/JSON reports are preserved in the output directory. By default this directory is `comtrace-validation` under the current directory; set `-OutputDirectory` to choose another location.
 
