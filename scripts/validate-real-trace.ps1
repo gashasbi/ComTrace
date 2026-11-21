@@ -279,7 +279,7 @@ Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
 $oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
 $oleSummaryMatch = [regex]::Match(
     $oleSearchOutput,
-    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Missing ActivityId:\s*(\d+)"
+    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Missing ActivityId:\s*(\d+)"
 )
 if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
     throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
@@ -289,7 +289,9 @@ $oleEventCount = [UInt64]::Parse($oleEventMatch.Groups[1].Value)
 $oleClipboardOperations = [UInt64]::Parse($oleSummaryMatch.Groups[1].Value)
 $oleDragDropOperations = [UInt64]::Parse($oleSummaryMatch.Groups[2].Value)
 $oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
-$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
+$oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
+$oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
+$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
 
 if ($oleEventCount -eq 0 -or $oleClipboardOperations -eq 0 -or $oleTimelineMatched -eq 0) {
     throw "OLE validation requires OLE events, clipboard operations, and a matched start/stop pair. Review $oleSearchPath"
@@ -370,6 +372,8 @@ $summary = [ordered]@{
     ole_clipboard_operations = $oleClipboardOperations
     ole_drag_drop_operations = $oleDragDropOperations
     ole_timeline_matched = $oleTimelineMatched
+    ole_timeline_matched_by_activity_id = $oleTimelineMatchedByActivity
+    ole_timeline_matched_by_process_thread = $oleTimelineMatchedByProcessThread
     ole_timeline_missing_activity_id = $oleTimelineMissingActivity
     identity_values_reported = $identityValueCount
     com_timeline_matched = $comTimelineMatched
@@ -400,6 +404,8 @@ Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
 Write-Host "OLE drag and drop operations: $oleDragDropOperations"
 Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
+Write-Host "OLE pairs matched by ActivityId: $oleTimelineMatchedByActivity"
+Write-Host "OLE pairs matched by process/thread/operation: $oleTimelineMatchedByProcessThread"
 Write-Host "OLE events missing ActivityId: $oleTimelineMissingActivity"
 Write-Host "Identity values reported: $identityValueCount"
 Write-Host "COM start/stop pairs matched: $comTimelineMatched"
