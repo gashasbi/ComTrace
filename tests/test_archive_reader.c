@@ -309,9 +309,201 @@ static int test_event_and_footer_round_trip(void)
             "Footer metadata is reconstructed", &failures);
 
         check_condition(
+            reader.footer.checksum_present &&
+            reader.footer.checksum_valid,
+            "Version 2 footer CRC32 is present and valid",
+            &failures);
+
+        check_condition(
             comtrace_archive_reader_next(&reader, &event) ==
                 COMTRACE_ARCHIVE_READER_END,
             "End of archive remains stable", &failures);
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_legacy_v1_archive(void)
+{
+    static const BYTE user_data[] = {0x41U, 0x42U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    BYTE *data;
+    DWORD size;
+    size_t footer_offset;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size < 128U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    footer_offset = (size_t)size - 128U;
+    data[8U] = 1U;
+    data[9U] = 0U;
+    data[10U] = 0U;
+    data[11U] = 0U;
+    data[footer_offset + 8U] = 1U;
+    data[footer_offset + 9U] = 0U;
+    data[footer_offset + 10U] = 0U;
+    data[footer_offset + 11U] = 0U;
+    data[footer_offset + 12U] = 124U;
+    data[footer_offset + 13U] = 0U;
+    data[footer_offset + 14U] = 0U;
+    data[footer_offset + 15U] = 0U;
+
+    if (!write_file_bytes(path, data, size - 4U)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+    check_condition(
+        comtrace_archive_reader_open(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Legacy version 1 archive opens",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Legacy version 1 event is readable",
+            &failures
+        );
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Legacy version 1 footer is accepted",
+            &failures
+        );
+
+        check_condition(
+            !reader.footer.checksum_present,
+            "Legacy version 1 archive has no checksum field",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+    delete_test_paths(path);
+    return failures;
+}
+
+static int test_checksum_mismatch(void)
+{
+    static const BYTE user_data[] = {0x51U, 0x52U, 0x53U};
+    COMTRACE_ARCHIVE_READER reader;
+    COMTRACE_ARCHIVE_EVENT event;
+    const COMTRACE_ARCHIVE_RECOVERY_INFO *info;
+    BYTE *data;
+    DWORD size;
+    wchar_t path[TEST_PATH_CAPACITY];
+    int failures = 0;
+
+    if (!create_test_path(path, TEST_PATH_CAPACITY) ||
+        !create_archive(path, user_data, sizeof(user_data), NULL, 0U)) {
+        return 1;
+    }
+
+    data = read_file_bytes(path, &size);
+    if (data == NULL || size <= 136U) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+
+    data[136U] ^= 0x80U;
+    if (!write_file_bytes(path, data, size)) {
+        free(data);
+        delete_test_paths(path);
+        return 1;
+    }
+    free(data);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+    check_condition(
+        comtrace_archive_reader_open(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Archive with damaged event data opens its header",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Event data is structurally readable before checksum validation",
+            &failures
+        );
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_CHECKSUM_MISMATCH,
+            "Strict reader rejects a mismatched archive checksum",
+            &failures
+        );
+    }
+
+    comtrace_archive_event_destroy(&event);
+    comtrace_archive_reader_close(&reader);
+
+    ZeroMemory(&reader, sizeof(reader));
+    ZeroMemory(&event, sizeof(event));
+    check_condition(
+        comtrace_archive_reader_open_recovery(&reader, path) ==
+            COMTRACE_ARCHIVE_READER_SUCCESS,
+        "Recovery opens an archive with a checksum mismatch",
+        &failures
+    );
+
+    if (reader.file != INVALID_HANDLE_VALUE) {
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_SUCCESS,
+            "Recovery preserves the event before checksum validation",
+            &failures
+        );
+        comtrace_archive_event_destroy(&event);
+
+        check_condition(
+            comtrace_archive_reader_next(&reader, &event) ==
+                COMTRACE_ARCHIVE_READER_END,
+            "Recovery stops after a checksum mismatch",
+            &failures
+        );
+
+        info = comtrace_archive_reader_get_recovery_info(&reader);
+        check_condition(
+            info != NULL &&
+            info->records_recovered == 1ULL &&
+            !info->footer_valid &&
+            !info->archive_complete &&
+            info->stop_reason ==
+                COMTRACE_ARCHIVE_RECOVERY_STOP_CHECKSUM_INVALID,
+            "Recovery reports an invalid checksum footer",
+            &failures
+        );
     }
 
     comtrace_archive_event_destroy(&event);
@@ -501,8 +693,8 @@ static int test_truncated_event_record(void)
         return 1;
     }
 
-    footer_offset = (size_t)size - 124U;
-    memmove(data + footer_offset - 1U, data + footer_offset, 124U);
+    footer_offset = (size_t)size - 128U;
+    memmove(data + footer_offset - 1U, data + footer_offset, 128U);
     if (!write_file_bytes(path, data, size - 1U)) {
         free(data);
         delete_test_paths(path);
@@ -543,13 +735,13 @@ static int test_footer_record_count_mismatch(void)
     }
 
     data = read_file_bytes(path, &size);
-    if (data == NULL || size < 124U) {
+    if (data == NULL || size < 128U) {
         free(data);
         delete_test_paths(path);
         return 1;
     }
 
-    footer_offset = (size_t)size - 124U;
+    footer_offset = (size_t)size - 128U;
     data[footer_offset + 16U] = 2U;
     if (!write_file_bytes(path, data, size)) {
         free(data);
@@ -664,13 +856,13 @@ static int test_invalid_archive_field(
     }
 
     if (stage >= 2 && stage <= 5) {
-        if (size < 124U) {
+        if (size < 128U) {
             free(data);
             delete_test_paths(path);
             return 1;
         }
 
-        offset += (size_t)size - 124U;
+        offset += (size_t)size - 128U;
     }
 
     if (offset > (size_t)size ||
@@ -910,7 +1102,7 @@ static int test_additional_archive_validation(void)
     static const BYTE user_data[] = {0x11U};
     static const BYTE extended_payload[] = {0x21U, 0x22U, 0x23U};
 
-    static const BYTE invalid_version[] = {2U, 0U, 0U, 0U};
+    static const BYTE invalid_version[] = {3U, 0U, 0U, 0U};
     static const BYTE invalid_header_size[] = {23U, 0U, 0U, 0U};
     static const BYTE invalid_header_type[] = {2U, 0U, 0U, 0U};
     static const BYTE invalid_reserved[] = {1U, 0U, 0U, 0U};
@@ -1110,8 +1302,8 @@ static int test_recovery_missing_footer(void)
     }
 
     data = read_file_bytes(path, &size);
-    if (data == NULL || size <= 124U ||
-        !write_file_bytes(path, data, size - 124U)) {
+    if (data == NULL || size <= 128U ||
+        !write_file_bytes(path, data, size - 128U)) {
         free(data);
         delete_test_paths(path);
         return 1;
@@ -1363,13 +1555,13 @@ static int test_recovery_truncated_footer(void)
     }
 
     data = read_file_bytes(path, &size);
-    if (data == NULL || size <= 124U + 12U) {
+    if (data == NULL || size <= 128U + 12U) {
         free(data);
         delete_test_paths(path);
         return 1;
     }
 
-    truncated_size = size - 124U + 12U;
+    truncated_size = size - 128U + 12U;
 
     if (!write_file_bytes(path, data, truncated_size)) {
         free(data);
@@ -1690,6 +1882,8 @@ int main(void)
     int failures = 0;
 
     failures += test_event_and_footer_round_trip();
+    failures += test_legacy_v1_archive();
+    failures += test_checksum_mismatch();
     failures += test_empty_archive();
     failures += test_short_archive();
     failures += test_invalid_header_signature();
