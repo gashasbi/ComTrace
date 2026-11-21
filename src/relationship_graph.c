@@ -542,6 +542,68 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
         }
     }
 
+    object_index = (size_t)-1;
+    class_index = (size_t)-1;
+    iid_index = (size_t)-1;
+    ipid_index = (size_t)-1;
+
+    if (identity->has_clsid) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_CLSID,
+            0U,
+            0U,
+            &identity->clsid,
+            0ULL,
+            &class_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+    }
+
+    if (identity->has_iid) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_IID,
+            0U,
+            0U,
+            &identity->iid,
+            0ULL,
+            &iid_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+    }
+
+    if (identity->has_ipid) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_IPID,
+            0U,
+            0U,
+            &identity->ipid,
+            0ULL,
+            &ipid_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+
+        if (iid_index != (size_t)-1) {
+            status = add_edge(
+                graph,
+                COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID,
+                ipid_index,
+                iid_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+
     object_process_id = identity->has_target_process_id
         ? identity->target_process_id
         : identity->process_id;
@@ -577,20 +639,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             return status;
         }
 
-        if (identity->has_clsid) {
-            status = add_node(
-                graph,
-                COMTRACE_GRAPH_NODE_CLSID,
-                0U,
-                0U,
-                &identity->clsid,
-                0ULL,
-                &class_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-
+        if (class_index != (size_t)-1) {
             status = add_edge(
                 graph,
                 COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID,
@@ -602,20 +651,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             }
         }
 
-        if (identity->has_ipid) {
-            status = add_node(
-                graph,
-                COMTRACE_GRAPH_NODE_IPID,
-                0U,
-                0U,
-                &identity->ipid,
-                0ULL,
-                &ipid_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-
+        if (ipid_index != (size_t)-1) {
             status = add_edge(
                 graph,
                 COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID,
@@ -625,44 +661,6 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
-
-            if (identity->has_iid) {
-                status = add_node(
-                    graph,
-                    COMTRACE_GRAPH_NODE_IID,
-                    0U,
-                    0U,
-                    &identity->iid,
-                    0ULL,
-                    &iid_index
-                );
-                if (status != COMTRACE_GRAPH_SUCCESS) {
-                    return status;
-                }
-
-                status = add_edge(
-                    graph,
-                    COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID,
-                    ipid_index,
-                    iid_index
-                );
-                if (status != COMTRACE_GRAPH_SUCCESS) {
-                    return status;
-                }
-            }
-        }
-    } else if (identity->has_clsid) {
-        status = add_node(
-            graph,
-            COMTRACE_GRAPH_NODE_CLSID,
-            0U,
-            0U,
-            &identity->clsid,
-            0ULL,
-            &class_index
-        );
-        if (status != COMTRACE_GRAPH_SUCCESS) {
-            return status;
         }
     }
 
