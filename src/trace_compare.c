@@ -1098,10 +1098,19 @@ void comtrace_trace_comparison_write_json(
 )
 {
     size_t index;
+    COMTRACE_TIMELINE_COUNTS left_com;
+    COMTRACE_TIMELINE_COUNTS right_com;
+    COMTRACE_OLE_TIMELINE_COUNTS left_ole;
+    COMTRACE_OLE_TIMELINE_COUNTS right_ole;
 
     if (comparison == NULL) {
         return;
     }
+
+    left_com = get_timeline_counts(&comparison->left);
+    right_com = get_timeline_counts(&comparison->right);
+    left_ole = get_ole_timeline_counts(&comparison->left);
+    right_ole = get_ole_timeline_counts(&comparison->right);
 
     wprintf(L"{\n  \"schema_version\": 1,\n  \"left\": {\"path\": ");
     write_json_string(left_path);
@@ -1123,6 +1132,32 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)comparison->changed_event_types,
         (unsigned long long)comparison->added_objects,
         (unsigned long long)comparison->removed_objects
+    );
+
+    wprintf(
+        L"  \"timeline_summary\": {"
+        L"\"left_com\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"failed\": %llu}, "
+        L"\"right_com\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"failed\": %llu}, "
+        L"\"left_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}, "
+        L"\"right_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}},\n",
+        (unsigned long long)left_com.matched,
+        (unsigned long long)left_com.incomplete,
+        (unsigned long long)left_com.unmatched,
+        (unsigned long long)left_com.failed,
+        (unsigned long long)right_com.matched,
+        (unsigned long long)right_com.incomplete,
+        (unsigned long long)right_com.unmatched,
+        (unsigned long long)right_com.failed,
+        (unsigned long long)left_ole.matched,
+        (unsigned long long)left_ole.incomplete,
+        (unsigned long long)left_ole.unmatched,
+        (unsigned long long)left_ole.activity_sequences,
+        (unsigned long long)left_ole.missing_activity_ids,
+        (unsigned long long)right_ole.matched,
+        (unsigned long long)right_ole.incomplete,
+        (unsigned long long)right_ole.unmatched,
+        (unsigned long long)right_ole.activity_sequences,
+        (unsigned long long)right_ole.missing_activity_ids
     );
 
     wprintf(L"  \"event_type_changes\": [");
