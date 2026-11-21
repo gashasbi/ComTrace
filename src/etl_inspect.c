@@ -1270,6 +1270,8 @@ static void print_ole_timeline_summary(
     size_t count;
     size_t index;
     ULONGLONG matched = 0ULL;
+    ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete = 0ULL;
     ULONGLONG unmatched = 0ULL;
     ULONGLONG clipboard_events = 0ULL;
@@ -1291,6 +1293,11 @@ static void print_ole_timeline_summary(
 
         if (record->has_start && record->has_stop) {
             ++matched;
+            if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID) {
+                ++matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
+                ++matched_by_process_thread;
+            }
         } else if (record->has_start) {
             ++incomplete;
         } else if (record->has_stop) {
@@ -1309,6 +1316,14 @@ static void print_ole_timeline_summary(
     wprintf(L"Clipboard operations: %llu\n", (unsigned long long)clipboard_events);
     wprintf(L"Drag and Drop operations: %llu\n", (unsigned long long)drag_drop_events);
     wprintf(L"Matched start/stop: %llu\n", (unsigned long long)matched);
+    wprintf(
+        L"Matched by ActivityId: %llu\n",
+        (unsigned long long)matched_by_activity_id
+    );
+    wprintf(
+        L"Matched by process/thread/operation: %llu\n",
+        (unsigned long long)matched_by_process_thread
+    );
     wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete);
     wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched);
     wprintf(
