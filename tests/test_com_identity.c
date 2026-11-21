@@ -194,10 +194,28 @@ int wmain(int argc, wchar_t **argv)
         return EXIT_FAILURE;
     }
 
+    {
+        wchar_t process_path[1024];
+        if (!comtrace_get_process_image_path(
+                GetCurrentProcessId(),
+                process_path,
+                (DWORD)_countof(process_path)
+            ) ||
+            process_path[0] == L'\0') {
+            fwprintf(stderr, L"Current process image path lookup failed.\n");
+            return EXIT_FAILURE;
+        }
+        if (comtrace_get_process_image_path(0U, process_path, (DWORD)_countof(process_path)) ||
+            process_path[0] != L'\0') {
+            fwprintf(stderr, L"Invalid process image path lookup was accepted.\n");
+            return EXIT_FAILURE;
+        }
+    }
+
     if (!verify_event(argv[1])) {
         return EXIT_FAILURE;
     }
 
-    wprintf(L"COM identity GUID properties were extracted correctly.\n");
+    wprintf(L"COM identity properties and process image path tests passed.\n");
     return EXIT_SUCCESS;
 }
