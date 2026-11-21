@@ -129,6 +129,14 @@ string(JSON right_com_call_trace_matches GET "${output}" timeline_summary right_
 string(JSON right_com_activity_matches GET "${output}" timeline_summary right_com matched_by_activity_id)
 string(JSON right_com_missing_call_trace GET "${output}" timeline_summary right_com missing_call_trace_ids)
 string(JSON right_com_missing_activity GET "${output}" timeline_summary right_com missing_activity_ids)
+string(JSON left_ole_matched GET "${output}" timeline_summary left_ole matched)
+string(JSON left_ole_activity_matches GET "${output}" timeline_summary left_ole matched_by_activity_id)
+string(JSON left_ole_fallback_matches GET "${output}" timeline_summary left_ole matched_by_process_thread)
+string(JSON left_ole_missing_activity GET "${output}" timeline_summary left_ole missing_activity_ids)
+string(JSON right_ole_matched GET "${output}" timeline_summary right_ole matched)
+string(JSON right_ole_activity_matches GET "${output}" timeline_summary right_ole matched_by_activity_id)
+string(JSON right_ole_fallback_matches GET "${output}" timeline_summary right_ole matched_by_process_thread)
+string(JSON right_ole_missing_activity GET "${output}" timeline_summary right_ole missing_activity_ids)
 if(NOT object_change_count EQUAL 0 OR
    NOT left_timeline_count EQUAL 0 OR
    NOT right_timeline_count EQUAL 0 OR
@@ -141,6 +149,14 @@ if(NOT object_change_count EQUAL 0 OR
    NOT right_com_call_trace_matches EQUAL 0 OR
    NOT right_com_activity_matches EQUAL 0 OR
    NOT right_com_missing_call_trace EQUAL 0 OR
-   NOT right_com_missing_activity EQUAL 0)
+   NOT right_com_missing_activity EQUAL 0 OR
+   NOT left_ole_matched EQUAL 0 OR
+   NOT left_ole_activity_matches EQUAL 0 OR
+   NOT left_ole_fallback_matches EQUAL 0 OR
+   NOT left_ole_missing_activity EQUAL 0 OR
+   NOT right_ole_matched EQUAL 0 OR
+   NOT right_ole_activity_matches EQUAL 0 OR
+   NOT right_ole_fallback_matches EQUAL 0 OR
+   NOT right_ole_missing_activity EQUAL 0)
     message(FATAL_ERROR "JSON object or timeline sections are incorrect.")
 endif()
