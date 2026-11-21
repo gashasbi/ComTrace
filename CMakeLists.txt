@@ -24,6 +24,8 @@ add_executable(ComTrace
     src/com_timeline.c
     src/relationship_graph.c
     src/ole_timeline.c
+    src/trace_compare.c
+    src/archive_reader.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -370,6 +372,8 @@ if(BUILD_TESTING)
         COMMAND "${CMAKE_COMMAND}"
             "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceIdentityFixture>"
             "-DTEST_EXE=$<TARGET_FILE:ComTraceComIdentityTests>"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DCOMTRACE_ARCHIVE_EXE=$<TARGET_FILE:ComTraceArchive>"
             "-DMANIFEST_FILE=${COMTRACE_IDENTITY_FIXTURE_DIR}/identity_fixture.man"
             "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/identity-cli-tests"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_identity_case.cmake"
