@@ -736,7 +736,7 @@ static void print_event_property_value(
     }
 
     print_event_property_value_element(
-        event_record, property, name, parent_names, parent_count == 0U ? NULL : parent_indices,
+        event_record, property, name, parent_names, parent_indices,
         parent_count, index, 0xFFFFFFFFUL, pointer_size
     );
 }
