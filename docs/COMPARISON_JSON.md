@@ -91,6 +91,8 @@ COM timeline entries contain numeric `matched`, `matched_by_call_trace_id`, `mat
 
 ComTrace first matches events that both expose the same `CallTraceId`, process ID, thread ID, and operation. When both events lack `CallTraceId`, it can use an identical non-empty `ActivityId` with the same process, thread, and operation; pending starts are paired in last-in-first-out order to preserve nested call order. If only one event has `CallTraceId`, or the fallback key is missing or different, the events are not paired. Related Activity IDs are retained as context but are not used as a call key.
 
+OLE timeline entries contain numeric `matched`, `matched_by_activity_id`, `matched_by_process_thread`, `incomplete`, `unmatched`, `activity_sequences`, and `missing_activity_ids` counts. Both match-source counters are subsets of `matched`. OLE events with matching non-empty Activity IDs are paired using Activity ID, process ID, thread ID, and operation. When both events lack Activity ID, the existing fallback pairs by process ID, thread ID, and operation and is reported separately as `matched_by_process_thread`; this fallback is weaker than Activity ID correlation and should be interpreted accordingly. If only one event has Activity ID or the available Activity IDs differ, the events are not paired. Matching uses last-in-first-out order for nested operations.
+
 The `timeline.left` and `timeline.right` arrays contain one entry per operation with at least one completed start/stop pair:
 
 | Field | Type | Description |
