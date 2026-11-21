@@ -17,6 +17,7 @@
 #include "event_catalog.h"
 #include "com_identity.h"
 #include "etl_decoder.h"
+#include "com_timeline.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -29,6 +30,9 @@ typedef struct {
     COMTRACE_EVENT_CATALOG event_catalog;
     COMTRACE_EVENT_RECORD_STATUS record_status;
     COMTRACE_EVENT_CATALOG_STATUS catalog_status;
+    COMTRACE_TIMELINE timeline;
+    COMTRACE_TIMELINE_STATUS timeline_status;
+    ULONGLONG trace_frequency;
 } ETL_INSPECT_CONTEXT;
 
 static void print_guid(const GUID *guid)
@@ -970,6 +974,185 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
     }
 }
 
+static void add_com_timeline_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+    COMTRACE_TIMELINE_EVENT timeline_event;
+    COMTRACE_COM_OBJECT_IDENTITY object_identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    ULONGLONG call_trace_id = 0ULL;
+    LONG hresult = 0;
+    COMTRACE_IDENTITY_STATUS identity_status;
+
+    if (context == NULL || event_record == NULL) {
+        return;
+    }
+
+    if (!comtrace_classify_com_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase)) {
+        return;
+    }
+
+    if (wcscmp(phase, L"start") != 0 && wcscmp(phase, L"stop") != 0) {
+        return;
+    }
+
+    ZeroMemory(&timeline_event, sizeof(timeline_event));
+    timeline_event.operation = operation;
+    timeline_event.phase = wcscmp(phase, L"start") == 0
+        ? COMTRACE_TIMELINE_PHASE_START
+        : COMTRACE_TIMELINE_PHASE_STOP;
+    timeline_event.process_id = event_record->EventHeader.ProcessId;
+    timeline_event.thread_id = event_record->EventHeader.ThreadId;
+    timeline_event.timestamp = (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    identity_status = comtrace_extract_uint64_property(
+        event_record,
+        L"CallTraceId",
+        &call_trace_id
+    );
+    if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.has_call_trace_id = TRUE;
+        timeline_event.call_trace_id = call_trace_id;
+    }
+
+    if (comtrace_extract_com_object_identity(
+            event_record,
+            &object_identity
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.object_identity = &object_identity;
+    }
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.activity_ids = &activity_ids;
+    }
+
+    if (timeline_event.phase == COMTRACE_TIMELINE_PHASE_STOP &&
+        comtrace_extract_int32_property(
+            event_record,
+            L"HRESULT",
+            &hresult
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.has_hresult = TRUE;
+        timeline_event.hresult = (HRESULT)hresult;
+    }
+
+    if (comtrace_timeline_add_event(&context->timeline, &timeline_event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        context->timeline_status = COMTRACE_TIMELINE_ALLOCATION_FAILED;
+    }
+}
+
+static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
+{
+    size_t count;
+    size_t index;
+    ULONGLONG matched = 0ULL;
+    ULONGLONG incomplete_starts = 0ULL;
+    ULONGLONG unmatched_stops = 0ULL;
+    ULONGLONG failed_operations = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    count = comtrace_timeline_count(&context->timeline);
+
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_TIMELINE_RECORD *record =
+            comtrace_timeline_get(&context->timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        if (record->has_start && record->has_stop) {
+            ++matched;
+            if (record->has_hresult && record->hresult < 0) {
+                ++failed_operations;
+            }
+        } else if (record->has_start) {
+            ++incomplete_starts;
+        } else if (record->has_stop) {
+            ++unmatched_stops;
+        }
+    }
+
+    wprintf(L"\nCOM timeline summary\n");
+    wprintf(L"Operations tracked: %llu\n", (unsigned long long)count);
+    wprintf(L"Matched start/stop: %llu\n", (unsigned long long)matched);
+    wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete_starts);
+    wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched_stops);
+    wprintf(
+        L"Missing CallTraceId: %llu\n",
+        (unsigned long long)context->timeline.missing_call_trace_ids
+    );
+    wprintf(L"Failed operations: %llu\n", (unsigned long long)failed_operations);
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_TIMELINE_RECORD *record =
+            comtrace_timeline_get(&context->timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(
+            L"  sequence=%llu operation=%ls pid=%lu tid=%lu",
+            (unsigned long long)(index + 1U),
+            record->operation,
+            (unsigned long)record->process_id,
+            (unsigned long)record->thread_id
+        );
+
+        if (record->has_call_trace_id) {
+            wprintf(L" call_trace_id=0x%llx", (unsigned long long)record->call_trace_id);
+        }
+
+        if (record->has_start) {
+            wprintf(L" start=%llu", (unsigned long long)record->start_timestamp);
+        }
+        if (record->has_stop) {
+            wprintf(L" stop=%llu", (unsigned long long)record->stop_timestamp);
+        }
+        if (record->has_duration) {
+            if (context->trace_frequency != 0ULL) {
+                double duration_ms =
+                    1000.0 * (double)record->duration_ticks /
+                    (double)context->trace_frequency;
+                wprintf(L" duration_ms=%.3f", duration_ms);
+            } else {
+                wprintf(L" duration_ticks=%llu", (unsigned long long)record->duration_ticks);
+            }
+        }
+        if (record->has_hresult) {
+            wprintf(
+                L" hresult=0x%08lx result=%ls",
+                (unsigned long)record->hresult,
+                record->hresult < 0 ? L"failed" : L"succeeded"
+            );
+        }
+        if (record->has_object_identity && record->object_identity.has_oid) {
+            wprintf(L" oid=0x%llx", (unsigned long long)record->object_identity.oid);
+        }
+        wprintf(L"\n");
+    }
+
+    if (count > 100U) {
+        wprintf(L"  timeline_display_limit=100 remaining=%llu\n", (unsigned long long)(count - 100U));
+    }
+}
+
 static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 {
     ETL_INSPECT_CONTEXT *context;
@@ -994,6 +1177,8 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
         ++context->processing_failures;
         context->catalog_status = catalog_status;
     }
+
+    add_com_timeline_event(context, event_record);
 
     if (context->sampled_events >= context->sample_limit) {
         return;
@@ -1059,6 +1244,8 @@ int comtrace_inspect_etl(
 
     ZeroMemory(&context, sizeof(context));
     ZeroMemory(&logfile, sizeof(logfile));
+    comtrace_timeline_init(&context.timeline);
+    context.timeline_status = COMTRACE_TIMELINE_SUCCESS;
 
     if (!parse_sample_limit(limit_text, &context.sample_limit)) {
         fwprintf(
@@ -1103,6 +1290,7 @@ int comtrace_inspect_etl(
     }
 
     context.pointer_size = logfile.LogfileHeader.PointerSize;
+    context.trace_frequency = (ULONGLONG)logfile.LogfileHeader.PerfFreq.QuadPart;
     if (context.pointer_size != 4U && context.pointer_size != 8U) {
         fwprintf(stderr, L"Unsupported trace pointer size: %lu.\n", (unsigned long)context.pointer_size);
         CloseTrace(trace_handle);
@@ -1117,6 +1305,8 @@ int comtrace_inspect_etl(
 
     process_status = ProcessTrace(&trace_handle, 1U, NULL, NULL);
     close_status = CloseTrace(trace_handle);
+
+    print_com_timeline_summary(&context);
 
     wprintf(L"\nEvent summary\n");
     wprintf(
@@ -1211,6 +1401,12 @@ int comtrace_inspect_etl(
         result = EXIT_FAILURE;
     }
 
+    if (context.timeline_status != COMTRACE_TIMELINE_SUCCESS) {
+        fwprintf(stderr, L"COM timeline processing failed.\n");
+        result = EXIT_FAILURE;
+    }
+
+    comtrace_timeline_destroy(&context.timeline);
     comtrace_event_catalog_destroy(&context.event_catalog);
 
     return result;
