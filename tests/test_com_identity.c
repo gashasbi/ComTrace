@@ -101,8 +101,8 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     }
 
     status = comtrace_extract_uint32_property(event_record, L"NotGuid", &number);
-    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
-        fwprintf(stderr, L"NotGuid UINT32 type rejection failed: status=%u\n", (unsigned int)status);
+    if (status != COMTRACE_IDENTITY_SUCCESS || number != 123U) {
+        fwprintf(stderr, L"NotGuid UINT32 extraction failed: status=%u value=%lu\n", (unsigned int)status, (unsigned long)number);
         ++context->failures;
     }
 
