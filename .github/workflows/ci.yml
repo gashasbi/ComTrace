@@ -48,20 +48,20 @@ jobs:
             throw "Real trace validation script contains syntax errors."
           }
 
-      - name: Validate real COM ETL and CTRA round trip
+      - name: Validate real COM and OLE ETL and CTRA round trip
         shell: pwsh
         run: |
           $comTrace = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTrace.exe'
           $comTraceArchive = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTraceArchive.exe'
           $outputDirectory = Join-Path $env:RUNNER_TEMP 'ComTraceRealValidation'
           $validationScript = Join-Path $env:GITHUB_WORKSPACE 'scripts/validate-real-trace.ps1'
-          & $validationScript -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 15 -OutputDirectory $outputDirectory
+          & $validationScript -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 30 -OutputDirectory $outputDirectory
 
-      - name: Upload real COM validation evidence
+      - name: Upload real COM and OLE validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: comtrace-real-com-validation
+          name: comtrace-real-com-ole-validation
           path: ${{ runner.temp }}/ComTraceRealValidation
           if-no-files-found: ignore
           retention-days: 7
