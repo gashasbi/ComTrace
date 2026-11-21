@@ -6,6 +6,7 @@
 #include <wchar.h>
 #include "etw_capture.h"
 #include "etl_inspect.h"
+#include "trace_compare.h"
 
 #define COMTRACE_VERSION "0.2.0"
 #define ARRAY_COUNT(values) (sizeof(values) / sizeof((values)[0]))
@@ -37,7 +38,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json]]\n",
         program_name
     );
 }
@@ -222,6 +223,69 @@ static int list_providers(void)
     return EXIT_SUCCESS;
 }
 
+static const wchar_t *trace_compare_status_name(
+    COMTRACE_TRACE_COMPARE_STATUS status
+)
+{
+    switch (status) {
+    case COMTRACE_TRACE_COMPARE_SUCCESS:
+        return L"success";
+    case COMTRACE_TRACE_COMPARE_INVALID_ARGUMENT:
+        return L"invalid argument";
+    case COMTRACE_TRACE_COMPARE_UNSUPPORTED_FORMAT:
+        return L"unsupported file format";
+    case COMTRACE_TRACE_COMPARE_ETL_OPEN_FAILED:
+        return L"ETL open failed";
+    case COMTRACE_TRACE_COMPARE_ETL_PROCESS_FAILED:
+        return L"ETL processing failed";
+    case COMTRACE_TRACE_COMPARE_ARCHIVE_FAILED:
+        return L"CTRA read failed";
+    case COMTRACE_TRACE_COMPARE_CATALOG_FAILED:
+        return L"event catalog update failed";
+    case COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED:
+        return L"memory allocation failed";
+    case COMTRACE_TRACE_COMPARE_COUNT_OVERFLOW:
+        return L"counter overflow";
+    default:
+        return L"unknown comparison error";
+    }
+}
+
+static int run_trace_comparison(
+    const wchar_t *left_path,
+    const wchar_t *right_path,
+    int json_output
+)
+{
+    COMTRACE_TRACE_COMPARISON comparison;
+    COMTRACE_TRACE_COMPARE_STATUS status;
+
+    ZeroMemory(&comparison, sizeof(comparison));
+
+    status = comtrace_trace_compare(left_path, right_path, &comparison);
+    if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+        fwprintf(
+            stderr,
+            L"Trace comparison failed: %ls.\n",
+            trace_compare_status_name(status)
+        );
+        return EXIT_FAILURE;
+    }
+
+    if (json_output) {
+        comtrace_trace_comparison_write_json(
+            &comparison,
+            left_path,
+            right_path
+        );
+    } else {
+        comtrace_trace_comparison_write_text(&comparison);
+    }
+
+    comtrace_trace_comparison_destroy(&comparison);
+    return EXIT_SUCCESS;
+}
+
 int wmain(int argc, wchar_t **argv)
 {
     if (argc == 1) {
@@ -230,6 +294,17 @@ int wmain(int argc, wchar_t **argv)
         wprintf(L"Use --providers to inspect known COM ETW provider registrations.\n");
         wprintf(L"Use --capture <seconds> <output.etl> to record a trace.\n");
         return EXIT_SUCCESS;
+    }
+
+    if ((argc == 4 || argc == 5) && wcscmp(argv[1], L"--compare") == 0) {
+        int json_output = argc == 5 && wcscmp(argv[4], L"--json") == 0;
+
+        if (argc == 5 && !json_output) {
+            print_usage(argv[0]);
+            return EXIT_FAILURE;
+        }
+
+        return run_trace_comparison(argv[2], argv[3], json_output);
     }
 
     if ((argc == 3 || argc == 4) && wcscmp(argv[1], L"--inspect") == 0) {
