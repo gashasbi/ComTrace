@@ -425,7 +425,8 @@ static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
     DWORD process_id,
     ULONGLONG object_id,
     BOOL present_in_left,
-    BOOL present_in_right
+    BOOL present_in_right,
+    ULONG changed_fields
 )
 {
     size_t new_count;
@@ -451,12 +452,13 @@ static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
     diffs[comparison->object_diff_count].object_id = object_id;
     diffs[comparison->object_diff_count].present_in_left = present_in_left;
     diffs[comparison->object_diff_count].present_in_right = present_in_right;
+    diffs[comparison->object_diff_count].changed_fields = changed_fields;
     comparison->object_diff_count = new_count;
 
     return COMTRACE_TRACE_COMPARE_SUCCESS;
 }
 
-static int object_exists(
+static size_t find_object_index(
     const COMTRACE_RELATIONSHIP_GRAPH *graph,
     DWORD process_id,
     ULONGLONG object_id
@@ -470,11 +472,134 @@ static int object_exists(
         if (node->type == COMTRACE_GRAPH_NODE_COM_OBJECT &&
             node->process_id == process_id &&
             node->value == object_id) {
+            return index;
+        }
+    }
+
+    return (size_t)-1;
+}
+
+static int get_linked_guid(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph,
+    size_t source_index,
+    COMTRACE_GRAPH_EDGE_TYPE edge_type,
+    COMTRACE_GRAPH_NODE_TYPE node_type,
+    GUID *guid
+)
+{
+    size_t index;
+
+    for (index = 0U; index < graph->edge_count; ++index) {
+        const COMTRACE_GRAPH_EDGE *edge = &graph->edges[index];
+        const COMTRACE_GRAPH_NODE *node;
+
+        if (edge->type != edge_type ||
+            edge->source_index != source_index ||
+            edge->target_index >= graph->node_count) {
+            continue;
+        }
+
+        node = &graph->nodes[edge->target_index];
+        if (node->type == node_type) {
+            *guid = node->guid;
             return 1;
         }
     }
 
     return 0;
+}
+
+static int get_object_iid(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph,
+    size_t object_index,
+    GUID *iid
+)
+{
+    size_t ipid_index;
+    size_t index;
+
+    for (index = 0U; index < graph->edge_count; ++index) {
+        const COMTRACE_GRAPH_EDGE *object_edge = &graph->edges[index];
+
+        if (object_edge->type != COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID ||
+            object_edge->source_index != object_index ||
+            object_edge->target_index >= graph->node_count) {
+            continue;
+        }
+
+        ipid_index = object_edge->target_index;
+        if (get_linked_guid(
+                graph,
+                ipid_index,
+                COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID,
+                COMTRACE_GRAPH_NODE_IID,
+                iid)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static ULONG compare_object_identity_fields(
+    const COMTRACE_RELATIONSHIP_GRAPH *left_graph,
+    size_t left_index,
+    const COMTRACE_RELATIONSHIP_GRAPH *right_graph,
+    size_t right_index
+)
+{
+    GUID left_guid;
+    GUID right_guid;
+    ULONG changed_fields = 0U;
+    int left_has;
+    int right_has;
+
+    left_has = get_linked_guid(
+        left_graph,
+        left_index,
+        COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID,
+        COMTRACE_GRAPH_NODE_CLSID,
+        &left_guid
+    );
+    right_has = get_linked_guid(
+        right_graph,
+        right_index,
+        COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID,
+        COMTRACE_GRAPH_NODE_CLSID,
+        &right_guid
+    );
+    if (left_has != right_has ||
+        (left_has && memcmp(&left_guid, &right_guid, sizeof(GUID)) != 0)) {
+        changed_fields |= COMTRACE_OBJECT_CHANGE_CLSID;
+    }
+
+    left_has = get_linked_guid(
+        left_graph,
+        left_index,
+        COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID,
+        COMTRACE_GRAPH_NODE_IPID,
+        &left_guid
+    );
+    right_has = get_linked_guid(
+        right_graph,
+        right_index,
+        COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID,
+        COMTRACE_GRAPH_NODE_IPID,
+        &right_guid
+    );
+    if (left_has != right_has ||
+        (left_has && memcmp(&left_guid, &right_guid, sizeof(GUID)) != 0)) {
+        changed_fields |= COMTRACE_OBJECT_CHANGE_IPID;
+    }
+
+    left_has = get_object_iid(left_graph, left_index, &left_guid);
+    right_has = get_object_iid(right_graph, right_index, &right_guid);
+    if (left_has != right_has ||
+        (left_has && memcmp(&left_guid, &right_guid, sizeof(GUID)) != 0)) {
+        changed_fields |= COMTRACE_OBJECT_CHANGE_IID;
+    }
+
+    return changed_fields;
 }
 
 static COMTRACE_TRACE_COMPARE_STATUS build_event_type_diffs(
@@ -548,49 +673,76 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
     size_t index;
 
     for (index = 0U; index < comparison->left.relationship_graph.node_count; ++index) {
-        const COMTRACE_GRAPH_NODE *node =
+        const COMTRACE_GRAPH_NODE *left_node =
             &comparison->left.relationship_graph.nodes[index];
+        size_t right_index;
 
-        if (node->type != COMTRACE_GRAPH_NODE_COM_OBJECT) {
+        if (left_node->type != COMTRACE_GRAPH_NODE_COM_OBJECT) {
             continue;
         }
 
-        if (!object_exists(
-                &comparison->right.relationship_graph,
-                node->process_id,
-                node->value)) {
+        right_index = find_object_index(
+            &comparison->right.relationship_graph,
+            left_node->process_id,
+            left_node->value
+        );
+
+        if (right_index == (size_t)-1) {
             ++comparison->removed_objects;
             if (append_object_diff(
                     comparison,
-                    node->process_id,
-                    node->value,
+                    left_node->process_id,
+                    left_node->value,
                     TRUE,
-                    FALSE
+                    FALSE,
+                    0U
                 ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
                 return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+            }
+        } else {
+            ULONG changed_fields = compare_object_identity_fields(
+                &comparison->left.relationship_graph,
+                index,
+                &comparison->right.relationship_graph,
+                right_index
+            );
+
+            if (changed_fields != 0U) {
+                ++comparison->changed_objects;
+                if (append_object_diff(
+                        comparison,
+                        left_node->process_id,
+                        left_node->value,
+                        TRUE,
+                        TRUE,
+                        changed_fields
+                    ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
+                    return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+                }
             }
         }
     }
 
     for (index = 0U; index < comparison->right.relationship_graph.node_count; ++index) {
-        const COMTRACE_GRAPH_NODE *node =
+        const COMTRACE_GRAPH_NODE *right_node =
             &comparison->right.relationship_graph.nodes[index];
 
-        if (node->type != COMTRACE_GRAPH_NODE_COM_OBJECT) {
+        if (right_node->type != COMTRACE_GRAPH_NODE_COM_OBJECT) {
             continue;
         }
 
-        if (!object_exists(
+        if (find_object_index(
                 &comparison->left.relationship_graph,
-                node->process_id,
-                node->value)) {
+                right_node->process_id,
+                right_node->value) == (size_t)-1) {
             ++comparison->added_objects;
             if (append_object_diff(
                     comparison,
-                    node->process_id,
-                    node->value,
+                    right_node->process_id,
+                    right_node->value,
                     FALSE,
-                    TRUE
+                    TRUE,
+                    0U
                 ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
                 return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
             }
@@ -954,9 +1106,10 @@ void comtrace_trace_comparison_write_text(
         (unsigned long long)comparison->changed_event_types
     );
     wprintf(
-        L"COM object changes: added=%llu removed=%llu\n",
+        L"COM object changes: added=%llu removed=%llu changed=%llu\n",
         (unsigned long long)comparison->added_objects,
-        (unsigned long long)comparison->removed_objects
+        (unsigned long long)comparison->removed_objects,
+        (unsigned long long)comparison->changed_objects
     );
 
     for (index = 0U; index < comparison->event_type_diff_count; ++index) {
@@ -983,11 +1136,12 @@ void comtrace_trace_comparison_write_text(
         const COMTRACE_OBJECT_DIFF *diff = &comparison->object_diffs[index];
 
         wprintf(
-            L"  com_object pid=%lu oid=0x%llx left=%ls right=%ls\n",
+            L"  com_object pid=%lu oid=0x%llx left=%ls right=%ls changed_fields=0x%lx\n",
             (unsigned long)diff->process_id,
             (unsigned long long)diff->object_id,
             diff->present_in_left ? L"present" : L"absent",
-            diff->present_in_right ? L"present" : L"absent"
+            diff->present_in_right ? L"present" : L"absent",
+            (unsigned long)diff->changed_fields
         );
     }
 
@@ -1126,12 +1280,13 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)comparison->right.event_catalog.count
     );
     wprintf(
-        L"  \"summary\": {\"event_types_added\": %llu, \"event_types_removed\": %llu, \"event_types_count_changed\": %llu, \"objects_added\": %llu, \"objects_removed\": %llu},\n",
+        L"  \"summary\": {\"event_types_added\": %llu, \"event_types_removed\": %llu, \"event_types_count_changed\": %llu, \"objects_added\": %llu, \"objects_removed\": %llu, \"objects_changed\": %llu},\n",
         (unsigned long long)comparison->added_event_types,
         (unsigned long long)comparison->removed_event_types,
         (unsigned long long)comparison->changed_event_types,
         (unsigned long long)comparison->added_objects,
-        (unsigned long long)comparison->removed_objects
+        (unsigned long long)comparison->removed_objects,
+        (unsigned long long)comparison->changed_objects
     );
 
     wprintf(
@@ -1188,12 +1343,13 @@ void comtrace_trace_comparison_write_json(
         const COMTRACE_OBJECT_DIFF *diff = &comparison->object_diffs[index];
 
         wprintf(
-            L"%ls    {\"process_id\": %lu, \"oid\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls}",
+            L"%ls    {\"process_id\": %lu, \"oid\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
             index == 0U ? L"\n" : L",\n",
             (unsigned long)diff->process_id,
             (unsigned long long)diff->object_id,
             diff->present_in_left ? L"true" : L"false",
-            diff->present_in_right ? L"true" : L"false"
+            diff->present_in_right ? L"true" : L"false",
+            (unsigned long)diff->changed_fields
         );
     }
     if (comparison->object_diff_count != 0U) {
