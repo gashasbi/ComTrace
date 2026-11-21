@@ -18,7 +18,7 @@ execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE clean
 if(NOT inspect_status EQUAL 0)
     message(FATAL_ERROR "Inspect failed: ${inspect_error}")
 endif()
-foreach(expected "name=Details.Code value=287454020" "name=Details.Status value=21862")
+foreach(expected "name=Details.Identity.Code value=287454020" "name=Details.Status value=21862")
     string(FIND "${inspect_output}" "${expected}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "Missing expected struct value: ${expected}\\n${inspect_output}")
