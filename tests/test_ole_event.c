@@ -53,8 +53,7 @@ static int expect_rejected(
         return 0;
     }
 
-    return wcscmp(operation, L"unchanged_operation") == 0 &&
-           wcscmp(phase, L"unchanged_phase") == 0;
+    return operation == NULL && phase == NULL;
 }
 
 int main(void)
@@ -128,7 +127,7 @@ int main(void)
             ++failures;
         }
 
-        if (wcscmp(phase, L"unchanged_phase") != 0) {
+        if (phase != NULL) {
             ++failures;
         }
 
@@ -137,7 +136,7 @@ int main(void)
             ++failures;
         }
 
-        if (wcscmp(operation, L"unchanged_operation") != 0) {
+        if (operation != NULL) {
             ++failures;
         }
     }
