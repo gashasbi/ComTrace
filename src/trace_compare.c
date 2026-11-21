@@ -1202,7 +1202,7 @@ void comtrace_trace_comparison_write_json(
         );
         print_guid_text(&diff->provider_id);
         wprintf(
-            L"\\", \"event_id\": %u, \"version\": %u, \"channel\": %u, \"level\": %u, \"opcode\": %u, \"task\": %u, \"keyword\": \"0x%llx\", \"left_count\": %llu, \"right_count\": %llu}",
+            L"\", \"event_id\": %u, \"version\": %u, \"channel\": %u, \"level\": %u, \"opcode\": %u, \"task\": %u, \"keyword\": \"0x%llx\", \"left_count\": %llu, \"right_count\": %llu}",
             (unsigned int)diff->descriptor.Id,
             (unsigned int)diff->descriptor.Version,
             (unsigned int)diff->descriptor.Channel,
@@ -1212,7 +1212,7 @@ void comtrace_trace_comparison_write_json(
             (unsigned long long)diff->descriptor.Keyword,
             (unsigned long long)diff->left_count,
             (unsigned long long)diff->right_count
-        );    }
+        );   }
     if (comparison->event_type_diff_count != 0U) {
         wprintf(L"\n  ");
     }
