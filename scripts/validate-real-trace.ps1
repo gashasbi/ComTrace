@@ -354,6 +354,11 @@ if ($leftComTimeline -ne $rightComTimeline -or
     throw "ETL and CTRA timeline summaries do not match."
 }
 
+$oleFixtureReport = $null
+if ($captureNewTrace) {
+    $oleFixtureReport = $oleFixturePath
+}
+
 $summary = [ordered]@{
     result = "PASS"
     etl_path = $EtlPath
@@ -379,7 +384,7 @@ $summary = [ordered]@{
     inspect_report = $inspectPath
     com_search_report = $searchPath
     ole_search_report = $oleSearchPath
-    ole_fixture_report = if ($captureNewTrace) { $oleFixturePath } else { $null }
+    ole_fixture_report = $oleFixtureReport
     archive_inspect_report = $archiveInspectPath
     comparison_report = $comparePath
 }
