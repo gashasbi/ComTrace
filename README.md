@@ -46,10 +46,18 @@ ComTrace --self-test
 ComTrace --providers
 ComTrace --capture <seconds> <output.etl>
 ComTrace --inspect <file.etl> [max-events]
+ComTrace --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--com | --ole] [--max-events <n>]
+ComTrace --compare <left.etl|ctra> <right.etl|ctra> [--json]
 ```
 Capture duration must be between 1 and 3600 seconds. The output path must end in `.etl` and must not already exist. Capture may require an elevated terminal depending on the machine's ETW permissions.
 
 Inspection prints a bounded sample of events, a summary of event types, and supported payload property values. The default sample limit is 100; the accepted range is 1 to 10000. Some property types or schemas are intentionally skipped when they are unsupported or exceed the tool's size limits.
+
+### Search and comparison
+
+`--search` filters an ETL trace by Provider GUID, Event ID, process ID, thread ID, or the known COM/OLE event classifiers. Multiple filters can be combined. The default display limit is 100 matching events.
+
+`--compare` compares the event-type counts, COM object identities, and COM/OLE operation timelines in two ETL or CTRA files. Add `--json` to write a structured JSON report to standard output. CTRA input is opened in strict validation mode; incomplete or corrupt archives are not silently accepted.
 
 ## Current coverage and limitations
 
