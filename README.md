@@ -87,6 +87,10 @@ The first command converts an ETL trace to the CTRA archive format. New archives
 
 `--recover` scans recoverable records and reports the recovered count, stopping offset, and stop reason. When a version 2 checksum is invalid, recovery preserves the records that could be read but reports `checksum invalid` and does not mark the archive as complete. Recovery mode is a read-only scan; it does not write a replacement archive.
 
+## Real ETL validation
+
+Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows target machine to capture or supply a real COM trace, confirm COM Performance events, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
+
 ## COM/OLE analysis and limitations
 
 - Event classification is limited to the provider, event ID, version, and opcode mappings explicitly defined in `src/com_event.c` and `src/ole_event.c`.
