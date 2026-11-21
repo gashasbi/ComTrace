@@ -248,7 +248,7 @@ int main(void)
         return 1;
     }
 
-    changed = compare_multiple_interfaces(&iid_one, &ipid_one);
+    changed = compare_multiple_interfaces(&iid_two, &ipid_two);
     if (changed != 0U) {
         fputs("Matching multiple-interface sets were reported as changed.\n", stderr);
         return 1;
