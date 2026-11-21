@@ -620,8 +620,13 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
                 FALSE
             );
         }
-    } else if (remaining < ARCHIVE_FOOTER_SIZE ||
-               payload_size > remaining - ARCHIVE_FOOTER_SIZE) {
+    } else if (remaining < (reader->format_version == 2U
+                                  ? ARCHIVE_FOOTER_V2_SIZE
+                                  : ARCHIVE_FOOTER_V1_SIZE) ||
+               payload_size > remaining -
+                   (reader->format_version == 2U
+                        ? ARCHIVE_FOOTER_V2_SIZE
+                        : ARCHIVE_FOOTER_V1_SIZE)) {
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_TRUNCATED,
