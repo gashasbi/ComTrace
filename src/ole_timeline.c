@@ -160,20 +160,12 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
     size_t record_index;
     COMTRACE_OLE_TIMELINE_RECORD *record;
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
-    BOOL has_activity;
-
     if (timeline == NULL ||
         event == NULL ||
         event->operation == NULL ||
         (event->phase != COMTRACE_OLE_TIMELINE_PHASE_START &&
          event->phase != COMTRACE_OLE_TIMELINE_PHASE_STOP)) {
         return COMTRACE_OLE_TIMELINE_INVALID_ARGUMENT;
-    }
-
-    has_activity = event->activity_ids != NULL &&
-                   event->activity_ids->has_activity_id;
-    if (!has_activity) {
-        ++timeline->missing_activity_ids;
     }
 
     if (event->phase == COMTRACE_OLE_TIMELINE_PHASE_START) {
@@ -197,6 +189,10 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         copy_activity_ids(record, event->activity_ids);
 
         ++timeline->record_count;
+        if (event->activity_ids == NULL ||
+            !event->activity_ids->has_activity_id) {
+            ++timeline->missing_activity_ids;
+        }
         timeline->pending_indices[timeline->pending_count] = record_index;
         ++timeline->pending_count;
         return COMTRACE_OLE_TIMELINE_SUCCESS;
@@ -238,6 +234,10 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         }
 
         --timeline->pending_count;
+        if (event->activity_ids == NULL ||
+            !event->activity_ids->has_activity_id) {
+            ++timeline->missing_activity_ids;
+        }
         return COMTRACE_OLE_TIMELINE_SUCCESS;
     }
 
@@ -261,6 +261,10 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
 
     ++timeline->record_count;
     ++timeline->unmatched_stops;
+    if (event->activity_ids == NULL ||
+        !event->activity_ids->has_activity_id) {
+        ++timeline->missing_activity_ids;
+    }
     return COMTRACE_OLE_TIMELINE_SUCCESS;
 }
 
