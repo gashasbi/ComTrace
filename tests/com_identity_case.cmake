@@ -171,11 +171,24 @@ if(NOT json_status EQUAL 0)
     message(FATAL_ERROR "JSON comparison failed: ${json_error}${json_output}")
 endif()
 
-foreach(expected "\"schema_version\": 1" "\"event_type_changes\": []" "\"object_changes\": []")
+foreach(expected "\"schema_version\": 1" "\"event_type_changes\": []" "\"object_changes\": []" "\"timeline_summary\":")
     string(FIND "${json_output}" "${expected}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "JSON comparison is missing expected data: ${expected}\n${json_output}")
     endif()
 endforeach()
 
-message(STATUS "COM identity extraction and ETL/CTRA comparison passed.")
+set(JSON_FILE "${TEST_DIR}/comparison.json")
+file(WRITE "${JSON_FILE}" "${json_output}")
+execute_process(
+    COMMAND pwsh -NoProfile -Command "Get-Content -Raw -LiteralPath '${JSON_FILE}' | ConvertFrom-Json | Out-Null"
+    RESULT_VARIABLE json_parse_status
+    OUTPUT_VARIABLE json_parse_output
+    ERROR_VARIABLE json_parse_error
+)
+
+if(NOT json_parse_status EQUAL 0)
+    message(FATAL_ERROR "Comparison output is not valid JSON: ${json_parse_error}${json_parse_output}")
+endif()
+
+message(STATUS "COM identity extraction, ETL/CTRA comparison, and JSON validation passed.")
