@@ -372,8 +372,8 @@ int main(void)
     }
 
     result = OleIsCurrentClipboard(data_object);
-    if (FAILED(result)) {
-        printf("OleIsCurrentClipboard failed: 0x%08lx\n", (unsigned long)result);
+    if (result != S_OK) {
+        printf("OleIsCurrentClipboard returned: 0x%08lx\n", (unsigned long)result);
         goto cleanup;
     }
 
