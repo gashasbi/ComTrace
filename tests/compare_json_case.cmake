@@ -88,9 +88,27 @@ string(JSON removed_right_count GET "${output}" event_type_changes 0 right_count
 string(JSON added_event_id GET "${output}" event_type_changes 1 event_id)
 string(JSON added_left_count GET "${output}" event_type_changes 1 left_count)
 string(JSON added_right_count GET "${output}" event_type_changes 1 right_count)
+string(JSON removed_version GET "${output}" event_type_changes 0 version)
+string(JSON removed_channel GET "${output}" event_type_changes 0 channel)
+string(JSON removed_level GET "${output}" event_type_changes 0 level)
+string(JSON removed_opcode GET "${output}" event_type_changes 0 opcode)
+string(JSON removed_task GET "${output}" event_type_changes 0 task)
+string(JSON removed_keyword GET "${output}" event_type_changes 0 keyword)
+string(JSON added_version GET "${output}" event_type_changes 1 version)
+string(JSON added_channel GET "${output}" event_type_changes 1 channel)
+string(JSON added_level GET "${output}" event_type_changes 1 level)
+string(JSON added_opcode GET "${output}" event_type_changes 1 opcode)
+string(JSON added_task GET "${output}" event_type_changes 1 task)
+string(JSON added_keyword GET "${output}" event_type_changes 1 keyword)
 if(NOT removed_event_id EQUAL 91 OR NOT removed_left_count EQUAL 1 OR
    NOT removed_right_count EQUAL 0 OR NOT added_event_id EQUAL 92 OR
-   NOT added_left_count EQUAL 0 OR NOT added_right_count EQUAL 1)
+   NOT added_left_count EQUAL 0 OR NOT added_right_count EQUAL 1 OR
+   NOT removed_version EQUAL 1 OR NOT removed_channel EQUAL 2 OR
+   NOT removed_level EQUAL 4 OR NOT removed_opcode EQUAL 3 OR
+   NOT removed_task EQUAL 5 OR NOT removed_keyword STREQUAL "0x1122334455667788" OR
+   NOT added_version EQUAL 1 OR NOT added_channel EQUAL 2 OR
+   NOT added_level EQUAL 4 OR NOT added_opcode EQUAL 3 OR
+   NOT added_task EQUAL 5 OR NOT added_keyword STREQUAL "0x1122334455667788")
     message(FATAL_ERROR "JSON event type change details are incorrect.")
 endif()
 
