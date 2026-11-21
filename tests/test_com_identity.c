@@ -25,6 +25,16 @@ static const GUID expected_interface_id = {
 static const ULONG expected_target_process_id = 0x12345678UL;
 static const ULONG expected_target_thread_id = 0x87654321UL;
 
+static const GUID expected_activity_id = {
+    0x20314253, 0x6475, 0x8697,
+    { 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f }
+};
+
+static const GUID expected_related_activity_id = {
+    0x30415263, 0x7485, 0x96a7,
+    { 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f }
+};
+
 typedef struct {
     ULONG events_seen;
     ULONG failures;
@@ -35,6 +45,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     IDENTITY_TEST_CONTEXT *context;
     GUID value;
     ULONG number = 0U;
+    COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_IDENTITY_STATUS status;
 
     if (event_record == NULL || event_record->UserContext == NULL) {
@@ -104,6 +115,16 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     status = comtrace_extract_guid_property(event_record, L"MissingGuid", &value);
     if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
         fwprintf(stderr, L"MissingGuid lookup failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_activity_ids(event_record, &activity_ids);
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        !activity_ids.has_activity_id ||
+        !activity_ids.has_related_activity_id ||
+        memcmp(&activity_ids.activity_id, &expected_activity_id, sizeof(GUID)) != 0 ||
+        memcmp(&activity_ids.related_activity_id, &expected_related_activity_id, sizeof(GUID)) != 0) {
+        fwprintf(stderr, L"Activity ID extraction failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 }
