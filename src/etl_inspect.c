@@ -15,6 +15,7 @@
 #include "ole_event.h"
 #include "event_record.h"
 #include "event_catalog.h"
+#include "com_identity.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -962,7 +963,38 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
             event_record->EventHeader.EventDescriptor.Opcode,
             &operation,
             &phase)) {
+        GUID value;
+        COMTRACE_IDENTITY_STATUS identity_status;
+
         wprintf(L"  com_event=%ls phase=%ls\n", operation, phase);
+
+        identity_status = comtrace_extract_guid_property(
+            event_record,
+            L"ClassId",
+            &value
+        );
+        if (identity_status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+            identity_status = comtrace_extract_guid_property(
+                event_record,
+                L"CLSID",
+                &value
+            );
+        }
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_clsid=");
+            print_guid(&value);
+            wprintf(L"\n");
+        }
+
+        if (comtrace_extract_guid_property(
+                event_record,
+                L"TargetInterface",
+                &value
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_iid=");
+            print_guid(&value);
+            wprintf(L"\n");
+        }
     }
 }
 
