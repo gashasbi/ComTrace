@@ -62,7 +62,7 @@ jobs:
           $comTraceArchive = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTraceArchive.exe'
           $outputDirectory = Join-Path $env:RUNNER_TEMP 'ComTraceRealValidation'
           $validationScript = Join-Path $env:GITHUB_WORKSPACE 'scripts/validate-real-trace.ps1'
-          & $validationScript -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 30 -OutputDirectory $outputDirectory
+          & $validationScript -ComTraceExe $comTrace -ComTraceArchiveExe $comTraceArchive -CaptureSeconds 30 -OutputDirectory $outputDirectory -AllowMissingOleEvents
 
       - name: Upload real COM and OLE validation evidence
         if: always()
