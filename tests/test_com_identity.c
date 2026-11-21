@@ -56,12 +56,14 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     status = comtrace_extract_guid_property(event_record, L"ClassId", &value);
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         memcmp(&value, &expected_class_id, sizeof(value)) != 0) {
+        fwprintf(stderr, L"ClassId extraction failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
     status = comtrace_extract_guid_property(event_record, L"TargetInterface", &value);
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         memcmp(&value, &expected_interface_id, sizeof(value)) != 0) {
+        fwprintf(stderr, L"TargetInterface extraction failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
@@ -72,6 +74,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     );
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         number != expected_target_process_id) {
+        fwprintf(stderr, L"TargetProcessId extraction failed: status=%u value=%lu\n", (unsigned int)status, (unsigned long)number);
         ++context->failures;
     }
 
@@ -82,21 +85,25 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     );
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         number != expected_target_thread_id) {
+        fwprintf(stderr, L"TargetThreadId extraction failed: status=%u value=%lu\n", (unsigned int)status, (unsigned long)number);
         ++context->failures;
     }
 
     status = comtrace_extract_uint32_property(event_record, L"NotGuid", &number);
     if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        fwprintf(stderr, L"NotGuid UINT32 type rejection failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
     status = comtrace_extract_guid_property(event_record, L"NotGuid", &value);
     if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        fwprintf(stderr, L"NotGuid GUID type rejection failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
     status = comtrace_extract_guid_property(event_record, L"MissingGuid", &value);
     if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        fwprintf(stderr, L"MissingGuid lookup failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 }
