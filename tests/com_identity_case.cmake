@@ -92,6 +92,24 @@ if(no_match EQUAL -1)
 endif()
 
 execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 3
+    RESULT_VARIABLE call_trace_32_status
+    OUTPUT_VARIABLE call_trace_32_output
+    ERROR_VARIABLE call_trace_32_error
+)
+
+if(NOT call_trace_32_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "32-bit CallTraceId event search failed: ${call_trace_32_error}${call_trace_32_output}")
+endif()
+
+string(FIND "${call_trace_32_output}" "Events matching filters: 1" call_trace_32_match)
+if(call_trace_32_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "32-bit CallTraceId event was not emitted: ${call_trace_32_output}")
+endif()
+
+execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --com
     RESULT_VARIABLE com_filter_status
     OUTPUT_VARIABLE com_filter_output
