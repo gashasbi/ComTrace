@@ -24,4 +24,4 @@ foreach(expected "name=Values[0].Code value=287454020" "name=Values[0].Status va
         message(FATAL_ERROR "Missing expected struct value: ${expected}\\n${inspect_output}")
     endif()
 endforeach()
-message(STATUS "Struct members were decoded correctly.")
+message(STATUS "Dynamic and fixed struct arrays and nested TraceLogging structures were decoded correctly.")
