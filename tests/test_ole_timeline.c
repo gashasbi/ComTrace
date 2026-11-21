@@ -328,13 +328,61 @@ static int test_nested_activity_pairing_uses_lifo_order(void)
     return 1;
 }
 
+static int test_process_thread_fallback_rejects_mismatched_keys(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"OLE_Clipboard_SetClipboard";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 100ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.process_id = 11U;
+    event.timestamp = 200ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.process_id = 10U;
+    event.operation = L"OLE_Clipboard_GetClipboard";
+    event.timestamp = 300ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+            COMTRACE_OLE_TIMELINE_SUCCESS ||
+        timeline.record_count != 3U ||
+        timeline.pending_count != 1U ||
+        timeline.unmatched_stops != 2ULL) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_drag_drop_operation_pair() ||
         !test_activity_mismatch_does_not_pair() ||
         !test_missing_activity_and_invalid_input() ||
         !test_one_sided_activity_id_does_not_pair() ||
-        !test_nested_activity_pairing_uses_lifo_order()) {
+        !test_nested_activity_pairing_uses_lifo_order() ||
+        !test_process_thread_fallback_rejects_mismatched_keys()) {
         fputs("OLE timeline tests failed.\n", stderr);
         return 1;
     }
