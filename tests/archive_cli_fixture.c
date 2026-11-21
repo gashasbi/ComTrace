@@ -24,7 +24,12 @@ int wmain(int argc, wchar_t **argv)
     event.EventHeader.ProcessId = 24U;
     event.EventHeader.TimeStamp.QuadPart = 123456789LL;
     event.EventHeader.EventDescriptor.Id = argc == 3 ? 92U : 91U;
+    event.EventHeader.EventDescriptor.Version = 1U;
+    event.EventHeader.EventDescriptor.Channel = 2U;
+    event.EventHeader.EventDescriptor.Level = 4U;
     event.EventHeader.EventDescriptor.Opcode = 3U;
+    event.EventHeader.EventDescriptor.Task = 5U;
+    event.EventHeader.EventDescriptor.Keyword = 0x1122334455667788ULL;
 
     status = comtrace_archive_writer_open(&writer, argv[1]);
     if (status == COMTRACE_ARCHIVE_SUCCESS) {
