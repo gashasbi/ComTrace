@@ -43,12 +43,16 @@ static int inspect_archive(const wchar_t *path)
         }
 
         if (status != COMTRACE_ARCHIVE_READER_SUCCESS) {
-            fwprintf(
-                stderr,
-                L"Archive read failed. Status: %u Win32 error: %lu.\n",
-                (unsigned int)status,
-                (unsigned long)reader.win32_error
-            );
+            if (status == COMTRACE_ARCHIVE_READER_CHECKSUM_MISMATCH) {
+                fwprintf(stderr, L"Archive CRC32 validation failed.\n");
+            } else {
+                fwprintf(
+                    stderr,
+                    L"Archive read failed. Status: %u Win32 error: %lu.\n",
+                    (unsigned int)status,
+                    (unsigned long)reader.win32_error
+                );
+            }
             comtrace_archive_event_destroy(&event);
             comtrace_archive_reader_close(&reader);
             return EXIT_FAILURE;
