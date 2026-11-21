@@ -2,10 +2,17 @@
 #include <windows.h>
 #include <evntrace.h>
 #include <evntprov.h>
+#include <TraceLoggingProvider.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "struct_fixture.h"
+
+TRACELOGGING_DEFINE_PROVIDER(
+    g_hNestedProvider,
+    "ComTraceNestedFixture",
+    (0x5a7b9c1d, 0x2e3f, 0x4a50, 0x8b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, 0xc2)
+);
 
 static const GUID session_id = {
     0x2c8e7b41, 0x5d3f, 0x4a72,
@@ -24,6 +31,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     REGHANDLE registration_handle = 0;
+    int tracelogging_registered = 0;
     EVENT_DATA_DESCRIPTOR descriptors[9];
     USHORT values_count = 2U;
     ULONG first_code = 0x11223344UL;
@@ -115,9 +123,45 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
+    status = TraceLoggingRegister(g_hNestedProvider);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"TraceLoggingRegister failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+    tracelogging_registered = 1;
+
+    status = EnableTraceEx2(
+        session,
+        TraceLoggingProviderId(g_hNestedProvider),
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_VERBOSE,
+        0ULL,
+        0U,
+        5000U,
+        NULL);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"TraceLogging EnableTraceEx2 failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    TraceLoggingWrite(
+        g_hNestedProvider,
+        "NestedEvent",
+        TraceLoggingLevel(TRACE_LEVEL_VERBOSE),
+        TraceLoggingStruct(2, "Outer"),
+        TraceLoggingUInt32(0x11223344UL, "Code"),
+        TraceLoggingStruct(2, "Inner"),
+        TraceLoggingUInt32(0x55667788UL, "NestedCode"),
+        TraceLoggingUInt16(0x99AAU, "NestedStatus")
+    );
+
     result = 0;
 
 cleanup:
+    if (tracelogging_registered) {
+        TraceLoggingUnregister(g_hNestedProvider);
+    }
+
     if (registration_handle != 0) {
         EventUnregister(registration_handle);
     }
