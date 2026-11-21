@@ -87,7 +87,9 @@ Added or removed objects have one presence flag set to false and a zero changed-
 
 The `timeline_summary` object contains `left_com`, `right_com`, `left_ole`, and `right_ole`.
 
-COM timeline entries contain numeric `matched`, `incomplete`, `unmatched`, and `failed` counts. OLE timeline entries contain numeric `matched`, `incomplete`, `unmatched`, `activity_sequences`, and `missing_activity_ids` counts.
+COM timeline entries contain numeric `matched`, `matched_by_call_trace_id`, `matched_by_activity_id`, `incomplete`, `unmatched`, `missing_call_trace_ids`, `missing_activity_ids`, and `failed` counts. The two `matched_by_*` values are subsets of `matched`. The missing-ID values count COM start/stop event records, not calls.
+
+ComTrace first matches events that both expose the same `CallTraceId`, process ID, thread ID, and operation. When both events lack `CallTraceId`, it can use an identical non-empty `ActivityId` with the same process, thread, and operation; pending starts are paired in last-in-first-out order to preserve nested call order. If only one event has `CallTraceId`, or the fallback key is missing or different, the events are not paired. Related Activity IDs are retained as context but are not used as a call key.
 
 The `timeline.left` and `timeline.right` arrays contain one entry per operation with at least one completed start/stop pair:
 
