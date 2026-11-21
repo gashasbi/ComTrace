@@ -22,7 +22,11 @@ int wmain(int argc, wchar_t **argv)
     ULONG path_offset;
     ULONG status;
     ULONG stop_status;
-    BYTE details[6] = { 0x44, 0x33, 0x22, 0x11, 0x66, 0x55 };
+    USHORT values_count = 2U;
+    BYTE values[12] = {
+        0x44, 0x33, 0x22, 0x11, 0x66, 0x55,
+        0x88, 0x77, 0x66, 0x55, 0xAA, 0x99
+    };
     int registered = 0;
     int result = 1;
 
@@ -91,7 +95,7 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    status = EventWriteStructEvent(sizeof(details), details);
+    status = EventWriteStructEvent(values_count, sizeof(values), values);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteStructEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
