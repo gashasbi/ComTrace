@@ -30,7 +30,10 @@ Use a trace that contains COM Performance events. A trace from a different provi
 2. `ComTrace.exe --search <trace.etl> --com` finds at least one COM Performance event.
 3. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
 4. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
-5. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries.
+5. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
+6. The COM search reports at least one matched start/stop pair. The validation summary records matched operations and events without a usable `CallTraceId`.
+
+The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both documented scalar forms for that property while keeping its generic typed property readers strict. Events without a `CallTraceId` remain unmatched rather than being paired by guesswork.
 
 A successful run prints `Real ETL validation: PASS` and writes a JSON validation summary. The ETL, CTRA archive, and text/JSON reports are preserved in the output directory. By default this directory is `comtrace-validation` under the current directory; set `-OutputDirectory` to choose another location.
 
