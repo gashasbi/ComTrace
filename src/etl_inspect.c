@@ -981,6 +981,7 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
             &phase)) {
         GUID value;
         ULONG peer_value;
+        COMTRACE_COM_OBJECT_IDENTITY object_identity;
         COMTRACE_IDENTITY_STATUS identity_status;
 
         wprintf(L"  com_event=%ls phase=%ls\n", operation, phase);
@@ -989,6 +990,23 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
             L"com_process_image",
             event_record->EventHeader.ProcessId
         );
+
+        if (comtrace_extract_com_object_identity(
+                event_record,
+                &object_identity
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            if (object_identity.has_ipid) {
+                wprintf(L"  com_ipid=");
+                print_guid(&object_identity.ipid);
+                wprintf(L"\n");
+            }
+            if (object_identity.has_oid) {
+                wprintf(L"  com_oid=0x%llx\n", (unsigned long long)object_identity.oid);
+            }
+            if (object_identity.has_call_trace_id) {
+                wprintf(L"  com_call_trace_id=0x%llx\n", (unsigned long long)object_identity.call_trace_id);
+            }
+        }
 
         identity_status = comtrace_extract_guid_property(
             event_record,
