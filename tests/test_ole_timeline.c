@@ -167,11 +167,174 @@ static int test_missing_activity_and_invalid_input(void)
     return 1;
 }
 
+
+static int test_one_sided_activity_id_does_not_pair(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_OLE_TIMELINE_RECORD *start_record;
+    const COMTRACE_OLE_TIMELINE_RECORD *stop_record;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id = activity_one;
+    event.operation = L"OLE_Clipboard_GetClipboard";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.timestamp = 200ULL;
+    event.activity_ids = NULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+            COMTRACE_OLE_TIMELINE_SUCCESS ||
+        comtrace_ole_timeline_pending_count(&timeline) != 1U ||
+        comtrace_ole_timeline_count(&timeline) != 2U ||
+        timeline.unmatched_stops != 1ULL) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    start_record = comtrace_ole_timeline_get(&timeline, 0U);
+    stop_record = comtrace_ole_timeline_get(&timeline, 1U);
+    if (start_record == NULL || stop_record == NULL ||
+        !start_record->has_start || start_record->has_stop ||
+        !stop_record->has_stop ||
+        stop_record->match_type != COMTRACE_OLE_TIMELINE_MATCH_NONE) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"OLE_Clipboard_GetClipboard";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 300ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.timestamp = 400ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+            COMTRACE_OLE_TIMELINE_SUCCESS ||
+        comtrace_ole_timeline_pending_count(&timeline) != 1U ||
+        comtrace_ole_timeline_count(&timeline) != 2U ||
+        timeline.unmatched_stops != 1ULL) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    start_record = comtrace_ole_timeline_get(&timeline, 0U);
+    stop_record = comtrace_ole_timeline_get(&timeline, 1U);
+    if (start_record == NULL || stop_record == NULL ||
+        !start_record->has_start || start_record->has_stop ||
+        !stop_record->has_stop ||
+        stop_record->match_type != COMTRACE_OLE_TIMELINE_MATCH_NONE) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_nested_activity_pairing_uses_lifo_order(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_OLE_TIMELINE_RECORD *first;
+    const COMTRACE_OLE_TIMELINE_RECORD *second;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id = activity_one;
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.process_id = 30U;
+    event.thread_id = 40U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &activity_ids;
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.timestamp = 110ULL;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.timestamp = 120ULL;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.timestamp = 130ULL;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    first = comtrace_ole_timeline_get(&timeline, 0U);
+    second = comtrace_ole_timeline_get(&timeline, 1U);
+    if (first == NULL || second == NULL ||
+        !first->has_start || !first->has_stop ||
+        !second->has_start || !second->has_stop ||
+        first->duration_ticks != 30ULL ||
+        second->duration_ticks != 10ULL ||
+        first->match_type != COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID ||
+        second->match_type != COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID ||
+        comtrace_ole_timeline_pending_count(&timeline) != 0U) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_drag_drop_operation_pair() ||
         !test_activity_mismatch_does_not_pair() ||
-        !test_missing_activity_and_invalid_input()) {
+        !test_missing_activity_and_invalid_input() ||
+        !test_one_sided_activity_id_does_not_pair() ||
+        !test_nested_activity_pairing_uses_lifo_order()) {
         fputs("OLE timeline tests failed.\n", stderr);
         return 1;
     }
