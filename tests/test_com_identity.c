@@ -25,6 +25,14 @@ static const GUID expected_interface_id = {
 static const ULONG expected_target_process_id = 0x12345678UL;
 static const ULONG expected_target_thread_id = 0x87654321UL;
 
+static const GUID expected_ipid = {
+    0x40516273, 0x8495, 0xa6b7,
+    { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
+};
+
+static const ULONGLONG expected_oid = 0x1122334455667788ULL;
+static const ULONGLONG expected_call_trace_id = 0x8877665544332211ULL;
+
 static const GUID expected_activity_id = {
     0x20314253, 0x6475, 0x8697,
     { 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f }
@@ -45,7 +53,9 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     IDENTITY_TEST_CONTEXT *context;
     GUID value;
     ULONG number = 0U;
+    ULONGLONG wide_number = 0U;
     COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_COM_OBJECT_IDENTITY object_identity;
     COMTRACE_IDENTITY_STATUS status;
 
     if (event_record == NULL || event_record->UserContext == NULL) {
@@ -125,6 +135,56 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         memcmp(&activity_ids.activity_id, &expected_activity_id, sizeof(GUID)) != 0 ||
         memcmp(&activity_ids.related_activity_id, &expected_related_activity_id, sizeof(GUID)) != 0) {
         fwprintf(stderr, L"Activity ID extraction failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_guid_property(event_record, L"IPID", &value);
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        memcmp(&value, &expected_ipid, sizeof(GUID)) != 0) {
+        fwprintf(stderr, L"IPID extraction failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint64_property(event_record, L"OID", &wide_number);
+    if (status != COMTRACE_IDENTITY_SUCCESS || wide_number != expected_oid) {
+        fwprintf(stderr, L"OID extraction failed: status=%u value=%llu\n", (unsigned int)status, (unsigned long long)wide_number);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint64_property(
+        event_record,
+        L"CallTraceId",
+        &wide_number
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        wide_number != expected_call_trace_id) {
+        fwprintf(stderr, L"CallTraceId extraction failed: status=%u value=%llu\n", (unsigned int)status, (unsigned long long)wide_number);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint64_property(event_record, L"NotGuid", &wide_number);
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        fwprintf(stderr, L"NotGuid UINT64 rejection failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_com_object_identity(event_record, &object_identity);
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        !object_identity.has_clsid ||
+        !object_identity.has_iid ||
+        !object_identity.has_ipid ||
+        !object_identity.has_oid ||
+        !object_identity.has_call_trace_id ||
+        !object_identity.has_process_id ||
+        !object_identity.has_thread_id ||
+        object_identity.target_process_id != expected_target_process_id ||
+        object_identity.target_thread_id != expected_target_thread_id ||
+        memcmp(&object_identity.clsid, &expected_class_id, sizeof(GUID)) != 0 ||
+        memcmp(&object_identity.iid, &expected_interface_id, sizeof(GUID)) != 0 ||
+        memcmp(&object_identity.ipid, &expected_ipid, sizeof(GUID)) != 0 ||
+        object_identity.oid != expected_oid ||
+        object_identity.call_trace_id != expected_call_trace_id) {
+        fwprintf(stderr, L"COM object identity model validation failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 }
