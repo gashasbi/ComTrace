@@ -19,6 +19,7 @@
 #include "etl_decoder.h"
 #include "com_timeline.h"
 #include "relationship_graph.h"
+#include "ole_timeline.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -33,6 +34,8 @@ typedef struct {
     COMTRACE_EVENT_CATALOG_STATUS catalog_status;
     COMTRACE_TIMELINE timeline;
     COMTRACE_TIMELINE_STATUS timeline_status;
+    COMTRACE_OLE_TIMELINE ole_timeline;
+    COMTRACE_OLE_TIMELINE_STATUS ole_timeline_status;
     COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
     COMTRACE_GRAPH_STATUS graph_status;
     ULONGLONG trace_frequency;
@@ -1191,6 +1194,158 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     }
 }
 
+static void add_ole_timeline_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_OLE_TIMELINE_EVENT timeline_event;
+
+    if (context == NULL || event_record == NULL ||
+        !comtrace_classify_ole_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase)) {
+        return;
+    }
+
+    ZeroMemory(&timeline_event, sizeof(timeline_event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) !=
+        COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.activity_ids = NULL;
+    } else {
+        timeline_event.activity_ids = &activity_ids;
+    }
+
+    timeline_event.operation = operation;
+    timeline_event.phase = wcscmp(phase, L"Start") == 0
+        ? COMTRACE_OLE_TIMELINE_PHASE_START
+        : COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    timeline_event.process_id = event_record->EventHeader.ProcessId;
+    timeline_event.thread_id = event_record->EventHeader.ThreadId;
+    timeline_event.timestamp = (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    if (comtrace_ole_timeline_add_event(
+            &context->ole_timeline,
+            &timeline_event
+        ) != COMTRACE_OLE_TIMELINE_SUCCESS) {
+        context->ole_timeline_status =
+            COMTRACE_OLE_TIMELINE_ALLOCATION_FAILED;
+    }
+}
+
+static void print_ole_timeline_summary(
+    const ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t count;
+    size_t index;
+    ULONGLONG matched = 0ULL;
+    ULONGLONG incomplete = 0ULL;
+    ULONGLONG unmatched = 0ULL;
+    ULONGLONG clipboard_events = 0ULL;
+    ULONGLONG drag_drop_events = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    count = comtrace_ole_timeline_count(&context->ole_timeline);
+
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_OLE_TIMELINE_RECORD *record =
+            comtrace_ole_timeline_get(&context->ole_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        if (record->has_start && record->has_stop) {
+            ++matched;
+        } else if (record->has_start) {
+            ++incomplete;
+        } else if (record->has_stop) {
+            ++unmatched;
+        }
+
+        if (wcsncmp(record->operation, L"OLE_Clipboard_", 14U) == 0) {
+            ++clipboard_events;
+        } else if (wcsncmp(record->operation, L"OLE_DragDrop_", 13U) == 0) {
+            ++drag_drop_events;
+        }
+    }
+
+    wprintf(L"\nOLE timeline summary\n");
+    wprintf(L"Operations tracked: %llu\n", (unsigned long long)count);
+    wprintf(L"Clipboard operations: %llu\n", (unsigned long long)clipboard_events);
+    wprintf(L"Drag and Drop operations: %llu\n", (unsigned long long)drag_drop_events);
+    wprintf(L"Matched start/stop: %llu\n", (unsigned long long)matched);
+    wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete);
+    wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched);
+    wprintf(
+        L"Activity sequences: %llu\n",
+        (unsigned long long)comtrace_ole_timeline_sequence_count(&context->ole_timeline)
+    );
+    wprintf(
+        L"Missing ActivityId: %llu\n",
+        (unsigned long long)context->ole_timeline.missing_activity_ids
+    );
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_OLE_TIMELINE_RECORD *record =
+            comtrace_ole_timeline_get(&context->ole_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(
+            L"  operation=%ls pid=%lu tid=%lu",
+            record->operation,
+            (unsigned long)record->process_id,
+            (unsigned long)record->thread_id
+        );
+
+        if (record->has_start) {
+            wprintf(L" start=%llu", (unsigned long long)record->start_timestamp);
+        }
+        if (record->has_stop) {
+            wprintf(L" stop=%llu", (unsigned long long)record->stop_timestamp);
+        }
+        if (record->has_duration) {
+            if (context->trace_frequency != 0ULL) {
+                double duration_ms =
+                    1000.0 * (double)record->duration_ticks /
+                    (double)context->trace_frequency;
+                wprintf(L" duration_ms=%.3f", duration_ms);
+            } else {
+                wprintf(L" duration_ticks=%llu", (unsigned long long)record->duration_ticks);
+            }
+        }
+        if (record->has_activity_id) {
+            wprintf(L" activity_id=");
+            print_guid(&record->activity_id);
+        }
+        if (record->has_related_activity_id) {
+            wprintf(L" related_activity_id=");
+            print_guid(&record->related_activity_id);
+        }
+        wprintf(L"\n");
+    }
+
+    if (count > 100U) {
+        wprintf(L"  ole_timeline_display_limit=100 remaining=%llu\n", (unsigned long long)(count - 100U));
+    }
+}
+
 static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
 {
     switch (type) {
@@ -1275,7 +1430,7 @@ static void print_relationship_graph_node(
     }
 }
 
-static void add_com_relationship_graph_event(
+static void add_relationship_graph_event(
     ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
 )
@@ -1285,24 +1440,46 @@ static void add_com_relationship_graph_event(
     COMTRACE_COM_OBJECT_IDENTITY identity;
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_ACTIVITY_IDS *activity_ids_ptr = NULL;
+    int is_com_event;
+    int is_ole_event;
 
     if (context == NULL || event_record == NULL) {
         return;
     }
 
-    if (!comtrace_classify_com_event(
-            &event_record->EventHeader.ProviderId,
-            event_record->EventHeader.EventDescriptor.Id,
-            event_record->EventHeader.EventDescriptor.Version,
-            event_record->EventHeader.EventDescriptor.Opcode,
-            &operation,
-            &phase)) {
+    is_com_event = comtrace_classify_com_event(
+        &event_record->EventHeader.ProviderId,
+        event_record->EventHeader.EventDescriptor.Id,
+        event_record->EventHeader.EventDescriptor.Version,
+        event_record->EventHeader.EventDescriptor.Opcode,
+        &operation,
+        &phase
+    );
+    is_ole_event = comtrace_classify_ole_event(
+        &event_record->EventHeader.ProviderId,
+        event_record->EventHeader.EventDescriptor.Id,
+        event_record->EventHeader.EventDescriptor.Version,
+        event_record->EventHeader.EventDescriptor.Opcode,
+        &operation,
+        &phase
+    );
+
+    if (!is_com_event && !is_ole_event) {
         return;
     }
 
-    if (comtrace_extract_com_object_identity(event_record, &identity) !=
-        COMTRACE_IDENTITY_SUCCESS) {
-        return;
+    ZeroMemory(&identity, sizeof(identity));
+
+    if (is_com_event) {
+        if (comtrace_extract_com_object_identity(event_record, &identity) !=
+            COMTRACE_IDENTITY_SUCCESS) {
+            return;
+        }
+    } else {
+        identity.process_id = event_record->EventHeader.ProcessId;
+        identity.thread_id = event_record->EventHeader.ThreadId;
+        identity.has_process_id = identity.process_id != 0U;
+        identity.has_thread_id = identity.thread_id != 0U;
     }
 
     if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
@@ -1407,7 +1584,8 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     }
 
     add_com_timeline_event(context, event_record);
-    add_com_relationship_graph_event(context, event_record);
+    add_ole_timeline_event(context, event_record);
+    add_relationship_graph_event(context, event_record);
 
     if (context->sampled_events >= context->sample_limit) {
         return;
@@ -1475,6 +1653,8 @@ int comtrace_inspect_etl(
     ZeroMemory(&logfile, sizeof(logfile));
     comtrace_timeline_init(&context.timeline);
     context.timeline_status = COMTRACE_TIMELINE_SUCCESS;
+    comtrace_ole_timeline_init(&context.ole_timeline);
+    context.ole_timeline_status = COMTRACE_OLE_TIMELINE_SUCCESS;
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
 
@@ -1538,6 +1718,7 @@ int comtrace_inspect_etl(
     close_status = CloseTrace(trace_handle);
 
     print_com_timeline_summary(&context);
+    print_ole_timeline_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
 
     wprintf(L"\nEvent summary\n");
@@ -1638,12 +1819,18 @@ int comtrace_inspect_etl(
         result = EXIT_FAILURE;
     }
 
+    if (context.ole_timeline_status != COMTRACE_OLE_TIMELINE_SUCCESS) {
+        fwprintf(stderr, L"OLE timeline processing failed.\n");
+        result = EXIT_FAILURE;
+    }
+
     if (context.graph_status != COMTRACE_GRAPH_SUCCESS) {
         fwprintf(stderr, L"Relationship graph processing failed.\n");
         result = EXIT_FAILURE;
     }
 
     comtrace_relationship_graph_destroy(&context.relationship_graph);
+    comtrace_ole_timeline_destroy(&context.ole_timeline);
     comtrace_timeline_destroy(&context.timeline);
     comtrace_event_catalog_destroy(&context.event_catalog);
 
