@@ -1232,7 +1232,8 @@ void comtrace_trace_comparison_write_json(
         write_json_string(L"left_count");
         wprintf(L": %llu, ", (unsigned long long)diff->left_count);
         write_json_string(L"right_count");
-        wprintf(L": %llu}", (unsigned long long)diff->right_count);  }
+        wprintf(L": %llu}", (unsigned long long)diff->right_count);
+    }
     if (comparison->event_type_diff_count != 0U) {
         wprintf(L"\n  ");
     }
