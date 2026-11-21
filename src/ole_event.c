@@ -32,6 +32,13 @@ int comtrace_classify_ole_event(
     const wchar_t **operation,
     const wchar_t **phase)
 {
+    if (operation != NULL) {
+        *operation = NULL;
+    }
+    if (phase != NULL) {
+        *phase = NULL;
+    }
+
     if (provider_id == NULL || operation == NULL || phase == NULL) {
         return 0;
     }
