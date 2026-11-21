@@ -18,6 +18,7 @@
 #include "com_identity.h"
 #include "etl_decoder.h"
 #include "com_timeline.h"
+#include "relationship_graph.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -32,6 +33,8 @@ typedef struct {
     COMTRACE_EVENT_CATALOG_STATUS catalog_status;
     COMTRACE_TIMELINE timeline;
     COMTRACE_TIMELINE_STATUS timeline_status;
+    COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
+    COMTRACE_GRAPH_STATUS graph_status;
     ULONGLONG trace_frequency;
 } ETL_INSPECT_CONTEXT;
 
@@ -1188,6 +1191,193 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     }
 }
 
+static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
+{
+    switch (type) {
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD:
+        return L"process_owns_thread";
+    case COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS:
+        return L"process_calls_process";
+    case COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL:
+        return L"thread_initiates_call";
+    case COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD:
+        return L"call_targets_thread";
+    case COMTRACE_GRAPH_EDGE_THREAD_HAS_ACTIVITY:
+        return L"thread_has_activity";
+    case COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO:
+        return L"activity_related_to";
+    case COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY:
+        return L"call_has_activity";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OBJECT:
+        return L"process_owns_object";
+    case COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID:
+        return L"object_has_clsid";
+    case COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID:
+        return L"object_has_ipid";
+    case COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID:
+        return L"ipid_supports_iid";
+    default:
+        return L"unknown";
+    }
+}
+
+static void print_relationship_graph_node(
+    const COMTRACE_GRAPH_NODE *node
+)
+{
+    if (node == NULL) {
+        wprintf(L"unknown");
+        return;
+    }
+
+    switch (node->type) {
+    case COMTRACE_GRAPH_NODE_PROCESS:
+        wprintf(L"process:%lu", (unsigned long)node->process_id);
+        break;
+    case COMTRACE_GRAPH_NODE_THREAD:
+        wprintf(
+            L"thread:%lu/%lu",
+            (unsigned long)node->process_id,
+            (unsigned long)node->thread_id
+        );
+        break;
+    case COMTRACE_GRAPH_NODE_ACTIVITY:
+        wprintf(L"activity:");
+        print_guid(&node->guid);
+        break;
+    case COMTRACE_GRAPH_NODE_CALL:
+        wprintf(L"call:0x%llx", (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_COM_OBJECT:
+        wprintf(
+            L"com-object:%lu/0x%llx",
+            (unsigned long)node->process_id,
+            (unsigned long long)node->value
+        );
+        break;
+    case COMTRACE_GRAPH_NODE_CLSID:
+        wprintf(L"clsid:");
+        print_guid(&node->guid);
+        break;
+    case COMTRACE_GRAPH_NODE_IID:
+        wprintf(L"iid:");
+        print_guid(&node->guid);
+        break;
+    case COMTRACE_GRAPH_NODE_IPID:
+        wprintf(L"ipid:");
+        print_guid(&node->guid);
+        break;
+    default:
+        wprintf(L"unknown");
+        break;
+    }
+}
+
+static void add_com_relationship_graph_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_ACTIVITY_IDS *activity_ids_ptr = NULL;
+
+    if (context == NULL || event_record == NULL) {
+        return;
+    }
+
+    if (!comtrace_classify_com_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase)) {
+        return;
+    }
+
+    if (comtrace_extract_com_object_identity(event_record, &identity) !=
+        COMTRACE_IDENTITY_SUCCESS) {
+        return;
+    }
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
+        activity_ids_ptr = &activity_ids;
+    }
+
+    if (comtrace_relationship_graph_add_event(
+            &context->relationship_graph,
+            &identity,
+            activity_ids_ptr
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        context->graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+    }
+}
+
+static void print_relationship_graph_summary(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph
+)
+{
+    size_t index;
+    size_t displayed;
+
+    if (graph == NULL) {
+        return;
+    }
+
+    wprintf(L"\nRelationship graph summary\n");
+    wprintf(
+        L"Nodes: processes=%llu threads=%llu activities=%llu calls=%llu objects=%llu clsids=%llu iids=%llu ipids=%llu\n",
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_PROCESS),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_THREAD),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_ACTIVITY),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_CALL),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_COM_OBJECT),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_CLSID),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IID),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IPID)
+    );
+    wprintf(
+        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu\n",
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID)
+    );
+
+    displayed = graph->edge_count > 100U ? 100U : graph->edge_count;
+    for (index = 0U; index < displayed; ++index) {
+        const COMTRACE_GRAPH_EDGE *edge =
+            comtrace_relationship_graph_get_edge(graph, index);
+
+        if (edge == NULL) {
+            continue;
+        }
+
+        wprintf(L"  edge=%ls source=", relationship_edge_name(edge->type));
+        print_relationship_graph_node(
+            comtrace_relationship_graph_get_node(graph, edge->source_index)
+        );
+        wprintf(L" target=");
+        print_relationship_graph_node(
+            comtrace_relationship_graph_get_node(graph, edge->target_index)
+        );
+        wprintf(L"\n");
+    }
+
+    if (graph->edge_count > displayed) {
+        wprintf(
+            L"  graph_display_limit=100 remaining=%llu\n",
+            (unsigned long long)(graph->edge_count - displayed)
+        );
+    }
+}
+
 static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 {
     ETL_INSPECT_CONTEXT *context;
@@ -1214,6 +1404,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     }
 
     add_com_timeline_event(context, event_record);
+    add_com_relationship_graph_event(context, event_record);
 
     if (context->sampled_events >= context->sample_limit) {
         return;
@@ -1281,6 +1472,8 @@ int comtrace_inspect_etl(
     ZeroMemory(&logfile, sizeof(logfile));
     comtrace_timeline_init(&context.timeline);
     context.timeline_status = COMTRACE_TIMELINE_SUCCESS;
+    comtrace_relationship_graph_init(&context.relationship_graph);
+    context.graph_status = COMTRACE_GRAPH_SUCCESS;
 
     if (!parse_sample_limit(limit_text, &context.sample_limit)) {
         fwprintf(
@@ -1342,6 +1535,7 @@ int comtrace_inspect_etl(
     close_status = CloseTrace(trace_handle);
 
     print_com_timeline_summary(&context);
+    print_relationship_graph_summary(&context.relationship_graph);
 
     wprintf(L"\nEvent summary\n");
     wprintf(
@@ -1441,6 +1635,12 @@ int comtrace_inspect_etl(
         result = EXIT_FAILURE;
     }
 
+    if (context.graph_status != COMTRACE_GRAPH_SUCCESS) {
+        fwprintf(stderr, L"Relationship graph processing failed.\n");
+        result = EXIT_FAILURE;
+    }
+
+    comtrace_relationship_graph_destroy(&context.relationship_graph);
     comtrace_timeline_destroy(&context.timeline);
     comtrace_event_catalog_destroy(&context.event_catalog);
 
