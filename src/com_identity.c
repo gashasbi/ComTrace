@@ -279,6 +279,45 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     return status;
 }
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_call_trace_id(
+    const EVENT_RECORD *event_record,
+    ULONGLONG *value
+)
+{
+    ULONGLONG value64;
+    ULONG value32;
+    COMTRACE_IDENTITY_STATUS status;
+
+    if (value == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    status = comtrace_extract_uint64_property(
+        event_record,
+        L"CallTraceId",
+        &value64
+    );
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = value64;
+        return status;
+    }
+
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        return status;
+    }
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"CallTraceId",
+        &value32
+    );
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = (ULONGLONG)value32;
+    }
+
+    return status;
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
     const EVENT_RECORD *event_record,
     COMTRACE_ACTIVITY_IDS *activity_ids
@@ -417,9 +456,8 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_com_object_identity(
     status = comtrace_extract_uint64_property(event_record, L"OID", &result.oid);
     result.has_oid = status == COMTRACE_IDENTITY_SUCCESS;
 
-    status = comtrace_extract_uint64_property(
+    status = comtrace_extract_call_trace_id(
         event_record,
-        L"CallTraceId",
         &result.call_trace_id
     );
     result.has_call_trace_id = status == COMTRACE_IDENTITY_SUCCESS;
