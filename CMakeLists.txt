@@ -24,6 +24,7 @@ add_executable(ComTrace
     src/com_timeline.c
     src/relationship_graph.c
     src/ole_timeline.c
+    src/object_identity_compare.c
     src/trace_compare.c
     src/archive_reader.c
 )
@@ -111,6 +112,21 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_relationship_graph COMMAND ComTraceRelationshipGraphTests)
+
+    add_executable(ComTraceObjectIdentityCompareTests
+        tests/test_object_identity_compare.c
+        src/object_identity_compare.c
+        src/relationship_graph.c
+    )
+    target_include_directories(ComTraceObjectIdentityCompareTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceObjectIdentityCompareTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceObjectIdentityCompareTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_object_identity_compare COMMAND ComTraceObjectIdentityCompareTests)
 
     add_executable(ComTraceOleTimelineTests
         tests/test_ole_timeline.c
