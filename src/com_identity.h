@@ -23,4 +23,10 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_guid_property(
     GUID *value
 );
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    ULONG *value
+);
+
 #endif
