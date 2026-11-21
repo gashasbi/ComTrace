@@ -145,6 +145,15 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_ole_timeline COMMAND ComTraceOleTimelineTests)
 
+    add_executable(ComTraceOleActivityFixture tests/ole_activity_fixture.c)
+    target_link_libraries(ComTraceOleActivityFixture PRIVATE Ole32 Shell32)
+
+    if(MSVC)
+        target_compile_options(ComTraceOleActivityFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceOleActivityFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
     add_executable(ComTraceComIdentityTests
         tests/test_com_identity.c
         src/com_identity.c
