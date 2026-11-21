@@ -25,11 +25,16 @@ typedef struct {
     ULONGLONG right_count;
 } COMTRACE_EVENT_TYPE_DIFF;
 
+#define COMTRACE_OBJECT_CHANGE_CLSID 0x00000001UL
+#define COMTRACE_OBJECT_CHANGE_IID 0x00000002UL
+#define COMTRACE_OBJECT_CHANGE_IPID 0x00000004UL
+
 typedef struct {
     DWORD process_id;
     ULONGLONG object_id;
     BOOL present_in_left;
     BOOL present_in_right;
+    ULONG changed_fields;
 } COMTRACE_OBJECT_DIFF;
 
 typedef struct {
@@ -64,6 +69,7 @@ typedef struct {
     ULONGLONG changed_event_types;
     ULONGLONG added_objects;
     ULONGLONG removed_objects;
+    ULONGLONG changed_objects;
 } COMTRACE_TRACE_COMPARISON;
 
 COMTRACE_TRACE_COMPARE_STATUS comtrace_trace_compare(
