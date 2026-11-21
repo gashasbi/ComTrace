@@ -1,4 +1,5 @@
 #include "archive_writer.h"
+#include "archive_checksum.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -10,7 +11,7 @@
 #define ARCHIVE_RECORD_HEADER_SIZE 24U
 #define ARCHIVE_EVENT_HEADER_SIZE 80U
 #define ARCHIVE_EVENT_METADATA_SIZE 88U
-#define ARCHIVE_FOOTER_SIZE 124U
+#define ARCHIVE_FOOTER_SIZE 128U
 #define ARCHIVE_RECORD_TYPE_EVENT 1U
 #ifdef COMTRACE_ARCHIVE_WRITER_TESTING
 static LONG test_allocation_failure_call = -1;
@@ -147,6 +148,14 @@ static COMTRACE_ARCHIVE_STATUS write_bytes(
             );
         }
 
+        if (writer->checksum_enabled) {
+            writer->checksum_state = comtrace_archive_checksum_update(
+                writer->checksum_state,
+                data,
+                (size_t)written
+            );
+        }
+
         data += written;
         size -= (size_t)written;
     }
@@ -216,7 +225,7 @@ static COMTRACE_ARCHIVE_STATUS write_file_header(
         return status;
     }
 
-    status = write_u32(writer, 1U);
+    status = write_u32(writer, 2U);
     if (status != COMTRACE_ARCHIVE_SUCCESS) {
         return status;
     }
@@ -326,6 +335,8 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_open(
     ZeroMemory(writer, sizeof(*writer));
     writer->file = INVALID_HANDLE_VALUE;
     writer->status = COMTRACE_ARCHIVE_SUCCESS;
+    writer->checksum_state = comtrace_archive_checksum_begin();
+    writer->checksum_enabled = TRUE;
 
     if (output_path == NULL || output_path[0] == L'\0') {
         return set_failure(
@@ -588,6 +599,7 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
 {
     COMTRACE_ARCHIVE_STATUS status;
     BOOL close_result;
+    ULONG checksum;
 
     if (!writer_has_open_file(writer) ||
         summary == NULL) {
@@ -606,10 +618,13 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
         );
     }
 
+    checksum = comtrace_archive_checksum_finish(writer->checksum_state);
+    writer->checksum_enabled = FALSE;
+
     status = write_bytes(writer, footer_magic, sizeof(footer_magic));
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
 
-    status = write_u32(writer, 1U);
+    status = write_u32(writer, 2U);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
 
     status = write_u32(writer, ARCHIVE_FOOTER_SIZE);
@@ -680,6 +695,10 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
 
     status = write_u64(writer, summary->perf_frequency);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
+
+    status = write_u32(writer, checksum);
+    if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
+
     if (!archive_flush_file_buffers(writer->file)) {
         return set_failure(
             writer,
