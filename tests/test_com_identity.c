@@ -55,6 +55,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     GUID value;
     ULONG number = 0U;
     ULONGLONG wide_number = 0U;
+    LONG signed_number = 0;
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_COM_OBJECT_IDENTITY object_identity;
     COMTRACE_ETL_PROPERTY_VALUE decoded_value;
@@ -178,6 +179,13 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     if (status != COMTRACE_IDENTITY_SUCCESS ||
         memcmp(&value, &expected_ipid, sizeof(GUID)) != 0) {
         fwprintf(stderr, L"IPID extraction failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_int32_property(event_record, L"HRESULT", &signed_number);
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        (ULONG)signed_number != 0x80004005UL) {
+        fwprintf(stderr, L"HRESULT extraction failed: status=%u value=0x%08lx\n", (unsigned int)status, (unsigned long)signed_number);
         ++context->failures;
     }
 
