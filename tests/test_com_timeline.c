@@ -682,6 +682,53 @@ static int test_process_thread_pairing_uses_lifo_order(void)
     return 1;
 }
 
+static int test_process_thread_fallback_rejects_mismatched_keys(void)
+{
+    COMTRACE_TIMELINE timeline;
+    COMTRACE_TIMELINE_EVENT event;
+
+    comtrace_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"COM_ServerSyncCall";
+    event.phase = COMTRACE_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 100ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_TIMELINE_PHASE_STOP;
+    event.process_id = 11U;
+    event.timestamp = 200ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.process_id = 10U;
+    event.operation = L"COM_ClientSyncCall";
+    event.timestamp = 300ULL;
+
+    if (comtrace_timeline_add_event(&timeline, &event) !=
+        COMTRACE_TIMELINE_SUCCESS ||
+        timeline.record_count != 3U ||
+        timeline.pending_count != 1U ||
+        timeline.unmatched_stops != 2ULL) {
+        comtrace_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_invalid_input(void)
 {
     COMTRACE_TIMELINE timeline;
@@ -714,6 +761,7 @@ int main(void)
         !test_missing_activity_ids_use_process_thread_fallback() ||
         !test_one_sided_activity_id_does_not_pair() ||
         !test_process_thread_pairing_uses_lifo_order() ||
+        !test_process_thread_fallback_rejects_mismatched_keys() ||
         !test_out_of_order_timestamps() ||
         !test_invalid_input()) {
         fputs("COM timeline tests failed.\n", stderr);
