@@ -1561,18 +1561,6 @@ static void print_relationship_graph_summary(
     }
 }
 
-static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
-{
-    ETL_INSPECT_CONTEXT *context;
-    COMTRACE_EVENT_CATALOG_STATUS catalog_status;
-    COMTRACE_EVENT_RECORD_STATUS record_status;
-    COMTRACE_OWNED_EVENT_RECORD *owned_record = NULL;
-    const EVENT_RECORD *owned_event;
-
-    if (event_record == NULL || event_record->UserContext == NULL) {
-        return;
-    }
-
 static int event_matches_filters(
     const ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
@@ -1641,6 +1629,19 @@ static int event_matches_filters(
 
     return 1;
 }
+
+static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
+{
+    ETL_INSPECT_CONTEXT *context;
+    COMTRACE_EVENT_CATALOG_STATUS catalog_status;
+    COMTRACE_EVENT_RECORD_STATUS record_status;
+    COMTRACE_OWNED_EVENT_RECORD *owned_record = NULL;
+    const EVENT_RECORD *owned_event;
+
+    if (event_record == NULL || event_record->UserContext == NULL) {
+        return;
+    }
+
 
     context = (ETL_INSPECT_CONTEXT *)event_record->UserContext;
     ++context->total_events;
