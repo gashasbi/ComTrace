@@ -144,7 +144,9 @@ static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
-    const wchar_t *parent_name,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
     ULONG index,
     ULONG array_index,
     ULONG pointer_size)
@@ -156,19 +158,30 @@ static void print_event_property_value_element(
     ULONG flags = (ULONG)property->Flags;
     USHORT in_type = property->nonStructType.InType;
     wchar_t display_name[256];
+    wchar_t part[32];
+    ULONG path_index;
 
     ZeroMemory(&decoded_value, sizeof(decoded_value));
+    display_name[0] = L'\\0';
 
-    if (parent_name != NULL) {
-        if (array_index == 0xFFFFFFFFUL) {
-            _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls.%ls", parent_name, name);
-        } else {
-            _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls.%ls[%lu]", parent_name, name, (unsigned long)array_index);
+    for (path_index = 0U; path_index < parent_count; ++path_index) {
+        if (path_index != 0U) {
+            wcsncat_s(display_name, _countof(display_name), L".", _TRUNCATE);
         }
-    } else if (array_index == 0xFFFFFFFFUL) {
-        wcsncpy_s(display_name, _countof(display_name), name, _TRUNCATE);
-    } else {
-        _snwprintf_s(display_name, _countof(display_name), _TRUNCATE, L"%ls[%lu]", name, (unsigned long)array_index);
+        wcsncat_s(display_name, _countof(display_name), parent_names[path_index], _TRUNCATE);
+        if (parent_indices[path_index] != 0xFFFFFFFFUL) {
+            _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)parent_indices[path_index]);
+            wcsncat_s(display_name, _countof(display_name), part, _TRUNCATE);
+        }
+    }
+
+    if (parent_count != 0U) {
+        wcsncat_s(display_name, _countof(display_name), L".", _TRUNCATE);
+    }
+    wcsncat_s(display_name, _countof(display_name), name, _TRUNCATE);
+    if (array_index != 0xFFFFFFFFUL) {
+        _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)array_index);
+        wcsncat_s(display_name, _countof(display_name), part, _TRUNCATE);
     }
 
     if ((flags & PropertyStruct) != 0U ||
@@ -186,7 +199,9 @@ static void print_event_property_value_element(
         event_record,
         property,
         name,
-        parent_name,
+        parent_names,
+        parent_indices,
+        parent_count,
         array_index,
         &decoded_value
     );
@@ -231,45 +246,23 @@ static void print_event_property_value_element(
         int terminated;
         ULONG offset;
 
-        if (!comtrace_scan_string(
-                value,
-                (size_t)value_size,
-                sizeof(wchar_t),
-                256U,
-                &content_size,
-                &displayed_size,
-                &terminated)) {
+        if (!comtrace_scan_string(value, (size_t)value_size, sizeof(wchar_t), 256U, &content_size, &displayed_size, &terminated)) {
             wprintf(L"status=unavailable reason=invalid_unicode_size\n");
             goto cleanup;
         }
 
         wprintf(L"value=\"");
-
-        for (offset = 0U; offset < (ULONG)displayed_size;
-             offset += (ULONG)sizeof(wchar_t)) {
+        for (offset = 0U; offset < (ULONG)displayed_size; offset += (ULONG)sizeof(wchar_t)) {
             wchar_t character;
-
             CopyMemory(&character, value + offset, sizeof(character));
-
             switch (character) {
-            case L'\\':
-                wprintf(L"\\\\");
-                break;
-            case L'"':
-                wprintf(L"\\\"");
-                break;
-            case L'\n':
-                wprintf(L"\\n");
-                break;
-            case L'\r':
-                wprintf(L"\\r");
-                break;
-            case L'\t':
-                wprintf(L"\\t");
-                break;
+            case L'\\': wprintf(L"\\\\"); break;
+            case L'"': wprintf(L"\\\""); break;
+            case L'\n': wprintf(L"\\n"); break;
+            case L'\r': wprintf(L"\\r"); break;
+            case L'\t': wprintf(L"\\t"); break;
             default:
-                if ((unsigned int)character < 0x20U ||
-                    (unsigned int)character == 0x7FU) {
+                if ((unsigned int)character < 0x20U || (unsigned int)character == 0x7FU) {
                     wprintf(L"\\u%04x", (unsigned int)character);
                 } else {
                     wprintf(L"%lc", character);
@@ -277,325 +270,114 @@ static void print_event_property_value_element(
                 break;
             }
         }
-
-        if (displayed_size == 256U &&
-            value_size > (ULONG)displayed_size) {
-            wprintf(
-                L"...(+%lu bytes)",
-                (unsigned long)(value_size - (ULONG)displayed_size)
-            );
+        if (displayed_size == 256U && value_size > (ULONG)displayed_size) {
+            wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - (ULONG)displayed_size));
         }
-
-        if (!terminated) {
-            wprintf(L" [unterminated]");
-        }
-
+        if (!terminated) wprintf(L" [unterminated]");
         wprintf(L"\"\n");
         goto cleanup;
     }
-
     case TDH_INTYPE_ANSISTRING: {
         size_t content_size;
         size_t displayed_size;
         int terminated;
         size_t offset;
 
-        if (!comtrace_scan_string(
-                value,
-                (size_t)value_size,
-                1U,
-                256U,
-                &content_size,
-                &displayed_size,
-                &terminated)) {
+        if (!comtrace_scan_string(value, (size_t)value_size, 1U, 256U, &content_size, &displayed_size, &terminated)) {
             wprintf(L"status=unavailable reason=invalid_string_size\n");
             goto cleanup;
         }
-
         wprintf(L"value=\"");
-
         for (offset = 0U; offset < displayed_size; ++offset) {
             BYTE character = value[offset];
-
             switch (character) {
-            case '\\':
-                wprintf(L"\\\\");
-                break;
-            case '"':
-                wprintf(L"\\\"");
-                break;
-            case '\n':
-                wprintf(L"\\n");
-                break;
-            case '\r':
-                wprintf(L"\\r");
-                break;
-            case '\t':
-                wprintf(L"\\t");
-                break;
+            case '\\': wprintf(L"\\\\"); break;
+            case '"': wprintf(L"\\\""); break;
+            case '\n': wprintf(L"\\n"); break;
+            case '\r': wprintf(L"\\r"); break;
+            case '\t': wprintf(L"\\t"); break;
             default:
-                if (character >= 0x20U && character <= 0x7EU) {
-                    wprintf(L"%c", (int)character);
-                } else {
-                    wprintf(L"\\x%02x", (unsigned int)character);
-                }
+                if (character >= 0x20U && character <= 0x7EU) wprintf(L"%c", (int)character);
+                else wprintf(L"\\x%02x", (unsigned int)character);
                 break;
             }
         }
-
-        if (displayed_size == 256U &&
-            value_size > (ULONG)displayed_size) {
-            wprintf(
-                L"...(+%lu bytes)",
-                (unsigned long)(value_size - (ULONG)displayed_size)
-            );
+        if (displayed_size == 256U && value_size > (ULONG)displayed_size) {
+            wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - (ULONG)displayed_size));
         }
-
-        if (!terminated) {
-            wprintf(L" [unterminated]");
-        }
-
+        if (!terminated) wprintf(L" [unterminated]");
         wprintf(L"\"\n");
         goto cleanup;
     }
-
     case TDH_INTYPE_INT8: {
         signed char number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT8, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT8, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%d\n", (int)number);
         goto cleanup;
     }
-
     case TDH_INTYPE_ANSICHAR:
     case TDH_INTYPE_UINT8: {
         BYTE number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%u\n", (unsigned int)number);
         goto cleanup;
     }
-
     case TDH_INTYPE_INT16: {
         SHORT number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT16, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT16, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%d\n", (int)number);
         goto cleanup;
     }
-
     case TDH_INTYPE_UNICODECHAR:
     case TDH_INTYPE_UINT16: {
         USHORT number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%u\n", (unsigned int)number);
         goto cleanup;
     }
-
     case TDH_INTYPE_INT32: {
         LONG number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT32, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT32, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%ld\n", number);
         goto cleanup;
     }
-
     case TDH_INTYPE_UINT32: {
         ULONG number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT32, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT32, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%lu\n", number);
         goto cleanup;
     }
-
     case TDH_INTYPE_INT64: {
         LONGLONG number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT64, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_INT64, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
         wprintf(L"value=%lld\n", number);
         goto cleanup;
     }
-
     case TDH_INTYPE_UINT64: {
         ULONGLONG number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT64, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT64, value_size, 0U)) { wprintf(L"status=unavailable reason=type_size_mismatch\n"); goto cleanup; }
         CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%llu\n", number);
+        wprintf(L"value=%llu\n", (unsigned long long)number);
         goto cleanup;
     }
-
-    case TDH_INTYPE_FLOAT: {
-        float number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_FLOAT, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
-        CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%.9g\n", (double)number);
-        goto cleanup;
-    }
-
-    case TDH_INTYPE_DOUBLE: {
-        double number;
-        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_DOUBLE, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
-        CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%.17g\n", number);
-        goto cleanup;
-    }
-
-    case TDH_INTYPE_BOOLEAN: {
-        ULONGLONG number = 0U;
-        if (!comtrace_value_size_is_valid(
-                COMTRACE_VALUE_BOOLEAN, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
-        CopyMemory(&number, value, value_size);
-        wprintf(L"value=%ls\n", number == 0U ? L"false" : L"true");
-        goto cleanup;
-    }
-
-    case TDH_INTYPE_GUID:
-        if (!comtrace_value_size_is_valid(
-                COMTRACE_VALUE_GUID, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        } else {
-            GUID guid;
-            CopyMemory(&guid, value, sizeof(guid));
-            wprintf(L"value=");
-            print_guid(&guid);
-            wprintf(L"\n");
-            goto cleanup;
-        }
-
-    case TDH_INTYPE_HEXINT32:
-        if (!comtrace_value_size_is_valid(
-                COMTRACE_VALUE_HEXINT32, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        } else {
-            ULONGLONG number = 0U;
-            CopyMemory(&number, value, sizeof(ULONG));
-            wprintf(L"value=0x%llx\n", number);
-            goto cleanup;
-        }
-
-    case TDH_INTYPE_HEXINT64:
-        if (!comtrace_value_size_is_valid(
-                COMTRACE_VALUE_HEXINT64, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        } else {
-            ULONGLONG number = 0U;
-            CopyMemory(&number, value, sizeof(number));
-            wprintf(L"value=0x%llx\n", number);
-            goto cleanup;
-        }
-
-    case TDH_INTYPE_POINTER:
-    case TDH_INTYPE_SIZET:
-        if (!comtrace_value_size_is_valid(
-                in_type == TDH_INTYPE_POINTER
-                    ? COMTRACE_VALUE_POINTER
-                    : COMTRACE_VALUE_SIZET,
-                value_size,
-                pointer_size)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        } else {
-            ULONGLONG number = 0U;
-            CopyMemory(&number, value, value_size);
-            wprintf(L"value=0x%llx\n", number);
-            goto cleanup;
-        }
-
-    case TDH_INTYPE_SYSTEMTIME: {
-        ComTraceSystemTime system_time;
-        if (!comtrace_decode_systemtime(value, value_size, &system_time)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        }
-        wprintf(L"value=%04u-%02u-%02uT%02u:%02u:%02u.%03u\n", system_time.year, system_time.month, system_time.day, system_time.hour, system_time.minute, system_time.second, system_time.milliseconds);
-        goto cleanup;
-    }
-
-    case TDH_INTYPE_FILETIME:
-        if (!comtrace_value_size_is_valid(
-                COMTRACE_VALUE_FILETIME, value_size, 0U)) {
-            wprintf(L"status=unavailable reason=type_size_mismatch\n");
-            goto cleanup;
-        } else {
-            ULONGLONG ticks;
-            CopyMemory(&ticks, value, sizeof(ticks));
-            wprintf(L"value=filetime_ticks:%llu\n", ticks);
-            goto cleanup;
-        }
-
-    case TDH_INTYPE_BINARY:
-    case TDH_INTYPE_HEXDUMP: {
-        ULONG displayed = value_size > 64U ? 64U : value_size;
-        ULONG offset;
-
-        wprintf(L"value=hex:");
-
-        for (offset = 0U; offset < displayed; ++offset) {
-            wprintf(L"%02x", (unsigned int)value[offset]);
-        }
-
-        if (displayed < value_size) {
-            wprintf(
-                L"...(+%lu bytes)",
-                (unsigned long)(value_size - displayed)
-            );
-        }
-
-        wprintf(L"\n");
-        goto cleanup;
-    }
-
     default: {
-        ULONG displayed = value_size > 64U ? 64U : value_size;
+        ULONG displayed = value_size < 64U ? value_size : 64U;
         ULONG offset;
         wprintf(L"value=hex:");
-        for (offset = 0U; offset < displayed; ++offset) {
-            wprintf(L"%02x", (unsigned int)value[offset]);
-        }
-        if (displayed < value_size) {
-            wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - displayed));
-        }
+        for (offset = 0U; offset < displayed; ++offset) wprintf(L"%02x", (unsigned int)value[offset]);
+        if (displayed < value_size) wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - displayed));
         wprintf(L"\n");
         goto cleanup;
     }
     }
+
 cleanup:
     comtrace_etl_property_value_destroy(&decoded_value);
 }
@@ -609,7 +391,10 @@ static void print_event_property_value(
     const EVENT_PROPERTY_INFO *properties,
     ULONG property_count,
     const BYTE *buffer,
-    ULONG buffer_size)
+    ULONG buffer_size,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count)
 {
     ULONG flags = (ULONG)property->Flags;
     ULONG element_index;
@@ -618,77 +403,91 @@ static void print_event_property_value(
         ULONG member_start = property->structType.StructStartIndex;
         ULONG member_count = property->structType.NumOfStructMembers;
         ULONG member_index;
+        ULONG struct_count = 1U;
+        ULONG struct_index;
+        const wchar_t *nested_names[8];
+        ULONG nested_indices[8];
 
+        if (parent_count >= 8U) {
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_depth_limit\n", (unsigned long)index, name);
+            return;
+        }
         if (member_start > property_count || member_count > property_count - member_start) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_struct_members\n", (unsigned long)index, name);
             return;
         }
-
-        for (member_index = member_start; member_index < member_start + member_count; ++member_index) {
-            const EVENT_PROPERTY_INFO *member = &properties[member_index];
-            ULONG name_offset = member->NameOffset;
-            ULONG remaining;
-            ULONG name_length = 0U;
-            const wchar_t *member_name;
-
-            if (name_offset >= buffer_size || (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
-                wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_member_name\n", (unsigned long)index, name);
-                continue;
+        if ((flags & PropertyParamCount) != 0U) {
+            if (!read_event_property_count(event_record, properties, property_count, buffer, buffer_size, property, &struct_count)) {
+                wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
+                return;
             }
+        } else if ((flags & PropertyParamFixedCount) != 0U) {
+            struct_count = (ULONG)property->count;
+        }
 
-            member_name = (const wchar_t *)(buffer + name_offset);
-            remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-            while (name_length < remaining && member_name[name_length] != L'\0') {
-                ++name_length;
-            }
-            if (name_length == remaining) {
-                wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=unterminated_member_name\n", (unsigned long)index, name);
-                continue;
-            }
+        if (struct_count > 4096U) {
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_count_limit\n", (unsigned long)index, name);
+            return;
+        }
+        for (element_index = 0U; element_index < parent_count; ++element_index) {
+            nested_names[element_index] = parent_names[element_index];
+            nested_indices[element_index] = parent_indices[element_index];
+        }
+        nested_names[parent_count] = name;
 
-            if ((member->Flags & PropertyStruct) != 0U) {
-                wprintf(L"  property_value[%lu] name=%ls.%ls status=skipped reason=nested_struct\n", (unsigned long)index, name, member_name);
-                continue;
-            }
+        for (struct_index = 0U; struct_index < struct_count; ++struct_index) {
+            nested_indices[parent_count] =
+                struct_count == 1U && (flags & (PropertyParamCount | PropertyParamFixedCount)) == 0U
+                    ? 0xFFFFFFFFUL
+                    : struct_index;
+            for (member_index = member_start; member_index < member_start + member_count; ++member_index) {
+                const EVENT_PROPERTY_INFO *member = &properties[member_index];
+                ULONG name_offset = member->NameOffset;
+                ULONG remaining;
+                ULONG name_length = 0U;
+                const wchar_t *member_name;
 
-            print_event_property_value_element(
-                event_record, member, member_name, name, index, 0xFFFFFFFFUL, pointer_size
-            );
+                if (name_offset >= buffer_size || (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+                    wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_member_name\n", (unsigned long)index, name);
+                    continue;
+                }
+                member_name = (const wchar_t *)(buffer + name_offset);
+                remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+                while (name_length < remaining && member_name[name_length] != L'\\0') ++name_length;
+                if (name_length == remaining) {
+                    wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=unterminated_member_name\n", (unsigned long)index, name);
+                    continue;
+                }
+                print_event_property_value(
+                    event_record, member, member_name, index, pointer_size,
+                    properties, property_count, buffer, buffer_size,
+                    nested_names, nested_indices, parent_count + 1U
+                );
+            }
         }
         return;
     }
 
     if ((flags & PropertyParamCount) != 0U) {
         ULONG count;
-
-        if (!read_event_property_count(
-                event_record, properties, property_count, buffer, buffer_size,
-                property, &count)) {
+        if (!read_event_property_count(event_record, properties, property_count, buffer, buffer_size, property, &count)) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
             return;
         }
-
         for (element_index = 0U; element_index < count; ++element_index) {
-            print_event_property_value_element(
-                event_record, property, name, NULL, index, element_index, pointer_size
-            );
+            print_event_property_value_element(event_record, property, name, parent_names, parent_indices, parent_count, index, element_index, pointer_size);
         }
         return;
     }
 
-    if ((flags & PropertyParamFixedCount) != 0U &&
-        (flags & PropertyParamCount) == 0U) {
+    if ((flags & PropertyParamFixedCount) != 0U) {
         for (element_index = 0U; element_index < (ULONG)property->count; ++element_index) {
-            print_event_property_value_element(
-                event_record, property, name, NULL, index, element_index, pointer_size
-            );
+            print_event_property_value_element(event_record, property, name, parent_names, parent_indices, parent_count, index, element_index, pointer_size);
         }
         return;
     }
 
-    print_event_property_value_element(
-        event_record, property, name, NULL, index, 0xFFFFFFFFUL, pointer_size
-    );
+    print_event_property_value_element(event_record, property, name, parent_names, parent_indices, parent_count, index, 0xFFFFFFFFUL, pointer_size);
 }
 
 static void print_event_properties(const EVENT_RECORD *event_record, ULONG pointer_size)
@@ -803,7 +602,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             );
         }
         if (index < 16U) {
-            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size);
+            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, 0U);
         } else if (index == 16U) {
             wprintf(L"  payload_value_limit=16 remaining=%lu\n" , (unsigned long)(top_level_property_count - 16U));
         }
