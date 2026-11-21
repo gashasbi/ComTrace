@@ -35,6 +35,13 @@ jobs:
           if (-not (Test-Path (Join-Path $outputDirectory 'SHA256SUMS.txt'))) {
             throw "Release checksum file was not created."
           }
+          if (-not (Test-Path (Join-Path $outputDirectory 'ComTraceOleActivityFixture.exe'))) {
+            throw "OLE validation fixture was not copied as a release asset."
+          }
+          $checksums = Get-Content (Join-Path $outputDirectory 'SHA256SUMS.txt') -Raw
+          if ($checksums -notmatch 'ComTraceOleActivityFixture\.exe') {
+            throw "OLE validation fixture checksum is missing."
+          }
 
       - name: Check real trace validation script syntax
         shell: pwsh
