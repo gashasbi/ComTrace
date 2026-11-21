@@ -89,7 +89,7 @@ The first command converts an ETL trace to the CTRA archive format. New archives
 
 ## Real ETL validation
 
-Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows target machine to capture or supply a real COM trace, confirm COM Performance events, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
+Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows machine to capture or supply a trace with COM and OLE activity, confirm both providers' events and operation timelines, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`; new captures also run `ComTraceOleActivityFixture.exe` to generate OLE clipboard traffic. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
 
 ## COM/OLE analysis and limitations
 
@@ -97,7 +97,7 @@ Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windo
 - CLSID, IID, IPID, OID, CallTraceId, process/thread IDs, and Activity IDs are kept as distinct fields. A value is reported only when the ETW event schema or event header provides it; ComTrace does not scan arbitrary payload bytes or infer missing identifiers.
 - COM start/stop pairing uses matching CallTraceId values first. When both events lack CallTraceId, matching ActivityId, process ID, thread ID, and operation can be used as a separately reported fallback. Events with missing or conflicting keys remain unmatched.
 - Peer process/thread IDs are read from explicitly named event properties such as `TargetProcessId`, `TargetThreadId`, `SourceProcessId`, and `SourceThreadId`. Executable paths are displayed only when Windows permits the process query.
-- The OLE Performance manifest inspected on Windows Server 2022 defines 28 events across 14 Clipboard and Drag & Drop operations, but does not declare event payload templates or data fields. The operation (including `OLE_DragDrop_DragOperation_SetDataObject`) can be classified and timed; a DataObject pointer or identity is not extracted from that manifest.
+- The OLE Performance manifest inspected on Windows Server 2022 defines 28 events across 14 Clipboard and Drag & Drop operations, but does not declare event payload templates or data fields. Operations, Activity IDs, and operation durations can be reported where ETW supplies them; a DataObject pointer or identity is not extracted from that manifest.
 - `--providers` reports the three providers in the CLI inventory. It is not a complete inventory of every provider that capture may enable.
 - A registered or enabled provider is not proof that it emitted events. Validate event production using an ETL captured on the target Windows system.
 - ETL processing uses Windows ETW and TDH APIs. Build and end-to-end trace validation must be performed on Windows.
