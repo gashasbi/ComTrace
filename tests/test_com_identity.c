@@ -3,6 +3,7 @@
 #include <evntrace.h>
 #include <evntcons.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "com_identity.h"
 
