@@ -302,6 +302,14 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/archive_cli_case.cmake"
         )
     endforeach()
+    add_test(
+        NAME comtrace_compare_json
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceArchiveTestFixture>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/compare-json-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_json_case.cmake"
+    )
     add_executable(ComTraceArrayFixture tests/array_fixture.c)
     target_link_libraries(ComTraceArrayFixture PRIVATE Advapi32)
     set(COMTRACE_ARRAY_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/array-fixture/$<CONFIG>")
