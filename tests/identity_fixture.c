@@ -33,6 +33,14 @@ static const GUID related_activity_id = {
     { 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f }
 };
 
+static const GUID interface_pointer_id = {
+    0x40516273, 0x8495, 0xa6b7,
+    { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
+};
+
+static const ULONGLONG object_id = 0x1122334455667788ULL;
+static const ULONGLONG call_trace_id = 0x8877665544332211ULL;
+
 int wmain(int argc, wchar_t **argv)
 {
     TRACEHANDLE session = 0;
@@ -46,7 +54,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
-    EVENT_DATA_DESCRIPTOR data[5];
+    EVENT_DATA_DESCRIPTOR data[8];
     ULONG target_process_id = 0x12345678UL;
     ULONG target_thread_id = 0x87654321UL;
     ULONG not_guid = 123U;
@@ -136,14 +144,17 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&data[1], (PVOID)&interface_id, (ULONG)sizeof(interface_id));
     EventDataDescCreate(&data[2], &target_process_id, (ULONG)sizeof(target_process_id));
     EventDataDescCreate(&data[3], &target_thread_id, (ULONG)sizeof(target_thread_id));
-    EventDataDescCreate(&data[4], &not_guid, (ULONG)sizeof(not_guid));
+    EventDataDescCreate(&data[4], (PVOID)&interface_pointer_id, (ULONG)sizeof(interface_pointer_id));
+    EventDataDescCreate(&data[5], (PVOID)&object_id, (ULONG)sizeof(object_id));
+    EventDataDescCreate(&data[6], (PVOID)&call_trace_id, (ULONG)sizeof(call_trace_id));
+    EventDataDescCreate(&data[7], &not_guid, (ULONG)sizeof(not_guid));
 
     status = EventWriteTransfer(
         provider,
         &descriptor,
         &activity_id,
         &related_activity_id,
-        5U,
+        8U,
         data
     );
     if (status != ERROR_SUCCESS) {
