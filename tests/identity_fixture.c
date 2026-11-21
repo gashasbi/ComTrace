@@ -3,6 +3,7 @@
 #include <evntrace.h>
 #include <evntprov.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include "identity_fixture.h"
@@ -58,7 +59,7 @@ int wmain(int argc, wchar_t **argv)
     path_offset = sizeof(EVENT_TRACE_PROPERTIES) + logger_size;
     properties_size = path_offset + path_size;
 
-    if (properties_size > MAXULONG) {
+    if (properties_size > (size_t)ULONG_MAX) {
         return 1;
     }
 
@@ -133,7 +134,7 @@ int wmain(int argc, wchar_t **argv)
 
 cleanup:
     if (provider != 0) {
-            (void)EventUnregister(provider);
+        (void)EventUnregister(provider);
     }
 
     if (session != 0) {
