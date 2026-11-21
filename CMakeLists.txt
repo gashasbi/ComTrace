@@ -147,6 +147,7 @@ if(BUILD_TESTING)
 
     add_executable(ComTraceOleActivityFixture tests/ole_activity_fixture.c)
     target_link_libraries(ComTraceOleActivityFixture PRIVATE Ole32 Shell32)
+    install(TARGETS ComTraceOleActivityFixture RUNTIME DESTINATION .)
 
     if(MSVC)
         target_compile_options(ComTraceOleActivityFixture PRIVATE /W4 /WX /wd5105 /utf-8)
