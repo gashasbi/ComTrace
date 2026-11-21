@@ -14,6 +14,13 @@ The script captures a 30-second ETL by default. During capture it activates seve
 
 The script requires at least one successful COM activation and at least one event classified as a COM Performance event. If the installed Windows image does not provide any of the built-in COM classes, use an existing ETL from a machine where the intended COM activity was captured.
 
+When using the Windows ZIP release, extract the archive and run the same command with the executables in the extracted directory:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 -ComTraceExe .\ComTrace.exe -ComTraceArchiveExe .\ComTraceArchive.exe
+```
+
+
 ## Validate an existing ETL
 
 An existing ETL can be checked without starting an ETW session or running as Administrator:
