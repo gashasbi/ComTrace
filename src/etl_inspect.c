@@ -1078,6 +1078,7 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     ULONGLONG matched = 0ULL;
     ULONGLONG matched_by_call_trace_id = 0ULL;
     ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete_starts = 0ULL;
     ULONGLONG unmatched_stops = 0ULL;
     ULONGLONG failed_operations = 0ULL;
@@ -1102,6 +1103,8 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
                 ++matched_by_call_trace_id;
             } else if (record->match_type == COMTRACE_TIMELINE_MATCH_ACTIVITY_ID) {
                 ++matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_TIMELINE_MATCH_PROCESS_THREAD) {
+                ++matched_by_process_thread;
             }
         } else if (record->has_start) {
             ++incomplete_starts;
@@ -1124,6 +1127,10 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     wprintf(
         L"Matched by ActivityId: %llu\n",
         (unsigned long long)matched_by_activity_id
+    );
+    wprintf(
+        L"Matched by process/thread/operation: %llu\n",
+        (unsigned long long)matched_by_process_thread
     );
     wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete_starts);
     wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched_stops);
