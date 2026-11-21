@@ -1210,6 +1210,8 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"call_has_activity";
     case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OBJECT:
         return L"process_owns_object";
+    case COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT:
+        return L"call_uses_object";
     case COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID:
         return L"object_has_clsid";
     case COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID:
@@ -1341,10 +1343,11 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IPID)
     );
     wprintf(
-        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu\n",
+        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu call_uses_object=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu\n",
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID)
