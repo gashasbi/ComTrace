@@ -157,6 +157,7 @@ static int test_missing_activity_and_invalid_input(void)
         comtrace_ole_timeline_pending_count(&timeline) != 0U ||
         comtrace_ole_timeline_sequence_count(&timeline) != 0U ||
         comtrace_ole_timeline_count(&timeline) != 1U ||
+        timeline.missing_activity_ids != 2ULL ||
         comtrace_ole_timeline_get(&timeline, 0U)->match_type !=
             COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
         comtrace_ole_timeline_destroy(&timeline);
