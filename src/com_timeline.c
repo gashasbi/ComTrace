@@ -212,6 +212,21 @@ void comtrace_timeline_destroy(COMTRACE_TIMELINE *timeline)
     ZeroMemory(timeline, sizeof(*timeline));
 }
 
+static void update_missing_identifier_counts(
+    COMTRACE_TIMELINE *timeline,
+    const COMTRACE_TIMELINE_EVENT *event
+)
+{
+    if (!event->has_call_trace_id) {
+        ++timeline->missing_call_trace_ids;
+    }
+
+    if (event->activity_ids == NULL ||
+        !event->activity_ids->has_activity_id) {
+        ++timeline->missing_activity_ids;
+    }
+}
+
 COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
     COMTRACE_TIMELINE *timeline,
     const COMTRACE_TIMELINE_EVENT *event
@@ -221,7 +236,6 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
     size_t record_index;
     COMTRACE_TIMELINE_RECORD *record;
     COMTRACE_TIMELINE_MATCH_TYPE match_type;
-    BOOL has_activity_id;
 
     if (timeline == NULL ||
         event == NULL ||
@@ -229,16 +243,6 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
         (event->phase != COMTRACE_TIMELINE_PHASE_START &&
          event->phase != COMTRACE_TIMELINE_PHASE_STOP)) {
         return COMTRACE_TIMELINE_INVALID_ARGUMENT;
-    }
-
-    has_activity_id = event->activity_ids != NULL &&
-                      event->activity_ids->has_activity_id;
-
-    if (!event->has_call_trace_id) {
-        ++timeline->missing_call_trace_ids;
-    }
-    if (!has_activity_id) {
-        ++timeline->missing_activity_ids;
     }
 
     if (event->phase == COMTRACE_TIMELINE_PHASE_START) {
@@ -265,6 +269,7 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
         record->has_start = TRUE;
         record->start_timestamp = event->timestamp;
         ++timeline->record_count;
+        update_missing_identifier_counts(timeline, event);
 
         timeline->pending_indices[timeline->pending_count] = record_index;
         ++timeline->pending_count;
@@ -315,6 +320,7 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
             );
         }
         --timeline->pending_count;
+        update_missing_identifier_counts(timeline, event);
         return COMTRACE_TIMELINE_SUCCESS;
     }
 
@@ -340,6 +346,7 @@ COMTRACE_TIMELINE_STATUS comtrace_timeline_add_event(
     record->hresult = event->hresult;
     ++timeline->record_count;
     ++timeline->unmatched_stops;
+    update_missing_identifier_counts(timeline, event);
 
     return COMTRACE_TIMELINE_SUCCESS;
 }
