@@ -29,7 +29,9 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
     const wchar_t *name,
-    const wchar_t *parent_name,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
     ULONG array_index,
     COMTRACE_ETL_PROPERTY_VALUE *value
 );
