@@ -602,7 +602,10 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
 
 static COMTRACE_TRACE_COMPARE_STATUS add_operation_timing(
     COMTRACE_TRACE_SUMMARY *summary,
-    const COMTRACE_TIMELINE_RECORD *record
+    const wchar_t *operation,
+    ULONGLONG duration_ticks,
+    BOOL has_hresult,
+    HRESULT hresult
 )
 {
     size_t index;
@@ -611,7 +614,7 @@ static COMTRACE_TRACE_COMPARE_STATUS add_operation_timing(
     for (index = 0U; index < summary->operation_timing_count; ++index) {
         if (wcscmp(
                 summary->operation_timings[index].operation,
-                record->operation) == 0) {
+                operation) == 0) {
             timing = &summary->operation_timings[index];
             goto found;
         }
@@ -642,21 +645,23 @@ static COMTRACE_TRACE_COMPARE_STATUS add_operation_timing(
 
     timing = &summary->operation_timings[summary->operation_timing_count];
     ZeroMemory(timing, sizeof(*timing));
-    if (wcslen(record->operation) >= _countof(timing->operation)) {
+    if (wcslen(operation) >= _countof(timing->operation)) {
         return COMTRACE_TRACE_COMPARE_INVALID_ARGUMENT;
     }
-    wcscpy_s(timing->operation, _countof(timing->operation), record->operation);
+    wcscpy_s(timing->operation, _countof(timing->operation), operation);
     ++summary->operation_timing_count;
 
 found:
-    if (timing->call_count == ULLONG_MAX) {
+    if (timing->call_count == ULLONG_MAX ||
+        (has_hresult && hresult < 0 && timing->failed_count == ULLONG_MAX)) {
         return COMTRACE_TRACE_COMPARE_COUNT_OVERFLOW;
     }
+
     ++timing->call_count;
 
     if (summary->trace_frequency != 0ULL) {
         double duration_ms =
-            1000.0 * (double)record->duration_ticks /
+            1000.0 * (double)duration_ticks /
             (double)summary->trace_frequency;
         timing->average_duration_ms += duration_ms;
         if (duration_ms > timing->maximum_duration_ms) {
@@ -664,7 +669,7 @@ found:
         }
     }
 
-    if (record->has_hresult && record->hresult < 0) {
+    if (has_hresult && hresult < 0) {
         ++timing->failed_count;
     }
 
@@ -676,6 +681,7 @@ static COMTRACE_TRACE_COMPARE_STATUS build_operation_timings(
 )
 {
     size_t index;
+    COMTRACE_TRACE_COMPARE_STATUS status;
 
     for (index = 0U; index < summary->com_timeline.record_count; ++index) {
         const COMTRACE_TIMELINE_RECORD *record =
@@ -685,9 +691,35 @@ static COMTRACE_TRACE_COMPARE_STATUS build_operation_timings(
             continue;
         }
 
-        if (add_operation_timing(summary, record) !=
-            COMTRACE_TRACE_COMPARE_SUCCESS) {
-            return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+        status = add_operation_timing(
+            summary,
+            record->operation,
+            record->duration_ticks,
+            record->has_hresult,
+            record->hresult
+        );
+        if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+            return status;
+        }
+    }
+
+    for (index = 0U; index < summary->ole_timeline.record_count; ++index) {
+        const COMTRACE_OLE_TIMELINE_RECORD *record =
+            &summary->ole_timeline.records[index];
+
+        if (!record->has_start || !record->has_stop || !record->has_duration) {
+            continue;
+        }
+
+        status = add_operation_timing(
+            summary,
+            record->operation,
+            record->duration_ticks,
+            FALSE,
+            S_OK
+        );
+        if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+            return status;
         }
     }
 
