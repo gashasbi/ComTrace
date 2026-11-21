@@ -1025,9 +1025,8 @@ static void add_com_timeline_event(
     timeline_event.thread_id = event_record->EventHeader.ThreadId;
     timeline_event.timestamp = (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
-    identity_status = comtrace_extract_uint64_property(
+    identity_status = comtrace_extract_call_trace_id(
         event_record,
-        L"CallTraceId",
         &call_trace_id
     );
     if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
