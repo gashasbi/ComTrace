@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "com_identity.h"
+#include "etl_decoder.h"
 
 static const GUID fixture_provider_id = {
     0xd3a24c71, 0x91b6, 0x4b02,
@@ -56,6 +57,9 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     ULONGLONG wide_number = 0U;
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_COM_OBJECT_IDENTITY object_identity;
+    COMTRACE_ETL_PROPERTY_VALUE decoded_value;
+    EVENT_PROPERTY_INFO decoder_property;
+    COMTRACE_ETL_PROPERTY_READ_STATUS decoder_status;
     COMTRACE_IDENTITY_STATUS status;
 
     if (event_record == NULL || event_record->UserContext == NULL) {
@@ -73,6 +77,38 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     }
 
     ++context->events_seen;
+
+    ZeroMemory(&decoder_property, sizeof(decoder_property));
+    ZeroMemory(&decoded_value, sizeof(decoded_value));
+    decoder_status = comtrace_etl_read_property_value(
+        event_record,
+        &decoder_property,
+        L"ClassId",
+        NULL,
+        0xFFFFFFFFUL,
+        &decoded_value
+    );
+    if (decoder_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS ||
+        decoded_value.size != sizeof(expected_class_id) ||
+        memcmp(decoded_value.data, &expected_class_id, sizeof(expected_class_id)) != 0) {
+        fwprintf(stderr, L"Raw ETW decoder validation failed: status=%u\n", (unsigned int)decoder_status);
+        ++context->failures;
+    }
+    comtrace_etl_property_value_destroy(&decoded_value);
+
+    decoder_property.Flags = PropertyStruct;
+    decoder_status = comtrace_etl_read_property_value(
+        event_record,
+        &decoder_property,
+        L"ClassId",
+        NULL,
+        0xFFFFFFFFUL,
+        &decoded_value
+    );
+    if (decoder_status != COMTRACE_ETL_PROPERTY_READ_UNSUPPORTED) {
+        fwprintf(stderr, L"Raw ETW decoder complex property rejection failed: status=%u\n", (unsigned int)decoder_status);
+        ++context->failures;
+    }
 
     status = comtrace_extract_guid_property(event_record, L"ClassId", &value);
     if (status != COMTRACE_IDENTITY_SUCCESS ||
