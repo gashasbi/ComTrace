@@ -190,6 +190,9 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     ULONG footer_size = reader->format_version == 2U
         ? (ULONG)ARCHIVE_FOOTER_V2_SIZE
         : (ULONG)ARCHIVE_FOOTER_V1_SIZE;
+    ULONG footer_data_size = reader->format_version == 2U
+        ? footer_size - 4U
+        : footer_size;
 
     memcpy(footer_data, prefix, 8U);
     if (reader->file_size - reader->offset < (ULONGLONG)footer_size - 8ULL) {
@@ -213,7 +216,7 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     if (!read_exact(
             reader,
             footer_data + 8U,
-            (size_t)footer_size - 8U)) {
+            (size_t)footer_data_size - 8U)) {
         return reader->status;
     }
 
@@ -259,11 +262,18 @@ static COMTRACE_ARCHIVE_READER_STATUS read_footer(
     }
 
     if (reader->format_version == 2U) {
+        ULONG calculated_checksum =
+            comtrace_archive_checksum_finish(reader->checksum_state);
+
+        reader->checksum_enabled = FALSE;
+        if (!read_exact(reader, footer_data + 124U, 4U)) {
+            return reader->status;
+        }
+
         reader->footer.checksum_present = TRUE;
         reader->footer.checksum = decode_u32(footer_data + 124U);
         reader->footer.checksum_valid =
-            reader->footer.checksum ==
-            comtrace_archive_checksum_finish(reader->checksum_state);
+            reader->footer.checksum == calculated_checksum;
 
         if (!reader->footer.checksum_valid) {
             if (reader->recovery_mode) {
@@ -546,7 +556,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
 
     if (memcmp(frame, footer_magic, sizeof(footer_magic)) == 0) {
         reader->checksum_state = checksum_state_before_frame;
-        reader->checksum_enabled = FALSE;
+        reader->checksum_enabled = reader->format_version == 2U;
         return read_footer(reader, frame);
     }
 
