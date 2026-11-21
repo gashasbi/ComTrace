@@ -226,13 +226,23 @@ $identityPattern = "(?im)(?:com_)?(?:clsid|iid|ipid|oid)="
 $identityValueCount = [regex]::Matches($searchOutput, $identityPattern).Count
 
 $matchedTimeline = [regex]::Match($searchOutput, "Matched start/stop:\s*(\d+)")
+$matchedByCallTrace = [regex]::Match($searchOutput, "Matched by CallTraceId:\s*(\d+)")
+$matchedByActivity = [regex]::Match($searchOutput, "Matched by ActivityId:\s*(\d+)")
 $missingCallTrace = [regex]::Match($searchOutput, "Missing CallTraceId:\s*(\d+)")
-if (-not $matchedTimeline.Success -or -not $missingCallTrace.Success) {
+$missingActivity = [regex]::Match($searchOutput, "Missing ActivityId:\s*(\d+)")
+if (-not $matchedTimeline.Success -or
+    -not $matchedByCallTrace.Success -or
+    -not $matchedByActivity.Success -or
+    -not $missingCallTrace.Success -or
+    -not $missingActivity.Success) {
     throw "The COM timeline summary did not contain its pairing counters. Review $searchPath"
 }
 
 $comTimelineMatched = [UInt64]::Parse($matchedTimeline.Groups[1].Value)
+$comTimelineMatchedByCallTrace = [UInt64]::Parse($matchedByCallTrace.Groups[1].Value)
+$comTimelineMatchedByActivity = [UInt64]::Parse($matchedByActivity.Groups[1].Value)
 $comTimelineMissingCallTrace = [UInt64]::Parse($missingCallTrace.Groups[1].Value)
+$comTimelineMissingActivity = [UInt64]::Parse($missingActivity.Groups[1].Value)
 if ($comTimelineMatched -eq 0) {
     throw "No COM start/stop pairs were matched. Review CallTraceId property schemas in $searchPath"
 }
@@ -305,7 +315,10 @@ $summary = [ordered]@{
     com_events = $comEventCount
     identity_values_reported = $identityValueCount
     com_timeline_matched = $comTimelineMatched
+    com_timeline_matched_by_call_trace_id = $comTimelineMatchedByCallTrace
+    com_timeline_matched_by_activity_id = $comTimelineMatchedByActivity
     com_timeline_missing_call_trace_id = $comTimelineMissingCallTrace
+    com_timeline_missing_activity_id = $comTimelineMissingActivity
     com_activations_succeeded = $activationCount
     com_activation_failures = @($activationFailures.ToArray())
     checksum = "CRC32 valid"
@@ -325,7 +338,10 @@ Write-Host "Distinct event types: $($report.left.event_types)"
 Write-Host "COM Performance events: $comEventCount"
 Write-Host "Identity values reported: $identityValueCount"
 Write-Host "COM start/stop pairs matched: $comTimelineMatched"
+Write-Host "Matched by CallTraceId: $comTimelineMatchedByCallTrace"
+Write-Host "Matched by ActivityId: $comTimelineMatchedByActivity"
 Write-Host "COM events missing CallTraceId: $comTimelineMissingCallTrace"
+Write-Host "COM events missing ActivityId: $comTimelineMissingActivity"
 Write-Host "CTRA checksum: CRC32 valid"
 Write-Host "ETL and CTRA comparison: identical"
 Write-Host "Validation summary: $summaryPath"
