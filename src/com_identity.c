@@ -222,3 +222,56 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
 
     return status;
 }
+
+COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
+    const EVENT_RECORD *event_record,
+    COMTRACE_ACTIVITY_IDS *activity_ids
+)
+{
+    static const GUID empty_guid = { 0 };
+    COMTRACE_ACTIVITY_IDS result;
+    USHORT index;
+
+    if (event_record == NULL || activity_ids == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    ZeroMemory(&result, sizeof(result));
+
+    if (memcmp(
+            &event_record->EventHeader.ActivityId,
+            &empty_guid,
+            sizeof(empty_guid)
+        ) != 0) {
+        result.activity_id = event_record->EventHeader.ActivityId;
+        result.has_activity_id = TRUE;
+    }
+
+    if (event_record->ExtendedDataCount != 0U &&
+        event_record->ExtendedData == NULL) {
+        return COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+    }
+
+    for (index = 0U; index < event_record->ExtendedDataCount; ++index) {
+        const EVENT_HEADER_EXTENDED_DATA_ITEM *item =
+            &event_record->ExtendedData[index];
+        const EVENT_EXTENDED_ITEM_RELATED_ACTIVITYID *related;
+
+        if (item->ExtType != EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID) {
+            continue;
+        }
+
+        if (item->DataSize < sizeof(EVENT_EXTENDED_ITEM_RELATED_ACTIVITYID) ||
+            item->DataPtr == 0ULL) {
+            return COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+        }
+
+        related = (const EVENT_EXTENDED_ITEM_RELATED_ACTIVITYID *)(ULONG_PTR)item->DataPtr;
+        result.related_activity_id = related->RelatedActivityId;
+        result.has_related_activity_id = TRUE;
+        break;
+    }
+
+    CopyMemory(activity_ids, &result, sizeof(result));
+    return COMTRACE_IDENTITY_SUCCESS;
+}
