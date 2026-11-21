@@ -37,47 +37,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          $ErrorActionPreference = 'Stop'
           $configurationDir = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release'
-          $exe = Join-Path $configurationDir 'ComTrace.exe'
-          $archiveExe = Join-Path $configurationDir 'ComTraceArchive.exe'
-          if (-not (Test-Path $exe)) { throw "Release executable not found: $exe" }
-          if (-not (Test-Path $archiveExe)) { throw "Archive executable not found: $archiveExe" }
-
-          $stage = Join-Path $env:RUNNER_TEMP 'ComTrace-release'
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item $exe, $archiveExe, 'README.md', 'LICENSE' -Destination $stage
-          Copy-Item -Path 'docs', 'scripts' -Destination $stage -Recurse
-
-          $zipName = "ComTrace-$env:RELEASE_TAG-win-x64.zip"
-          $zipPath = Join-Path $env:GITHUB_WORKSPACE $zipName
-          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal
-
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $package = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-          try {
-            $entries = @($package.Entries | ForEach-Object { $_.FullName })
-            foreach ($requiredEntry in @('docs/REAL_TRACE_VALIDATION.md', 'docs/CTRA_FORMAT.md', 'docs/COMPARISON_JSON.md', 'scripts/validate-real-trace.ps1')) {
-              if ($entries -notcontains $requiredEntry) {
-                throw "Release package is missing $requiredEntry"
-              }
-            }
-          }
-          finally {
-            $package.Dispose()
-          }
-
-          $exeAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTrace.exe'
-          $archiveAsset = Join-Path $env:GITHUB_WORKSPACE 'ComTraceArchive.exe'
-          Copy-Item $exe $exeAsset
-          Copy-Item $archiveExe $archiveAsset
-
-          $checksumLines = @()
-          foreach ($file in @($zipPath, $exeAsset, $archiveAsset)) {
-            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            $checksumLines += "$hash  $(Split-Path $file -Leaf)"
-          }
-          $checksumLines | Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE 'SHA256SUMS.txt') -Encoding ascii
+          $packageScript = Join-Path $env:GITHUB_WORKSPACE 'scripts/package-release.ps1'
+          & $packageScript -ConfigurationDirectory $configurationDir -ReleaseTag $env:RELEASE_TAG -OutputDirectory $env:GITHUB_WORKSPACE
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
