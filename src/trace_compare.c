@@ -918,6 +918,8 @@ static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
 
 typedef struct {
     ULONGLONG matched;
+    ULONGLONG matched_by_activity_id;
+    ULONGLONG matched_by_process_thread;
     ULONGLONG incomplete;
     ULONGLONG unmatched;
     ULONGLONG activity_sequences;
@@ -939,6 +941,11 @@ static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
 
         if (record->has_start && record->has_stop) {
             ++counts.matched;
+            if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID) {
+                ++counts.matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
+                ++counts.matched_by_process_thread;
+            }
         } else if (record->has_start) {
             ++counts.incomplete;
         } else if (record->has_stop) {
@@ -1056,13 +1063,17 @@ void comtrace_trace_comparison_write_text(
     );
 
     wprintf(
-        L"OLE Timeline: left matched=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu; right matched=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu\n",
+        L"OLE Timeline: left matched=%llu by_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu; right matched=%llu by_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu\n",
         (unsigned long long)left_ole_timeline.matched,
+        (unsigned long long)left_ole_timeline.matched_by_activity_id,
+        (unsigned long long)left_ole_timeline.matched_by_process_thread,
         (unsigned long long)left_ole_timeline.incomplete,
         (unsigned long long)left_ole_timeline.unmatched,
         (unsigned long long)left_ole_timeline.activity_sequences,
         (unsigned long long)left_ole_timeline.missing_activity_ids,
         (unsigned long long)right_ole_timeline.matched,
+        (unsigned long long)right_ole_timeline.matched_by_activity_id,
+        (unsigned long long)right_ole_timeline.matched_by_process_thread,
         (unsigned long long)right_ole_timeline.incomplete,
         (unsigned long long)right_ole_timeline.unmatched,
         (unsigned long long)right_ole_timeline.activity_sequences,
@@ -1191,8 +1202,8 @@ void comtrace_trace_comparison_write_json(
         L"  \"timeline_summary\": {"
         L"\"left_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
         L"\"right_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
-        L"\"left_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}, "
-        L"\"right_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}},\n",
+        L"\"left_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}, "
+        L"\"right_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}},\n",
         (unsigned long long)left_com.matched,
         (unsigned long long)left_com.matched_by_call_trace_id,
         (unsigned long long)left_com.matched_by_activity_id,
@@ -1210,11 +1221,15 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)right_com.missing_activity_ids,
         (unsigned long long)right_com.failed,
         (unsigned long long)left_ole.matched,
+        (unsigned long long)left_ole.matched_by_activity_id,
+        (unsigned long long)left_ole.matched_by_process_thread,
         (unsigned long long)left_ole.incomplete,
         (unsigned long long)left_ole.unmatched,
         (unsigned long long)left_ole.activity_sequences,
         (unsigned long long)left_ole.missing_activity_ids,
         (unsigned long long)right_ole.matched,
+        (unsigned long long)right_ole.matched_by_activity_id,
+        (unsigned long long)right_ole.matched_by_process_thread,
         (unsigned long long)right_ole.incomplete,
         (unsigned long long)right_ole.unmatched,
         (unsigned long long)right_ole.activity_sequences,
