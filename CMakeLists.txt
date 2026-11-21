@@ -23,6 +23,7 @@ add_executable(ComTrace
     src/com_identity.c
     src/com_timeline.c
     src/relationship_graph.c
+    src/ole_timeline.c
 )
 
 target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
@@ -108,6 +109,20 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_relationship_graph COMMAND ComTraceRelationshipGraphTests)
+
+    add_executable(ComTraceOleTimelineTests
+        tests/test_ole_timeline.c
+        src/ole_timeline.c
+    )
+    target_include_directories(ComTraceOleTimelineTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceOleTimelineTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceOleTimelineTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_ole_timeline COMMAND ComTraceOleTimelineTests)
 
     add_executable(ComTraceComIdentityTests
         tests/test_com_identity.c
