@@ -302,6 +302,14 @@ $oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
 $oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
 $oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
 $oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
+$olePayloadPropertyCount = [regex]::Matches(
+    $oleSearchOutput,
+    "(?im)^\s*property\[\d+\] name="
+).Count
+$oleDataObjectPropertyCount = [regex]::Matches(
+    $oleSearchOutput,
+    "(?im)^\s*property\[\d+\] name=[^\r\n]*DataObject"
+).Count
 
 if ($oleEventCount -eq 0 -or $oleClipboardOperations -eq 0 -or $oleTimelineMatched -eq 0) {
     throw "OLE validation requires OLE events, clipboard operations, and a matched start/stop pair. Review $oleSearchPath"
@@ -390,6 +398,8 @@ $summary = [ordered]@{
     ole_timeline_matched_by_activity_id = $oleTimelineMatchedByActivity
     ole_timeline_matched_by_process_thread = $oleTimelineMatchedByProcessThread
     ole_timeline_missing_activity_id = $oleTimelineMissingActivity
+    ole_payload_properties_reported = $olePayloadPropertyCount
+    ole_data_object_properties_reported = $oleDataObjectPropertyCount
     identity_values_reported = $identityValueCount
     com_timeline_matched = $comTimelineMatched
     com_timeline_matched_by_call_trace_id = $comTimelineMatchedByCallTrace
@@ -423,6 +433,8 @@ Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
 Write-Host "OLE pairs matched by ActivityId: $oleTimelineMatchedByActivity"
 Write-Host "OLE pairs matched by process/thread/operation: $oleTimelineMatchedByProcessThread"
 Write-Host "OLE events missing ActivityId: $oleTimelineMissingActivity"
+Write-Host "OLE payload properties reported by TDH: $olePayloadPropertyCount"
+Write-Host "OLE properties named DataObject: $oleDataObjectPropertyCount"
 Write-Host "Identity values reported: $identityValueCount"
 Write-Host "COM start/stop pairs matched: $comTimelineMatched"
 Write-Host "Matched by CallTraceId: $comTimelineMatchedByCallTrace"
