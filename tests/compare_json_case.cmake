@@ -119,8 +119,28 @@ endif()
 string(JSON object_change_count LENGTH "${output}" object_changes)
 string(JSON left_timeline_count LENGTH "${output}" timeline left)
 string(JSON right_timeline_count LENGTH "${output}" timeline right)
+string(JSON left_com_matched GET "${output}" timeline_summary left_com matched)
+string(JSON left_com_call_trace_matches GET "${output}" timeline_summary left_com matched_by_call_trace_id)
+string(JSON left_com_activity_matches GET "${output}" timeline_summary left_com matched_by_activity_id)
+string(JSON left_com_missing_call_trace GET "${output}" timeline_summary left_com missing_call_trace_ids)
+string(JSON left_com_missing_activity GET "${output}" timeline_summary left_com missing_activity_ids)
+string(JSON right_com_matched GET "${output}" timeline_summary right_com matched)
+string(JSON right_com_call_trace_matches GET "${output}" timeline_summary right_com matched_by_call_trace_id)
+string(JSON right_com_activity_matches GET "${output}" timeline_summary right_com matched_by_activity_id)
+string(JSON right_com_missing_call_trace GET "${output}" timeline_summary right_com missing_call_trace_ids)
+string(JSON right_com_missing_activity GET "${output}" timeline_summary right_com missing_activity_ids)
 if(NOT object_change_count EQUAL 0 OR
    NOT left_timeline_count EQUAL 0 OR
-   NOT right_timeline_count EQUAL 0)
+   NOT right_timeline_count EQUAL 0 OR
+   NOT left_com_matched EQUAL 0 OR
+   NOT left_com_call_trace_matches EQUAL 0 OR
+   NOT left_com_activity_matches EQUAL 0 OR
+   NOT left_com_missing_call_trace EQUAL 0 OR
+   NOT left_com_missing_activity EQUAL 0 OR
+   NOT right_com_matched EQUAL 0 OR
+   NOT right_com_call_trace_matches EQUAL 0 OR
+   NOT right_com_activity_matches EQUAL 0 OR
+   NOT right_com_missing_call_trace EQUAL 0 OR
+   NOT right_com_missing_activity EQUAL 0)
     message(FATAL_ERROR "JSON object or timeline sections are incorrect.")
 endif()
