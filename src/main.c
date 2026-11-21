@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <tdh.h>
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "etw_capture.h"
@@ -38,7 +39,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--com | --ole] [--max-events <n>]]\n",
         program_name
     );
 }
@@ -223,6 +224,212 @@ static int list_providers(void)
     return EXIT_SUCCESS;
 }
 
+static int parse_decimal_value(
+    const wchar_t *text,
+    ULONG maximum,
+    ULONG *value
+)
+{
+    const wchar_t *cursor;
+    wchar_t *end = NULL;
+    unsigned long parsed;
+
+    if (text == NULL || text[0] == L'\0' || value == NULL) {
+        return 0;
+    }
+
+    for (cursor = text; *cursor != L'\0'; ++cursor) {
+        if (*cursor < L'0' || *cursor > L'9') {
+            return 0;
+        }
+    }
+
+    errno = 0;
+    parsed = wcstoul(text, &end, 10);
+    if (errno == ERANGE || end == text || end == NULL ||
+        *end != L'\0' || parsed > maximum) {
+        return 0;
+    }
+
+    *value = (ULONG)parsed;
+    return 1;
+}
+
+static int parse_hex_digit(wchar_t character)
+{
+    if (character >= L'0' && character <= L'9') {
+        return (int)(character - L'0');
+    }
+    if (character >= L'a' && character <= L'f') {
+        return (int)(character - L'a') + 10;
+    }
+    if (character >= L'A' && character <= L'F') {
+        return (int)(character - L'A') + 10;
+    }
+    return -1;
+}
+
+static int parse_hex_part(
+    const wchar_t *text,
+    size_t length,
+    ULONGLONG *value
+)
+{
+    size_t index;
+    ULONGLONG parsed = 0ULL;
+
+    if (text == NULL || value == NULL || length == 0U || length > 16U) {
+        return 0;
+    }
+
+    for (index = 0U; index < length; ++index) {
+        int digit = parse_hex_digit(text[index]);
+        if (digit < 0) {
+            return 0;
+        }
+        parsed = (parsed << 4U) | (ULONGLONG)digit;
+    }
+
+    *value = parsed;
+    return 1;
+}
+
+static int parse_guid_filter(const wchar_t *text, GUID *guid)
+{
+    size_t length;
+    size_t start = 0U;
+    ULONGLONG value;
+    size_t index;
+
+    if (text == NULL || guid == NULL) {
+        return 0;
+    }
+
+    length = wcslen(text);
+    if (length == 38U && text[0] == L'{' && text[37] == L'}') {
+        start = 1U;
+    } else if (length != 36U) {
+        return 0;
+    }
+
+    if (text[start + 8U] != L'-' ||
+        text[start + 13U] != L'-' ||
+        text[start + 18U] != L'-' ||
+        text[start + 23U] != L'-') {
+        return 0;
+    }
+
+    if (!parse_hex_part(text + start, 8U, &value)) {
+        return 0;
+    }
+    guid->Data1 = (ULONG)value;
+
+    if (!parse_hex_part(text + start + 9U, 4U, &value)) {
+        return 0;
+    }
+    guid->Data2 = (USHORT)value;
+
+    if (!parse_hex_part(text + start + 14U, 4U, &value)) {
+        return 0;
+    }
+    guid->Data3 = (USHORT)value;
+
+    if (!parse_hex_part(text + start + 19U, 2U, &value)) {
+        return 0;
+    }
+    guid->Data4[0] = (BYTE)value;
+
+    if (!parse_hex_part(text + start + 21U, 2U, &value)) {
+        return 0;
+    }
+    guid->Data4[1] = (BYTE)value;
+
+    for (index = 0U; index < 6U; ++index) {
+        if (!parse_hex_part(text + start + 24U + (index * 2U), 2U, &value)) {
+            return 0;
+        }
+        guid->Data4[index + 2U] = (BYTE)value;
+    }
+
+    return 1;
+}
+
+static int run_etl_search(int argc, wchar_t **argv)
+{
+    COMTRACE_ETL_FILTERS filters;
+    int index;
+
+    ZeroMemory(&filters, sizeof(filters));
+    filters.sample_limit = 100U;
+
+    for (index = 3; index < argc; ++index) {
+        const wchar_t *option = argv[index];
+        ULONG value;
+
+        if (wcscmp(option, L"--com") == 0) {
+            filters.com_only = TRUE;
+        } else if (wcscmp(option, L"--ole") == 0) {
+            filters.ole_only = TRUE;
+        } else if (wcscmp(option, L"--provider") == 0 ||
+                   wcscmp(option, L"--event-id") == 0 ||
+                   wcscmp(option, L"--pid") == 0 ||
+                   wcscmp(option, L"--tid") == 0 ||
+                   wcscmp(option, L"--max-events") == 0) {
+            const wchar_t *argument;
+
+            if (index + 1 >= argc) {
+                fwprintf(stderr, L"Missing value for %ls.\n", option);
+                return EXIT_FAILURE;
+            }
+
+            argument = argv[++index];
+
+            if (wcscmp(option, L"--provider") == 0) {
+                if (!parse_guid_filter(argument, &filters.provider_id)) {
+                    fwprintf(stderr, L"Invalid provider GUID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_provider_id = TRUE;
+            } else if (wcscmp(option, L"--event-id") == 0) {
+                if (!parse_decimal_value(argument, 65535UL, &value)) {
+                    fwprintf(stderr, L"Invalid event ID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.event_id = (USHORT)value;
+                filters.has_event_id = TRUE;
+            } else if (wcscmp(option, L"--pid") == 0) {
+                if (!parse_decimal_value(argument, MAXULONG, &filters.process_id)) {
+                    fwprintf(stderr, L"Invalid process ID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_process_id = TRUE;
+            } else if (wcscmp(option, L"--tid") == 0) {
+                if (!parse_decimal_value(argument, MAXULONG, &filters.thread_id)) {
+                    fwprintf(stderr, L"Invalid thread ID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_thread_id = TRUE;
+            } else {
+                if (!parse_decimal_value(argument, 10000UL, &filters.sample_limit) ||
+                    filters.sample_limit == 0U) {
+                    fwprintf(stderr, L"Invalid max-events value. Use 1 to 10000.\n");
+                    return EXIT_FAILURE;
+                }
+            }
+        } else {
+            fwprintf(stderr, L"Unknown search option: %ls\n", option);
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (filters.com_only && filters.ole_only) {
+        fwprintf(stderr, L"Use either --com or --ole, not both.\n");
+        return EXIT_FAILURE;
+    }
+
+    return comtrace_search_etl(argv[2], &filters);
+}
+
 static const wchar_t *trace_compare_status_name(
     COMTRACE_TRACE_COMPARE_STATUS status
 )
@@ -294,6 +501,10 @@ int wmain(int argc, wchar_t **argv)
         wprintf(L"Use --providers to inspect known COM ETW provider registrations.\n");
         wprintf(L"Use --capture <seconds> <output.etl> to record a trace.\n");
         return EXIT_SUCCESS;
+    }
+
+    if (argc >= 3 && wcscmp(argv[1], L"--search") == 0) {
+        return run_etl_search(argc, argv);
     }
 
     if ((argc == 4 || argc == 5) && wcscmp(argv[1], L"--compare") == 0) {
