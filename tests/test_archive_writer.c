@@ -510,7 +510,7 @@ static int test_archive_round_trip(void)
 
         check_condition(
             read_u32(archive + footer_offset + 124U) ==
-                comtrace_archive_checksum(archive, footer_offset),
+                comtrace_archive_checksum(archive, footer_offset + 124U),
             "Footer contains CRC32 of the archive header and records",
             &failures
         );
