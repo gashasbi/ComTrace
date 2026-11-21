@@ -9,6 +9,11 @@ typedef struct {
     LONG references;
 } COMTRACE_TEST_DATA_OBJECT;
 
+typedef struct {
+    IDropSource drop_source_iface;
+    LONG references;
+} COMTRACE_TEST_DROP_SOURCE;
+
 static const IID COMTRACE_IID_IUNKNOWN = {
     0x00000000, 0x0000, 0x0000,
     { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
@@ -19,10 +24,35 @@ static const IID COMTRACE_IID_IDATAOBJECT = {
     { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
 };
 
+static const IID COMTRACE_IID_IDROPSOURCE = {
+    0x00000121, 0x0000, 0x0000,
+    { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
+};
+
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     IDataObject *data_object_iface,
     REFIID interface_id,
     void **result
+);
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
+    IDropSource *drop_source_iface,
+    REFIID interface_id,
+    void **result
+);
+
+static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface);
+static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface);
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_continue(
+    IDropSource *drop_source_iface,
+    BOOL escape_pressed,
+    DWORD key_state
+);
+
+static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
+    IDropSource *drop_source_iface,
+    DWORD effect
 );
 
 static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *data_object_iface);
@@ -97,6 +127,14 @@ static IDataObjectVtbl data_object_vtable = {
     data_object_enum_d_advise
 };
 
+static IDropSourceVtbl drop_source_vtable = {
+    drop_source_query_interface,
+    drop_source_add_ref,
+    drop_source_release,
+    drop_source_query_continue,
+    drop_source_give_feedback
+};
+
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     IDataObject *data_object_iface,
     REFIID interface_id,
@@ -117,6 +155,82 @@ static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     }
 
     return E_NOINTERFACE;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
+    IDropSource *drop_source_iface,
+    REFIID interface_id,
+    void **result
+)
+{
+    if (result == NULL || interface_id == NULL) {
+        return E_POINTER;
+    }
+
+    *result = NULL;
+    if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
+        IsEqualGUID(interface_id, &COMTRACE_IID_IDROPSOURCE)) {
+        *result = drop_source_iface;
+        drop_source_add_ref(drop_source_iface);
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    return (ULONG)InterlockedIncrement(&source->references);
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    LONG references = InterlockedDecrement(&source->references);
+    if (references == 0) {
+        HeapFree(GetProcessHeap(), 0, source);
+    }
+    return (ULONG)references;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_continue(
+    IDropSource *drop_source_iface,
+    BOOL escape_pressed,
+    DWORD key_state
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(escape_pressed);
+    UNREFERENCED_PARAMETER(key_state);
+    return DRAGDROP_S_CANCEL;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
+    IDropSource *drop_source_iface,
+    DWORD effect
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(effect);
+    return DRAGDROP_S_USEDEFAULTCURSORS;
+}
+
+static IDropSource *create_drop_source(void)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)HeapAlloc(
+        GetProcessHeap(),
+        HEAP_ZERO_MEMORY,
+        sizeof(*source)
+    );
+
+    if (source == NULL) {
+        return NULL;
+    }
+
+    source->drop_source_iface.lpVtbl = &drop_source_vtable;
+    source->references = 1;
+    return &source->drop_source_iface;
 }
 
 static ULONG STDMETHODCALLTYPE data_object_add_ref(IDataObject *data_object_iface)
@@ -348,6 +462,8 @@ int main(void)
 {
     IDataObject *data_object = NULL;
     IDataObject *clipboard_object = NULL;
+    IDropSource *drop_source = NULL;
+    DWORD drop_effect = DROPEFFECT_NONE;
     FORMATETC format;
     STGMEDIUM medium;
     HRESULT result;
@@ -407,9 +523,24 @@ int main(void)
         goto cleanup;
     }
 
+    drop_source = create_drop_source();
+    if (drop_source == NULL) {
+        printf("Unable to allocate the OLE drop source.\n");
+        goto cleanup;
+    }
+
+    result = DoDragDrop(data_object, drop_source, DROPEFFECT_COPY, &drop_effect);
+    if (result != DRAGDROP_S_CANCEL) {
+        printf("DoDragDrop returned: 0x%08lx\n", (unsigned long)result);
+        goto cleanup;
+    }
+
     exit_code = 0;
 
 cleanup:
+    if (drop_source != NULL) {
+        drop_source->lpVtbl->Release(drop_source);
+    }
     if (clipboard_object != NULL) {
         clipboard_object->lpVtbl->Release(clipboard_object);
     }
@@ -421,7 +552,7 @@ cleanup:
     OleUninitialize();
 
     if (exit_code == 0) {
-        puts("OLE clipboard activity succeeded.");
+        puts("OLE clipboard and drag-drop activity succeeded.");
     }
 
     return exit_code;
