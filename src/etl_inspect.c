@@ -964,6 +964,7 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
             &operation,
             &phase)) {
         GUID value;
+        ULONG peer_value;
         COMTRACE_IDENTITY_STATUS identity_status;
 
         wprintf(L"  com_event=%ls phase=%ls\n", operation, phase);
@@ -994,6 +995,42 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
             wprintf(L"  com_iid=");
             print_guid(&value);
             wprintf(L"\n");
+        }
+
+        identity_status = comtrace_extract_uint32_property(
+            event_record,
+            L"TargetProcessId",
+            &peer_value
+        );
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_target_pid=%lu\n", (unsigned long)peer_value);
+        }
+
+        identity_status = comtrace_extract_uint32_property(
+            event_record,
+            L"TargetThreadId",
+            &peer_value
+        );
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_target_tid=%lu\n", (unsigned long)peer_value);
+        }
+
+        identity_status = comtrace_extract_uint32_property(
+            event_record,
+            L"SourceProcessId",
+            &peer_value
+        );
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_source_pid=%lu\n", (unsigned long)peer_value);
+        }
+
+        identity_status = comtrace_extract_uint32_property(
+            event_record,
+            L"SourceThreadId",
+            &peer_value
+        );
+        if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
+            wprintf(L"  com_source_tid=%lu\n", (unsigned long)peer_value);
         }
     }
 }
