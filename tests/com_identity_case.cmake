@@ -8,7 +8,7 @@ string(REGEX MATCH "guid=\"\\{[0-9A-Fa-f-]+\\}\"" provider_attribute "${manifest
 if(NOT provider_attribute)
     message(FATAL_ERROR "Identity fixture Provider GUID was not found.")
 endif()
-string(REGEX REPLACE "guid=\"([^"]+)\"" "\\1" COMTRACE_IDENTITY_PROVIDER_GUID "${provider_attribute}")
+string(REGEX REPLACE "guid=\"([^\"]+)\"" "\\1" COMTRACE_IDENTITY_PROVIDER_GUID "${provider_attribute}")
 set(ETL_FILE "${TEST_DIR}/identity_test.etl")
 set(CTRA_FILE "${TEST_DIR}/identity_test.ctra")
 file(REMOVE "${ETL_FILE}" "${CTRA_FILE}")
