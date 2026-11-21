@@ -24,12 +24,16 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     REGHANDLE registration_handle = 0;
-    EVENT_DATA_DESCRIPTOR descriptors[5];
+    EVENT_DATA_DESCRIPTOR descriptors[9];
     USHORT values_count = 2U;
     ULONG first_code = 0x11223344UL;
     USHORT first_status = 0x5566U;
     ULONG second_code = 0x55667788UL;
     USHORT second_status = 0x99AAU;
+    ULONG fixed_first_code = 0xA1B2C3D4UL;
+    USHORT fixed_first_status = 0x1234U;
+    ULONG fixed_second_code = 0x10203040UL;
+    USHORT fixed_second_status = 0x5678U;
     int result = 1;
 
     if (argc != 2) {
@@ -101,7 +105,11 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&descriptors[2], &first_status, sizeof(first_status));
     EventDataDescCreate(&descriptors[3], &second_code, sizeof(second_code));
     EventDataDescCreate(&descriptors[4], &second_status, sizeof(second_status));
-    status = EventWrite(registration_handle, &StructEvent, 5U, descriptors);
+    EventDataDescCreate(&descriptors[5], &fixed_first_code, sizeof(fixed_first_code));
+    EventDataDescCreate(&descriptors[6], &fixed_first_status, sizeof(fixed_first_status));
+    EventDataDescCreate(&descriptors[7], &fixed_second_code, sizeof(fixed_second_code));
+    EventDataDescCreate(&descriptors[8], &fixed_second_status, sizeof(fixed_second_status));
+    status = EventWrite(registration_handle, &StructEvent, 9U, descriptors);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteStructEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
