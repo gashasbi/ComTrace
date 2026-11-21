@@ -24,6 +24,8 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_guid_property(
     GUID candidate;
     COMTRACE_IDENTITY_STATUS result = COMTRACE_IDENTITY_PROPERTY_NOT_FOUND;
 
+    ZeroMemory(&candidate, sizeof(candidate));
+
     if (event_record == NULL ||
         property_name == NULL ||
         property_name[0] == L'\0' ||
