@@ -56,6 +56,7 @@ static int test_drag_drop_operation_pair(void)
         !record->has_stop ||
         !record->has_duration ||
         record->duration_ticks != 600ULL ||
+        record->match_type != COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID ||
         !record->has_activity_id ||
         !record->has_related_activity_id ||
         memcmp(&record->activity_id, &activity_one, sizeof(GUID)) != 0 ||
@@ -155,7 +156,9 @@ static int test_missing_activity_and_invalid_input(void)
             COMTRACE_OLE_TIMELINE_SUCCESS ||
         comtrace_ole_timeline_pending_count(&timeline) != 0U ||
         comtrace_ole_timeline_sequence_count(&timeline) != 0U ||
-        comtrace_ole_timeline_count(&timeline) != 1U) {
+        comtrace_ole_timeline_count(&timeline) != 1U ||
+        comtrace_ole_timeline_get(&timeline, 0U)->match_type !=
+            COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
         comtrace_ole_timeline_destroy(&timeline);
         return 0;
     }
