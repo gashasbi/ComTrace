@@ -23,6 +23,16 @@ static const GUID interface_id = {
     { 0x98, 0xa9, 0xba, 0xcb, 0xdc, 0xed, 0xfe, 0x0f }
 };
 
+static const GUID activity_id = {
+    0x20314253, 0x6475, 0x8697,
+    { 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f }
+};
+
+static const GUID related_activity_id = {
+    0x30415263, 0x7485, 0x96a7,
+    { 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f }
+};
+
 int wmain(int argc, wchar_t **argv)
 {
     TRACEHANDLE session = 0;
@@ -128,7 +138,14 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&data[3], &target_thread_id, (ULONG)sizeof(target_thread_id));
     EventDataDescCreate(&data[4], &not_guid, (ULONG)sizeof(not_guid));
 
-    status = EventWrite(provider, &descriptor, 5U, data);
+    status = EventWriteTransfer(
+        provider,
+        &descriptor,
+        &activity_id,
+        &related_activity_id,
+        5U,
+        data
+    );
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWrite failed: %lu\n", (unsigned long)status);
         goto cleanup;
