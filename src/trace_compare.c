@@ -871,9 +871,13 @@ static const COMTRACE_OPERATION_TIMING *find_operation_timing(
 
 typedef struct {
     ULONGLONG matched;
+    ULONGLONG matched_by_call_trace_id;
+    ULONGLONG matched_by_activity_id;
     ULONGLONG incomplete;
     ULONGLONG unmatched;
     ULONGLONG failed;
+    ULONGLONG missing_call_trace_ids;
+    ULONGLONG missing_activity_ids;
 } COMTRACE_TIMELINE_COUNTS;
 
 static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
@@ -891,6 +895,11 @@ static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
 
         if (record->has_start && record->has_stop) {
             ++counts.matched;
+            if (record->match_type == COMTRACE_TIMELINE_MATCH_CALL_TRACE_ID) {
+                ++counts.matched_by_call_trace_id;
+            } else if (record->match_type == COMTRACE_TIMELINE_MATCH_ACTIVITY_ID) {
+                ++counts.matched_by_activity_id;
+            }
         } else if (record->has_start) {
             ++counts.incomplete;
         } else if (record->has_stop) {
@@ -902,6 +911,8 @@ static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
         }
     }
 
+    counts.missing_call_trace_ids = summary->com_timeline.missing_call_trace_ids;
+    counts.missing_activity_ids = summary->com_timeline.missing_activity_ids;
     return counts;
 }
 
@@ -1025,14 +1036,22 @@ void comtrace_trace_comparison_write_text(
     }
 
     wprintf(
-        L"COM Timeline: left matched=%llu incomplete=%llu unmatched=%llu failed=%llu; right matched=%llu incomplete=%llu unmatched=%llu failed=%llu\n",
+        L"COM Timeline: left matched=%llu by_call_trace_id=%llu by_activity_id=%llu incomplete=%llu unmatched=%llu missing_call_trace_id=%llu missing_activity_id=%llu failed=%llu; right matched=%llu by_call_trace_id=%llu by_activity_id=%llu incomplete=%llu unmatched=%llu missing_call_trace_id=%llu missing_activity_id=%llu failed=%llu\n",
         (unsigned long long)left_timeline.matched,
+        (unsigned long long)left_timeline.matched_by_call_trace_id,
+        (unsigned long long)left_timeline.matched_by_activity_id,
         (unsigned long long)left_timeline.incomplete,
         (unsigned long long)left_timeline.unmatched,
+        (unsigned long long)left_timeline.missing_call_trace_ids,
+        (unsigned long long)left_timeline.missing_activity_ids,
         (unsigned long long)left_timeline.failed,
         (unsigned long long)right_timeline.matched,
+        (unsigned long long)right_timeline.matched_by_call_trace_id,
+        (unsigned long long)right_timeline.matched_by_activity_id,
         (unsigned long long)right_timeline.incomplete,
         (unsigned long long)right_timeline.unmatched,
+        (unsigned long long)right_timeline.missing_call_trace_ids,
+        (unsigned long long)right_timeline.missing_activity_ids,
         (unsigned long long)right_timeline.failed
     );
 
@@ -1170,17 +1189,25 @@ void comtrace_trace_comparison_write_json(
 
     wprintf(
         L"  \"timeline_summary\": {"
-        L"\"left_com\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"failed\": %llu}, "
-        L"\"right_com\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"failed\": %llu}, "
+        L"\"left_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
+        L"\"right_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
         L"\"left_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}, "
         L"\"right_ole\": {\"matched\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}},\n",
         (unsigned long long)left_com.matched,
+        (unsigned long long)left_com.matched_by_call_trace_id,
+        (unsigned long long)left_com.matched_by_activity_id,
         (unsigned long long)left_com.incomplete,
         (unsigned long long)left_com.unmatched,
+        (unsigned long long)left_com.missing_call_trace_ids,
+        (unsigned long long)left_com.missing_activity_ids,
         (unsigned long long)left_com.failed,
         (unsigned long long)right_com.matched,
+        (unsigned long long)right_com.matched_by_call_trace_id,
+        (unsigned long long)right_com.matched_by_activity_id,
         (unsigned long long)right_com.incomplete,
         (unsigned long long)right_com.unmatched,
+        (unsigned long long)right_com.missing_call_trace_ids,
+        (unsigned long long)right_com.missing_activity_ids,
         (unsigned long long)right_com.failed,
         (unsigned long long)left_ole.matched,
         (unsigned long long)left_ole.incomplete,
