@@ -61,6 +61,8 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     COMTRACE_COM_OBJECT_IDENTITY object_identity;
     COMTRACE_ETL_PROPERTY_VALUE decoded_value;
     EVENT_PROPERTY_INFO decoder_property;
+    const wchar_t *parent_names[1];
+    ULONG parent_indices[1];
     COMTRACE_ETL_PROPERTY_READ_STATUS decoder_status;
     COMTRACE_IDENTITY_STATUS status;
 
@@ -162,6 +164,55 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     );
     if (decoder_status != COMTRACE_ETL_PROPERTY_READ_UNSUPPORTED) {
         fwprintf(stderr, L"Raw ETW decoder complex property rejection failed: status=%u\n", (unsigned int)decoder_status);
+        ++context->failures;
+    }
+
+    decoder_property.Flags = 0U;
+    decoder_status = comtrace_etl_read_property_value(
+        event_record,
+        &decoder_property,
+        L"ClassId",
+        NULL,
+        NULL,
+        9U,
+        0xFFFFFFFFUL,
+        &decoded_value
+    );
+    if (decoder_status != COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT) {
+        fwprintf(stderr, L"Raw ETW decoder path depth validation failed: status=%u\n", (unsigned int)decoder_status);
+        ++context->failures;
+    }
+
+    parent_names[0] = L"Parent";
+    parent_indices[0] = 0xFFFFFFFFUL;
+    decoder_status = comtrace_etl_read_property_value(
+        event_record,
+        &decoder_property,
+        L"ClassId",
+        parent_names,
+        NULL,
+        1U,
+        0xFFFFFFFFUL,
+        &decoded_value
+    );
+    if (decoder_status != COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT) {
+        fwprintf(stderr, L"Raw ETW decoder missing path index validation failed: status=%u\n", (unsigned int)decoder_status);
+        ++context->failures;
+    }
+
+    parent_names[0] = NULL;
+    decoder_status = comtrace_etl_read_property_value(
+        event_record,
+        &decoder_property,
+        L"ClassId",
+        parent_names,
+        parent_indices,
+        1U,
+        0xFFFFFFFFUL,
+        &decoded_value
+    );
+    if (decoder_status != COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT) {
+        fwprintf(stderr, L"Raw ETW decoder null path name validation failed: status=%u\n", (unsigned int)decoder_status);
         ++context->failures;
     }
 
