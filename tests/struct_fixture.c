@@ -31,6 +31,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     REGHANDLE registration_handle = 0;
+    GUID nested_provider_id;
     int tracelogging_registered = 0;
     EVENT_DATA_DESCRIPTOR descriptors[9];
     USHORT values_count = 2U;
@@ -130,9 +131,10 @@ int wmain(int argc, wchar_t **argv)
     }
     tracelogging_registered = 1;
 
+    nested_provider_id = TraceLoggingProviderId(g_hNestedProvider);
     status = EnableTraceEx2(
         session,
-        TraceLoggingProviderId(g_hNestedProvider),
+        &nested_provider_id,
         EVENT_CONTROL_CODE_ENABLE_PROVIDER,
         TRACE_LEVEL_VERBOSE,
         0ULL,
