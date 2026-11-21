@@ -606,7 +606,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
 
     object_process_id = identity->has_target_process_id
         ? identity->target_process_id
-        : identity->process_id;
+        : (identity->has_process_id ? identity->process_id : 0U);
 
     if (identity->has_oid && object_process_id != 0U) {
         size_t owner_process_index;
