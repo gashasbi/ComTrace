@@ -103,7 +103,7 @@ static void copy_activity_ids(
     }
 }
 
-static int same_key(
+static COMTRACE_OLE_TIMELINE_MATCH_TYPE get_match_type(
     const COMTRACE_OLE_TIMELINE_RECORD *record,
     const COMTRACE_OLE_TIMELINE_EVENT *event
 )
@@ -115,18 +115,22 @@ static int same_key(
         record->process_id != event->process_id ||
         record->thread_id != event->thread_id ||
         record->has_activity_id != event_has_activity) {
-        return 0;
+        return COMTRACE_OLE_TIMELINE_MATCH_NONE;
     }
 
     if (!record->has_activity_id) {
-        return 1;
+        return COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD;
     }
 
-    return memcmp(
-        &record->activity_id,
-        &event->activity_ids->activity_id,
-        sizeof(GUID)
-    ) == 0;
+    if (memcmp(
+            &record->activity_id,
+            &event->activity_ids->activity_id,
+            sizeof(GUID)
+        ) != 0) {
+        return COMTRACE_OLE_TIMELINE_MATCH_NONE;
+    }
+
+    return COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID;
 }
 
 void comtrace_ole_timeline_init(COMTRACE_OLE_TIMELINE *timeline)
@@ -155,6 +159,7 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
     size_t position;
     size_t record_index;
     COMTRACE_OLE_TIMELINE_RECORD *record;
+    COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
     BOOL has_activity;
 
     if (timeline == NULL ||
@@ -202,10 +207,12 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         record_index = timeline->pending_indices[pending_index];
         record = &timeline->records[record_index];
 
-        if (!same_key(record, event)) {
+        match_type = get_match_type(record, event);
+        if (match_type == COMTRACE_OLE_TIMELINE_MATCH_NONE) {
             continue;
         }
 
+        record->match_type = match_type;
         record->has_stop = TRUE;
         record->stop_timestamp = event->timestamp;
 
