@@ -12,7 +12,9 @@ param(
     [string]$OutputDirectory = (Join-Path (Get-Location).Path "comtrace-validation"),
 
     [ValidateRange(10, 3600)]
-    [int]$CaptureSeconds = 30
+    [int]$CaptureSeconds = 30,
+
+    [switch]$AllowMissingOleEvents
 )
 
 $ErrorActionPreference = "Stop"
@@ -296,6 +298,7 @@ if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
 }
 
 $oleEventCount = [UInt64]::Parse($oleEventMatch.Groups[1].Value)
+$oleValidationStatus = "PASS"
 $oleClipboardOperations = [UInt64]::Parse($oleSummaryMatch.Groups[1].Value)
 $oleDragDropOperations = [UInt64]::Parse($oleSummaryMatch.Groups[2].Value)
 $oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
@@ -311,9 +314,12 @@ $oleDataObjectPropertyCount = [regex]::Matches(
     "(?im)^\s*property\[\d+\] name=[^\r\n]*DataObject"
 ).Count
 
-if ($oleEventCount -eq 0 -or
-    ($oleClipboardOperations -eq 0 -and $oleDragDropOperations -eq 0) -or
-    $oleTimelineMatched -eq 0) {
+if ($oleEventCount -eq 0 -and $AllowMissingOleEvents) {
+    $oleValidationStatus = "NOT_EMITTED"
+    Write-Warning "The OLE-Perf provider emitted no events on this Windows environment. OLE unit tests remain enabled."
+} elseif ($oleEventCount -eq 0 -or
+          ($oleClipboardOperations -eq 0 -and $oleDragDropOperations -eq 0) -or
+          $oleTimelineMatched -eq 0) {
     throw "OLE validation requires at least one clipboard or drag-and-drop operation and a matched start/stop pair. Review $oleSearchPath"
 }
 
@@ -393,6 +399,7 @@ $summary = [ordered]@{
     events = $report.left.events
     event_types = $report.left.event_types
     com_events = $comEventCount
+    ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
     ole_clipboard_operations = $oleClipboardOperations
     ole_drag_drop_operations = $oleDragDropOperations
@@ -428,6 +435,7 @@ Write-Host "Real ETL validation: PASS"
 Write-Host "Events: $($report.left.events)"
 Write-Host "Distinct event types: $($report.left.event_types)"
 Write-Host "COM Performance events: $comEventCount"
+Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
 Write-Host "OLE drag and drop operations: $oleDragDropOperations"
