@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset windows-vs2022-x64
+
+      - name: Build Release
+        run: cmake --build --preset windows-vs2022-x64-release --parallel
+
+      - name: Run tests
+        run: ctest --preset windows-vs2022-x64-release
