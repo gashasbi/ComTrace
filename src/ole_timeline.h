@@ -15,6 +15,12 @@ typedef enum {
     COMTRACE_OLE_TIMELINE_PHASE_STOP
 } COMTRACE_OLE_TIMELINE_PHASE;
 
+typedef enum {
+    COMTRACE_OLE_TIMELINE_MATCH_NONE = 0,
+    COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID,
+    COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD
+} COMTRACE_OLE_TIMELINE_MATCH_TYPE;
+
 typedef struct {
     const wchar_t *operation;
     COMTRACE_OLE_TIMELINE_PHASE phase;
@@ -34,6 +40,7 @@ typedef struct {
     BOOL has_start;
     BOOL has_stop;
     BOOL has_duration;
+    COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
     BOOL has_activity_id;
     GUID activity_id;
     BOOL has_related_activity_id;
