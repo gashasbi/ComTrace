@@ -223,6 +223,34 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
     return status;
 }
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    ULONGLONG *value
+)
+{
+    ULONGLONG candidate;
+    COMTRACE_IDENTITY_STATUS status;
+
+    if (value == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    status = extract_property_value(
+        event_record,
+        property_name,
+        TDH_INTYPE_UINT64,
+        (BYTE *)&candidate,
+        (ULONG)sizeof(candidate)
+    );
+
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = candidate;
+    }
+
+    return status;
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
     const EVENT_RECORD *event_record,
     COMTRACE_ACTIVITY_IDS *activity_ids
@@ -321,4 +349,81 @@ BOOL comtrace_get_process_image_path(
 
     path[path_length] = L'\0';
     return TRUE;
+}
+
+COMTRACE_IDENTITY_STATUS comtrace_extract_com_object_identity(
+    const EVENT_RECORD *event_record,
+    COMTRACE_COM_OBJECT_IDENTITY *identity
+)
+{
+    COMTRACE_COM_OBJECT_IDENTITY result;
+    COMTRACE_IDENTITY_STATUS status;
+
+    if (event_record == NULL || identity == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    ZeroMemory(&result, sizeof(result));
+
+    result.process_id = event_record->EventHeader.ProcessId;
+    result.thread_id = event_record->EventHeader.ThreadId;
+    result.has_process_id = result.process_id != 0U;
+    result.has_thread_id = result.thread_id != 0U;
+
+    status = comtrace_extract_guid_property(event_record, L"ClassId", &result.clsid);
+    if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        status = comtrace_extract_guid_property(event_record, L"CLSID", &result.clsid);
+    }
+    result.has_clsid = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_guid_property(
+        event_record,
+        L"TargetInterface",
+        &result.iid
+    );
+    result.has_iid = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_guid_property(event_record, L"IPID", &result.ipid);
+    result.has_ipid = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint64_property(event_record, L"OID", &result.oid);
+    result.has_oid = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint64_property(
+        event_record,
+        L"CallTraceId",
+        &result.call_trace_id
+    );
+    result.has_call_trace_id = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"TargetProcessId",
+        &result.target_process_id
+    );
+    result.has_target_process_id = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"TargetThreadId",
+        &result.target_thread_id
+    );
+    result.has_target_thread_id = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"SourceProcessId",
+        &result.source_process_id
+    );
+    result.has_source_process_id = status == COMTRACE_IDENTITY_SUCCESS;
+
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"SourceThreadId",
+        &result.source_thread_id
+    );
+    result.has_source_thread_id = status == COMTRACE_IDENTITY_SUCCESS;
+
+    CopyMemory(identity, &result, sizeof(result));
+    return COMTRACE_IDENTITY_SUCCESS;
 }
