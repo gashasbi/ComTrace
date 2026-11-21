@@ -58,7 +58,7 @@ int wmain(int argc, wchar_t **argv)
     path_offset = sizeof(EVENT_TRACE_PROPERTIES) + logger_size;
     properties_size = path_offset + path_size;
 
-    if (properties_size > ULONG_MAX) {
+    if (properties_size > MAXULONG) {
         return 1;
     }
 
@@ -88,13 +88,12 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    status = EventRegisterComTraceIdentityFixture();
+    status = EventRegister(&COMTRACE_IDENTITY_PROVIDER, NULL, NULL, &provider);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventRegister failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
-    provider = (REGHANDLE)1U;
     status = EnableTraceEx2(
         session,
         &COMTRACE_IDENTITY_PROVIDER,
@@ -120,9 +119,9 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
-    EventDataDescCreate(&data[0], (PVOID)&class_id, sizeof(class_id));
-    EventDataDescCreate(&data[1], (PVOID)&interface_id, sizeof(interface_id));
-    EventDataDescCreate(&data[2], &not_guid, sizeof(not_guid));
+    EventDataDescCreate(&data[0], (PVOID)&class_id, (ULONG)sizeof(class_id));
+    EventDataDescCreate(&data[1], (PVOID)&interface_id, (ULONG)sizeof(interface_id));
+    EventDataDescCreate(&data[2], &not_guid, (ULONG)sizeof(not_guid));
 
     status = EventWrite(provider, &descriptor, 3U, data);
     if (status != ERROR_SUCCESS) {
@@ -134,7 +133,7 @@ int wmain(int argc, wchar_t **argv)
 
 cleanup:
     if (provider != 0) {
-        EventUnregister(provider);
+            (void)EventUnregister(provider);
     }
 
     if (session != 0) {
