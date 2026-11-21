@@ -272,7 +272,7 @@ $comTimelineMatchedByProcessThread = [UInt64]::Parse($matchedByProcessThread.Gro
 $comTimelineMissingCallTrace = [UInt64]::Parse($missingCallTrace.Groups[1].Value)
 $comTimelineMissingActivity = [UInt64]::Parse($missingActivity.Groups[1].Value)
 if ($comTimelineMatched -eq 0) {
-    throw "No COM start/stop pairs were matched. Review CallTraceId and ActivityId data in $searchPath"
+    throw "No COM start/stop pairs were matched. Review CallTraceId, ActivityId, and process/thread/operation data in $searchPath"
 }
 
 $comMatchTotal = $comTimelineMatchedByCallTrace +
