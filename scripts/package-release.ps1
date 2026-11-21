@@ -19,8 +19,9 @@ $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
 $exe = Join-Path $configurationDirectory "ComTrace.exe"
 $archiveExe = Join-Path $configurationDirectory "ComTraceArchive.exe"
+$oleFixtureExe = Join-Path $configurationDirectory "ComTraceOleActivityFixture.exe"
 
-foreach ($file in @($exe, $archiveExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE"))) {
+foreach ($file in @($exe, $archiveExe, $oleFixtureExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE"))) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
         throw "Required release file not found: $file"
     }
@@ -37,11 +38,12 @@ $zipName = "ComTrace-$ReleaseTag-win-x64.zip"
 $zipPath = Join-Path $OutputDirectory $zipName
 $exeAsset = Join-Path $OutputDirectory "ComTrace.exe"
 $archiveAsset = Join-Path $OutputDirectory "ComTraceArchive.exe"
+$oleFixtureAsset = Join-Path $OutputDirectory "ComTraceOleActivityFixture.exe"
 $checksumPath = Join-Path $OutputDirectory "SHA256SUMS.txt"
 
 try {
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
-    Copy-Item -Path @($exe, $archiveExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE")) -Destination $stage
+    Copy-Item -Path @($exe, $archiveExe, $oleFixtureExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE")) -Destination $stage
     Copy-Item -Path @((Join-Path $repositoryRoot "docs"), (Join-Path $repositoryRoot "scripts")) -Destination $stage -Recurse
 
     if (Test-Path -LiteralPath $zipPath) {
@@ -55,7 +57,7 @@ try {
 
     try {
         $entries = @($package.Entries | ForEach-Object { $_.FullName })
-        foreach ($requiredEntry in @("docs/REAL_TRACE_VALIDATION.md", "docs/CTRA_FORMAT.md", "docs/COMPARISON_JSON.md", "scripts/validate-real-trace.ps1")) {
+        foreach ($requiredEntry in @("ComTraceOleActivityFixture.exe", "docs/REAL_TRACE_VALIDATION.md", "docs/CTRA_FORMAT.md", "docs/COMPARISON_JSON.md", "scripts/validate-real-trace.ps1")) {
             if ($entries -notcontains $requiredEntry) {
                 throw "Release package is missing $requiredEntry"
             }
@@ -67,9 +69,10 @@ try {
 
     Copy-Item -LiteralPath $exe -Destination $exeAsset -Force
     Copy-Item -LiteralPath $archiveExe -Destination $archiveAsset -Force
+    Copy-Item -LiteralPath $oleFixtureExe -Destination $oleFixtureAsset -Force
 
     $checksumLines = @()
-    foreach ($file in @($zipPath, $exeAsset, $archiveAsset)) {
+    foreach ($file in @($zipPath, $exeAsset, $archiveAsset, $oleFixtureAsset)) {
         $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
         $checksumLines += "$hash  $(Split-Path -Path $file -Leaf)"
     }
