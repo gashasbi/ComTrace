@@ -163,7 +163,7 @@ static void print_event_property_value_element(
 
     ZeroMemory(&decoded_value, sizeof(decoded_value));
 
-    display_name[0] = L'\\0';
+    display_name[0] = L'\0';
     for (path_index = 0U; path_index < parent_count; ++path_index) {
         if (path_index != 0U) {
             wcsncat_s(display_name, _countof(display_name), L".", _TRUNCATE);
@@ -684,7 +684,7 @@ static void print_event_property_value(
                 }
                 member_name = (const wchar_t *)(buffer + name_offset);
                 remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-                while (name_length < remaining && member_name[name_length] != L'\\0') {
+                while (name_length < remaining && member_name[name_length] != L'\0') {
                     ++name_length;
                 }
                 if (name_length == remaining) {
