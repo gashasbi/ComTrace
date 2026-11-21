@@ -1076,6 +1076,8 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     size_t count;
     size_t index;
     ULONGLONG matched = 0ULL;
+    ULONGLONG matched_by_call_trace_id = 0ULL;
+    ULONGLONG matched_by_activity_id = 0ULL;
     ULONGLONG incomplete_starts = 0ULL;
     ULONGLONG unmatched_stops = 0ULL;
     ULONGLONG failed_operations = 0ULL;
@@ -1096,6 +1098,11 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
 
         if (record->has_start && record->has_stop) {
             ++matched;
+            if (record->match_type == COMTRACE_TIMELINE_MATCH_CALL_TRACE_ID) {
+                ++matched_by_call_trace_id;
+            } else if (record->match_type == COMTRACE_TIMELINE_MATCH_ACTIVITY_ID) {
+                ++matched_by_activity_id;
+            }
         } else if (record->has_start) {
             ++incomplete_starts;
         } else if (record->has_stop) {
@@ -1110,11 +1117,23 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     wprintf(L"\nCOM timeline summary\n");
     wprintf(L"Operations tracked: %llu\n", (unsigned long long)count);
     wprintf(L"Matched start/stop: %llu\n", (unsigned long long)matched);
+    wprintf(
+        L"Matched by CallTraceId: %llu\n",
+        (unsigned long long)matched_by_call_trace_id
+    );
+    wprintf(
+        L"Matched by ActivityId: %llu\n",
+        (unsigned long long)matched_by_activity_id
+    );
     wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete_starts);
     wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched_stops);
     wprintf(
         L"Missing CallTraceId: %llu\n",
         (unsigned long long)context->timeline.missing_call_trace_ids
+    );
+    wprintf(
+        L"Missing ActivityId: %llu\n",
+        (unsigned long long)context->timeline.missing_activity_ids
     );
     wprintf(L"Failed operations: %llu\n", (unsigned long long)failed_operations);
 
