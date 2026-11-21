@@ -162,6 +162,48 @@ elseif(CASE STREQUAL "inspect_invalid_file")
         message(FATAL_ERROR "Invalid-archive diagnostic is incorrect: ${combined}")
     endif()
 
+elseif(CASE STREQUAL "inspect_valid")
+    if(NOT DEFINED COMTRACE_ARCHIVE_FIXTURE_EXE OR NOT EXISTS "${COMTRACE_ARCHIVE_FIXTURE_EXE}")
+        message(FATAL_ERROR "Archive fixture executable is unavailable.")
+    endif()
+
+    set(input "${TEST_DIR}/inspect-valid.ctra")
+    file(REMOVE "${input}")
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_FIXTURE_EXE}" "${input}"
+        RESULT_VARIABLE fixture_result
+        OUTPUT_VARIABLE fixture_output
+        ERROR_VARIABLE fixture_error
+        TIMEOUT 30
+    )
+
+    if(NOT "${fixture_result}" STREQUAL "0")
+        message(FATAL_ERROR "Archive fixture creation failed: ${fixture_output}${fixture_error}")
+    endif()
+
+    execute_process(
+        COMMAND "${COMTRACE_ARCHIVE_EXE}" --inspect "${input}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+        TIMEOUT 30
+    )
+
+    string(CONCAT combined "${output}" "${error}")
+
+    if(NOT "${result}" STREQUAL "0")
+        message(FATAL_ERROR "Archive inspection failed: ${combined}")
+    endif()
+
+    if(NOT combined MATCHES "Archive validation: PASS")
+        message(FATAL_ERROR "Archive validation result is missing: ${combined}")
+    endif()
+
+    if(NOT combined MATCHES "Checksum: CRC32 valid")
+        message(FATAL_ERROR "Valid archive checksum is not reported: ${combined}")
+    endif()
+
 elseif(CASE STREQUAL "recover_valid")
     if(NOT DEFINED COMTRACE_ARCHIVE_FIXTURE_EXE OR NOT EXISTS "${COMTRACE_ARCHIVE_FIXTURE_EXE}")
         message(FATAL_ERROR "Archive fixture executable is unavailable.")
