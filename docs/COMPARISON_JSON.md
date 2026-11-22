@@ -81,7 +81,7 @@ The `changed_fields` bits are:
 | `0x2` | IID set changed |
 | `0x4` | IPID set changed |
 
-Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes.
+Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. Because the currently mapped COM events do not provide a verified object-release signal, re-use of the same OID within one process cannot yet be separated into distinct object generations; matching remains scoped to process ID and OID.
 
 ## Timeline summaries
 
