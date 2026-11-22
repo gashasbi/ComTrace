@@ -73,7 +73,9 @@ void comtrace_dde_conversation_closed(
 
 ULONGLONG comtrace_dde_transaction_started(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_client,
     ULONG dde_transaction_id,
     ULONG transaction_type,
     ULONG format,
@@ -98,8 +100,10 @@ ULONGLONG comtrace_dde_transaction_started(
         TraceLoggingLevel(WINEVENT_LEVEL_INFO),
         TraceLoggingKeyword(0x1ULL),
         TraceLoggingUInt64(conversation_id, "ConversationId"),
+        TraceLoggingUInt64(conversation_correlation_id, "ConversationCorrelationId"),
         TraceLoggingUInt64((ULONGLONG)transaction_instance_id, "TransactionInstanceId"),
         TraceLoggingUInt64(transaction_correlation_id, "TransactionCorrelationId"),
+        TraceLoggingBool(is_client, "IsClient"),
         TraceLoggingUInt32(dde_transaction_id, "DdeTransactionId"),
         TraceLoggingUInt32(transaction_type, "TransactionType"),
         TraceLoggingUInt32(format, "Format"),
@@ -112,8 +116,10 @@ ULONGLONG comtrace_dde_transaction_started(
 
 void comtrace_dde_transaction_completed(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_instance_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_client,
     ULONG dde_transaction_id,
     ULONG result,
     ULONG data_size,
@@ -130,8 +136,10 @@ void comtrace_dde_transaction_completed(
         TraceLoggingLevel(WINEVENT_LEVEL_INFO),
         TraceLoggingKeyword(0x1ULL),
         TraceLoggingUInt64(conversation_id, "ConversationId"),
+        TraceLoggingUInt64(conversation_correlation_id, "ConversationCorrelationId"),
         TraceLoggingUInt64(transaction_instance_id, "TransactionInstanceId"),
         TraceLoggingUInt64(transaction_correlation_id, "TransactionCorrelationId"),
+        TraceLoggingBool(is_client, "IsClient"),
         TraceLoggingUInt32(dde_transaction_id, "DdeTransactionId"),
         TraceLoggingUInt32(result, "Result"),
         TraceLoggingUInt32(data_size, "DataSize"),
@@ -141,7 +149,9 @@ void comtrace_dde_transaction_completed(
 
 void comtrace_dde_callback_received(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_server_callback,
     ULONG transaction_type,
     ULONG format,
     const wchar_t *item,
@@ -158,7 +168,9 @@ void comtrace_dde_callback_received(
         TraceLoggingLevel(WINEVENT_LEVEL_INFO),
         TraceLoggingKeyword(0x1ULL),
         TraceLoggingUInt64(conversation_id, "ConversationId"),
+        TraceLoggingUInt64(conversation_correlation_id, "ConversationCorrelationId"),
         TraceLoggingUInt64(transaction_correlation_id, "TransactionCorrelationId"),
+        TraceLoggingBool(is_server_callback, "IsServerCallback"),
         TraceLoggingUInt32(transaction_type, "TransactionType"),
         TraceLoggingUInt32(format, "Format"),
         TraceLoggingWideString(item != NULL ? item : L"", "Item"),
