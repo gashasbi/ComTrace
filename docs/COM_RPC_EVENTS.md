@@ -73,7 +73,7 @@ The RPC provider produced 911 records, and the updated classifier recognized all
 - 15 FunctionTrace starts and 17 FunctionTrace stops
 - 2 FunctionTraceStart16 records
 
-The differing client/server start and stop counts are intentionally kept as independent observations; ComTrace does not pair client and server records based on counts or timing. The trace exposed 17 distinct `InterfaceUuid` values in RPC start records.
+The differing client/server start and stop counts are intentionally kept as independent observations; ComTrace does not pair client and server records based on counts or timing. The client and server call-start records each exposed 18 distinct `InterfaceUuid` values. FunctionTrace start/stop records also carry their own `InterfaceUuid`/`TypeMgrUuid` payload fields and are reported separately.
 
 RPCSS produced two records, both `InterfaceUnregister` (event ID 3); no `InterfaceRegister` record was emitted in this capture. Both records had distinct `InterfaceUUID` values, `ObjectUUID` equal to the all-zero GUID, and protocol `ncalrpc`. These values describe RPC endpoint registration metadata and do not identify a COM OID or an object release.
 
