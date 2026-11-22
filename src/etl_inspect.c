@@ -1223,6 +1223,26 @@ static void print_event_property_value(
         0xFFFFFFFFUL
     );
 
+    if (parent_count != 0U && (flags & PropertyStruct) == 0U) {
+        USHORT input_type =
+            (flags & PropertyHasCustomSchema) != 0U
+                ? property->customSchemaType.InType
+                : property->nonStructType.InType;
+        USHORT output_type =
+            (flags & PropertyHasCustomSchema) != 0U
+                ? property->customSchemaType.OutType
+                : property->nonStructType.OutType;
+
+        wprintf(
+            L"  property_type name=%ls in_type=%u in_type_name=%ls out_type=%u out_type_name=%ls\\n",
+            display_name,
+            (unsigned int)input_type,
+            comtrace_etl_input_type_name(input_type),
+            (unsigned int)output_type,
+            comtrace_etl_output_type_name(output_type)
+        );
+    }
+
     if ((flags & PropertyStruct) != 0U) {
         ULONG member_start = property->structType.StructStartIndex;
         ULONG member_count = property->structType.NumOfStructMembers;
