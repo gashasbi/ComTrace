@@ -15,10 +15,8 @@ static int metadata_string_is_valid(
     ULONG index;
     const wchar_t *value;
 
-    if (offset == 0U) {
-        return 1;
-    }
-    if (offset < property_end ||
+    if (offset == 0U ||
+        offset < property_end ||
         offset >= buffer_size ||
         (offset % (ULONG)sizeof(wchar_t)) != 0U) {
         return 0;
