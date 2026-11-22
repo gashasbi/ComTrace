@@ -420,6 +420,41 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         ++context->failures;
     }
 
+    string_value[0] = L'X';
+    status = comtrace_extract_string_property(
+        event_record,
+        L"MissingName",
+        string_value,
+        _countof(string_value)
+    );
+    if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND ||
+        string_value[0] != L'\\0') {
+        fwprintf(stderr, L"Missing identity string handling failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_string_property(
+        event_record,
+        L"NotGuid",
+        string_value,
+        _countof(string_value)
+    );
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        fwprintf(stderr, L"Non-string identity property rejection failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_string_property(
+        event_record,
+        L"DisplayName",
+        string_value,
+        2U
+    );
+    if (status != COMTRACE_IDENTITY_VALUE_UNAVAILABLE) {
+        fwprintf(stderr, L"Short identity string buffer handling failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
     value = expected_class_id;
     status = comtrace_extract_guid_property(event_record, L"MissingGuid", &value);
     if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND ||
