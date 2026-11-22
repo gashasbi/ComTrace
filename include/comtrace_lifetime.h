@@ -17,7 +17,7 @@ void comtrace_lifetime_shutdown(void);
 ULONGLONG comtrace_lifetime_object_created(
     const GUID *class_id,
     const GUID *interface_id,
-    ULONG reference_count
+    ULONG initial_reference_count
 );
 
 void comtrace_lifetime_add_ref(
