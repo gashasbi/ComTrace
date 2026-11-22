@@ -120,13 +120,20 @@ int comtrace_etl_read_property_count(
     const BYTE *metadata_buffer,
     ULONG metadata_size,
     const EVENT_PROPERTY_INFO *property,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    const ULONG *parent_property_indices,
+    ULONG parent_count,
     ULONG *count
 )
 {
-    PROPERTY_DATA_DESCRIPTOR descriptor;
+    PROPERTY_DATA_DESCRIPTOR descriptors[COMTRACE_ETL_MAX_PROPERTY_DEPTH + 1U];
     const EVENT_PROPERTY_INFO *count_property;
     const wchar_t *count_name;
     ULONG count_index;
+    ULONG descriptor_parent_count = 0U;
+    ULONG descriptor_count;
+    ULONG index;
     ULONG name_offset;
     ULONG remaining;
     ULONG name_length = 0U;
@@ -142,7 +149,12 @@ int comtrace_etl_read_property_count(
         properties == NULL ||
         metadata_buffer == NULL ||
         property == NULL ||
-        count == NULL) {
+        count == NULL ||
+        parent_count > COMTRACE_ETL_MAX_PROPERTY_DEPTH ||
+        (parent_count != 0U &&
+            (parent_names == NULL ||
+             parent_indices == NULL ||
+             parent_property_indices == NULL))) {
         return 0;
     }
 
@@ -171,7 +183,9 @@ int comtrace_etl_read_property_count(
         return 0;
     }
 
-    in_type = count_property->nonStructType.InType;
+    in_type = (count_property->Flags & PropertyHasCustomSchema) != 0U
+        ? count_property->customSchemaType.InType
+        : count_property->nonStructType.InType;
     switch (in_type) {
     case TDH_INTYPE_INT8:
     case TDH_INTYPE_UINT8:
@@ -195,16 +209,47 @@ int comtrace_etl_read_property_count(
         return 0;
     }
 
-    ZeroMemory(&descriptor, sizeof(descriptor));
-    descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)count_name;
-    descriptor.ArrayIndex = 0xFFFFFFFFUL;
+    ZeroMemory(descriptors, sizeof(descriptors));
+    for (index = 0U; index < parent_count; ++index) {
+        ULONG parent_property_index = parent_property_indices[index];
+        const EVENT_PROPERTY_INFO *parent_property;
+        ULONG member_start;
+        ULONG member_count;
+
+        if (parent_property_index >= property_count) {
+            return 0;
+        }
+
+        parent_property = &properties[parent_property_index];
+        if ((parent_property->Flags & PropertyStruct) == 0U) {
+            return 0;
+        }
+
+        member_start = parent_property->structType.StructStartIndex;
+        member_count = parent_property->structType.NumOfStructMembers;
+        if (count_index >= member_start &&
+            count_index - member_start < member_count) {
+            descriptor_parent_count = index + 1U;
+        }
+    }
+
+    for (index = 0U; index < descriptor_parent_count; ++index) {
+        descriptors[index].PropertyName =
+            (ULONGLONG)(ULONG_PTR)parent_names[index];
+        descriptors[index].ArrayIndex = parent_indices[index];
+    }
+
+    descriptors[descriptor_parent_count].PropertyName =
+        (ULONGLONG)(ULONG_PTR)count_name;
+    descriptors[descriptor_parent_count].ArrayIndex = 0xFFFFFFFFUL;
+    descriptor_count = descriptor_parent_count + 1U;
 
     status = TdhGetPropertySize(
         (PEVENT_RECORD)event_record,
         0U,
         NULL,
-        1U,
-        &descriptor,
+        descriptor_count,
+        descriptors,
         &value_size
     );
     if (status != ERROR_SUCCESS || value_size != expected_size) {
@@ -215,8 +260,8 @@ int comtrace_etl_read_property_count(
         (PEVENT_RECORD)event_record,
         0U,
         NULL,
-        1U,
-        &descriptor,
+        descriptor_count,
+        descriptors,
         value_size,
         value
     );
