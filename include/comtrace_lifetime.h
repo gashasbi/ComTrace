@@ -37,6 +37,13 @@ void comtrace_lifetime_object_destroyed(
     const GUID *interface_id
 );
 
+void comtrace_lifetime_bind_native_identity(
+    ULONGLONG object_instance_id,
+    ULONGLONG native_object_id,
+    const GUID *interface_id,
+    const GUID *native_ipid
+);
+
 #ifdef __cplusplus
 }
 #endif

@@ -97,6 +97,33 @@ void comtrace_lifetime_release(
     );
 }
 
+void comtrace_lifetime_bind_native_identity(
+    ULONGLONG object_instance_id,
+    ULONGLONG native_object_id,
+    const GUID *interface_id,
+    const GUID *native_ipid
+)
+{
+    GUID empty_ipid = {0};
+
+    if (object_instance_id == 0ULL ||
+        native_object_id == 0ULL ||
+        interface_id == NULL) {
+        return;
+    }
+
+    TraceLoggingWrite(
+        g_comtrace_lifetime_provider,
+        "ComObjectNativeIdentityBound",
+        TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
+        TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
+        TraceLoggingUInt64(native_object_id, "NativeObjectId"),
+        TraceLoggingGuid(*interface_id, "InterfaceId"),
+        TraceLoggingGuid(native_ipid == NULL ? empty_ipid : *native_ipid, "Ipid")
+    );
+}
+
 void comtrace_lifetime_object_destroyed(
     ULONGLONG object_instance_id,
     const GUID *interface_id

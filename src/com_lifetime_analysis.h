@@ -8,8 +8,21 @@ typedef enum {
     COMTRACE_LIFETIME_EVENT_CREATED = 1,
     COMTRACE_LIFETIME_EVENT_ADD_REF,
     COMTRACE_LIFETIME_EVENT_RELEASE,
-    COMTRACE_LIFETIME_EVENT_DESTROYED
+    COMTRACE_LIFETIME_EVENT_DESTROYED,
+    COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND
 } COMTRACE_LIFETIME_EVENT_TYPE;
+
+typedef struct {
+    GUID interface_id;
+} COMTRACE_LIFETIME_INTERFACE_ID;
+
+typedef struct {
+    ULONGLONG native_object_id;
+    BOOL has_native_ipid;
+    GUID native_ipid;
+    BOOL has_interface_id;
+    GUID interface_id;
+} COMTRACE_LIFETIME_NATIVE_IDENTITY;
 
 typedef struct {
     COMTRACE_LIFETIME_EVENT_TYPE type;
@@ -27,6 +40,10 @@ typedef struct {
     ULONG reference_count_result;
     BOOL has_initial_reference_count;
     ULONG initial_reference_count;
+    BOOL has_native_object_id;
+    ULONGLONG native_object_id;
+    BOOL has_native_ipid;
+    GUID native_ipid;
 } COMTRACE_LIFETIME_EVENT;
 
 typedef struct {
@@ -42,6 +59,16 @@ typedef struct {
     GUID class_id;
     BOOL has_interface_id;
     GUID interface_id;
+    COMTRACE_LIFETIME_INTERFACE_ID *interface_ids;
+    size_t interface_id_count;
+    size_t interface_id_capacity;
+    COMTRACE_LIFETIME_NATIVE_IDENTITY *native_identities;
+    size_t native_identity_count;
+    size_t native_identity_capacity;
+    BOOL has_native_object_id;
+    ULONGLONG native_object_id;
+    BOOL has_native_ipid;
+    GUID native_ipid;
     BOOL has_initial_reference_count;
     ULONG initial_reference_count;
     BOOL has_last_reference_count_result;
@@ -71,6 +98,7 @@ typedef struct {
     ULONGLONG add_ref_events;
     ULONGLONG release_events;
     ULONGLONG destroy_events;
+    ULONGLONG native_identity_bind_events;
     ULONGLONG events_without_creation;
     ULONGLONG events_after_destruction;
     ULONGLONG duplicate_creations;

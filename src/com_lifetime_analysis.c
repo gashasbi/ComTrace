@@ -10,6 +10,126 @@ static void increment_count(ULONGLONG *value)
     }
 }
 
+static int ensure_array_capacity(
+    void **items,
+    size_t *capacity,
+    size_t required,
+    size_t item_size
+)
+{
+    size_t next_capacity;
+    void *resized;
+
+    if (*capacity >= required) {
+        return 1;
+    }
+
+    next_capacity = *capacity == 0U ? 4U : *capacity;
+    while (next_capacity < required) {
+        if (next_capacity > (size_t)-1 / 2U) {
+            next_capacity = required;
+            break;
+        }
+        next_capacity *= 2U;
+    }
+
+    if (item_size == 0U || next_capacity > (size_t)-1 / item_size) {
+        return 0;
+    }
+
+    resized = realloc(*items, next_capacity * item_size);
+    if (resized == NULL) {
+        return 0;
+    }
+
+    *items = resized;
+    *capacity = next_capacity;
+    return 1;
+}
+
+static int add_interface_id(
+    COMTRACE_LIFETIME_RECORD *record,
+    const GUID *interface_id
+)
+{
+    size_t index;
+
+    for (index = 0U; index < record->interface_id_count; ++index) {
+        if (memcmp(&record->interface_ids[index].interface_id,
+                   interface_id, sizeof(GUID)) == 0) {
+            return 1;
+        }
+    }
+
+    if (!ensure_array_capacity(
+            (void **)&record->interface_ids,
+            &record->interface_id_capacity,
+            record->interface_id_count + 1U,
+            sizeof(*record->interface_ids))) {
+        return 0;
+    }
+
+    record->interface_ids[record->interface_id_count].interface_id = *interface_id;
+    ++record->interface_id_count;
+
+    if (!record->has_interface_id) {
+        record->has_interface_id = TRUE;
+        record->interface_id = *interface_id;
+    }
+
+    return 1;
+}
+
+static int add_native_identity(
+    COMTRACE_LIFETIME_RECORD *record,
+    const COMTRACE_LIFETIME_EVENT *event
+)
+{
+    size_t index;
+    COMTRACE_LIFETIME_NATIVE_IDENTITY *identity;
+
+    for (index = 0U; index < record->native_identity_count; ++index) {
+        identity = &record->native_identities[index];
+        if (identity->native_object_id == event->native_object_id &&
+            identity->has_native_ipid == event->has_native_ipid &&
+            (!event->has_native_ipid ||
+             memcmp(&identity->native_ipid, &event->native_ipid, sizeof(GUID)) == 0) &&
+            identity->has_interface_id == event->has_interface_id &&
+            (!event->has_interface_id ||
+             memcmp(&identity->interface_id, &event->interface_id, sizeof(GUID)) == 0)) {
+            return 1;
+        }
+    }
+
+    if (!ensure_array_capacity(
+            (void **)&record->native_identities,
+            &record->native_identity_capacity,
+            record->native_identity_count + 1U,
+            sizeof(*record->native_identities))) {
+        return 0;
+    }
+
+    identity = &record->native_identities[record->native_identity_count];
+    ZeroMemory(identity, sizeof(*identity));
+    identity->native_object_id = event->native_object_id;
+    identity->has_native_ipid = event->has_native_ipid;
+    identity->native_ipid = event->native_ipid;
+    identity->has_interface_id = event->has_interface_id;
+    identity->interface_id = event->interface_id;
+    ++record->native_identity_count;
+
+    if (!record->has_native_object_id) {
+        record->has_native_object_id = TRUE;
+        record->native_object_id = event->native_object_id;
+    }
+    if (event->has_native_ipid && !record->has_native_ipid) {
+        record->has_native_ipid = TRUE;
+        record->native_ipid = event->native_ipid;
+    }
+
+    return 1;
+}
+
 static int ensure_record_capacity(COMTRACE_COM_LIFETIME_ANALYSIS *analysis)
 {
     size_t capacity;
@@ -109,6 +229,14 @@ void comtrace_lifetime_analysis_destroy(
         return;
     }
 
+    {
+        size_t index;
+        for (index = 0U; index < analysis->record_count; ++index) {
+            free(analysis->records[index].interface_ids);
+            free(analysis->records[index].native_identities);
+        }
+    }
+
     free(analysis->records);
     ZeroMemory(analysis, sizeof(*analysis));
 }
@@ -130,7 +258,10 @@ COMTRACE_LIFETIME_STATUS comtrace_lifetime_analysis_add_event(
         event->process_id == 0U ||
         event->object_instance_id == 0ULL ||
         event->type < COMTRACE_LIFETIME_EVENT_CREATED ||
-        event->type > COMTRACE_LIFETIME_EVENT_DESTROYED) {
+        event->type > COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND ||
+        (event->type == COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND &&
+         (!event->has_native_object_id || event->native_object_id == 0ULL ||
+          !event->has_interface_id))) {
         return COMTRACE_LIFETIME_INVALID_ARGUMENT;
     }
 
@@ -140,6 +271,15 @@ COMTRACE_LIFETIME_STATUS comtrace_lifetime_analysis_add_event(
         if (record == NULL) {
             return COMTRACE_LIFETIME_ALLOCATION_FAILED;
         }
+    }
+
+    if (event->has_interface_id &&
+        !add_interface_id(record, &event->interface_id)) {
+        return COMTRACE_LIFETIME_ALLOCATION_FAILED;
+    }
+    if (event->type == COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND &&
+        !add_native_identity(record, event)) {
+        return COMTRACE_LIFETIME_ALLOCATION_FAILED;
     }
 
     increment_count(&analysis->events_seen);
@@ -159,11 +299,6 @@ COMTRACE_LIFETIME_STATUS comtrace_lifetime_analysis_add_event(
     if (event->type != COMTRACE_LIFETIME_EVENT_CREATED &&
         !record->has_created) {
         increment_count(&analysis->events_without_creation);
-    }
-
-    if (!record->has_interface_id && event->has_interface_id) {
-        record->interface_id = event->interface_id;
-        record->has_interface_id = TRUE;
     }
 
     switch (event->type) {
@@ -203,6 +338,9 @@ COMTRACE_LIFETIME_STATUS comtrace_lifetime_analysis_add_event(
                 increment_count(&record->release_zero_results);
             }
         }
+        break;
+    case COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND:
+        increment_count(&analysis->native_identity_bind_events);
         break;
     case COMTRACE_LIFETIME_EVENT_DESTROYED:
         increment_count(&analysis->destroy_events);

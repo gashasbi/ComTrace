@@ -337,7 +337,8 @@ int comtrace_classify_com_lifetime_event(
     if (wcscmp(trace_event_name, L"ComObjectCreated") == 0 ||
         wcscmp(trace_event_name, L"ComAddRef") == 0 ||
         wcscmp(trace_event_name, L"ComRelease") == 0 ||
-        wcscmp(trace_event_name, L"ComObjectDestroyed") == 0) {
+        wcscmp(trace_event_name, L"ComObjectDestroyed") == 0 ||
+        wcscmp(trace_event_name, L"ComObjectNativeIdentityBound") == 0) {
         *event_name = trace_event_name;
         return 1;
     }
