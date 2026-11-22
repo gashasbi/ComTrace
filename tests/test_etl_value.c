@@ -92,6 +92,20 @@ int main(void)
     size_t displayed_size;
     int terminated;
     size_t index;
+    size_t payload_offset;
+    size_t payload_size;
+    static const unsigned char counted_little_endian[] = {
+        4U, 0U, 0xDEU, 0xADU, 0xBEU, 0xEFU
+    };
+    static const unsigned char counted_big_endian[] = {
+        0U, 4U, 0xDEU, 0xADU, 0xBEU, 0xEFU
+    };
+    static const unsigned char counted_invalid[] = {
+        5U, 0U, 0xDEU, 0xADU, 0xBEU, 0xEFU
+    };
+    static const unsigned char hexdump_value[] = {
+        4U, 0U, 0U, 0U, 0x11U, 0x22U, 0x33U, 0x44U
+    };
     int failures = 0;
 
     for (index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
@@ -227,6 +241,64 @@ int main(void)
             &content_size, &displayed_size, &terminated) ||
         content_size != 0U || displayed_size != 0U || terminated) {
         fprintf(stderr, "FAIL: Empty string buffer\n");
+        ++failures;
+    }
+
+    if (!comtrace_decode_length_prefixed_payload(
+            counted_little_endian, sizeof(counted_little_endian), 2U, 0,
+            &payload_offset, &payload_size
+        ) || payload_offset != 2U || payload_size != 4U ||
+        counted_little_endian[payload_offset] != 0xDEU) {
+        fprintf(stderr, "FAIL: Little-endian counted payload framing\n");
+        ++failures;
+    }
+
+    if (!comtrace_decode_length_prefixed_payload(
+            counted_big_endian, sizeof(counted_big_endian), 2U, 1,
+            &payload_offset, &payload_size
+        ) || payload_offset != 2U || payload_size != 4U ||
+        counted_big_endian[payload_offset] != 0xDEU) {
+        fprintf(stderr, "FAIL: Reversed counted payload framing\n");
+        ++failures;
+    }
+
+    if (comtrace_decode_length_prefixed_payload(
+            counted_invalid, sizeof(counted_invalid), 2U, 0,
+            &payload_offset, &payload_size
+        )) {
+        fprintf(stderr, "FAIL: Counted payload rejects lengths beyond its buffer\n");
+        ++failures;
+    }
+
+    if (!comtrace_decode_length_prefixed_payload(
+            hexdump_value, sizeof(hexdump_value), 4U, 0,
+            &payload_offset, &payload_size
+        ) || payload_offset != 4U || payload_size != 4U ||
+        hexdump_value[payload_offset] != 0x11U) {
+        fprintf(stderr, "FAIL: Hexdump length framing\n");
+        ++failures;
+    }
+
+    if (!comtrace_decode_wbem_sid_payload(
+            32U, 8U, &payload_offset, &payload_size
+        ) || payload_offset != 16U || payload_size != 16U) {
+        fprintf(stderr, "FAIL: 64-bit WBEM SID layout\n");
+        ++failures;
+    }
+
+    if (!comtrace_decode_wbem_sid_payload(
+            24U, 4U, &payload_offset, &payload_size
+        ) || payload_offset != 8U || payload_size != 16U) {
+        fprintf(stderr, "FAIL: 32-bit WBEM SID layout\n");
+        ++failures;
+    }
+
+    if (comtrace_decode_wbem_sid_payload(
+            16U, 8U, &payload_offset, &payload_size
+        ) || comtrace_decode_wbem_sid_payload(
+            32U, 16U, &payload_offset, &payload_size
+        )) {
+        fprintf(stderr, "FAIL: Invalid WBEM SID layouts are rejected\n");
         ++failures;
     }
 

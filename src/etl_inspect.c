@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <sddl.h>
 #include "etl_inspect.h"
 #include "etl_value.h"
 #include "com_event.h"
@@ -67,6 +68,127 @@ static void print_guid(const GUID *guid)
         (unsigned int)guid->Data4[6],
         (unsigned int)guid->Data4[7]
     );
+}
+
+static int normalize_property_payload(
+    USHORT *in_type,
+    BYTE **value,
+    ULONG *value_size,
+    ULONG pointer_size
+)
+{
+    size_t payload_offset;
+    size_t payload_size;
+    int reverse_order = 0;
+    size_t prefix_size = 0U;
+
+    if (in_type == NULL || value == NULL || *value == NULL ||
+        value_size == NULL) {
+        return 0;
+    }
+
+    switch (*in_type) {
+    case TDH_INTYPE_MANIFEST_COUNTEDSTRING:
+    case TDH_INTYPE_COUNTEDSTRING:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_REVERSEDCOUNTEDSTRING:
+        prefix_size = 2U;
+        reverse_order = 1;
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_NONNULLTERMINATEDSTRING:
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
+    case TDH_INTYPE_COUNTEDANSISTRING:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
+        prefix_size = 2U;
+        reverse_order = 1;
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_MANIFEST_COUNTEDBINARY:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_BINARY;
+        break;
+    case TDH_INTYPE_HEXDUMP:
+        prefix_size = 4U;
+        *in_type = TDH_INTYPE_BINARY;
+        break;
+    case TDH_INTYPE_WBEMSID:
+        if (!comtrace_decode_wbem_sid_payload(
+                (size_t)*value_size,
+                (size_t)pointer_size,
+                &payload_offset,
+                &payload_size)) {
+            return 0;
+        }
+        *value += payload_offset;
+        *value_size = (ULONG)payload_size;
+        *in_type = TDH_INTYPE_SID;
+        return 1;
+    default:
+        return 1;
+    }
+
+    if (prefix_size == 0U) {
+        return 1;
+    }
+
+    if (!comtrace_decode_length_prefixed_payload(
+            *value,
+            (size_t)*value_size,
+            prefix_size,
+            reverse_order,
+            &payload_offset,
+            &payload_size)) {
+        return 0;
+    }
+
+    *value += payload_offset;
+    *value_size = (ULONG)payload_size;
+    return 1;
+}
+
+static void print_binary_value(const BYTE *value, ULONG value_size)
+{
+    ULONG offset;
+
+    wprintf(L"value=hex:");
+    for (offset = 0U; offset < value_size; ++offset) {
+        wprintf(L"%02x", (unsigned int)value[offset]);
+    }
+    wprintf(L"\n");
+}
+
+static int print_sid_value(const BYTE *value, ULONG value_size)
+{
+    LPWSTR sid_text = NULL;
+    ULONG required_size;
+
+    if (value == NULL ||
+        value_size < 8U ||
+        value[1] > SID_MAX_SUB_AUTHORITIES) {
+        return 0;
+    }
+
+    required_size = GetSidLengthRequired(value[1]);
+    if (required_size > value_size ||
+        !IsValidSid((PSID)value) ||
+        !ConvertSidToStringSidW((PSID)value, &sid_text)) {
+        return 0;
+    }
+
+    wprintf(L"value=%ls\n", sid_text);
+    (void)LocalFree(sid_text);
+    return 1;
 }
 
 static int parse_sample_limit(const wchar_t *text, ULONG *limit)
@@ -145,7 +267,9 @@ static void print_event_property_value_element(
     BYTE *value;
     ULONG value_size;
     ULONG flags = (ULONG)property->Flags;
-    USHORT in_type = property->nonStructType.InType;
+    USHORT in_type = (flags & PropertyHasCustomSchema) != 0U
+        ? property->customSchemaType.InType
+        : property->nonStructType.InType;
     wchar_t display_name[256];
     wchar_t part[32];
     ULONG path_index;
@@ -172,11 +296,9 @@ static void print_event_property_value_element(
         wcsncat_s(display_name, _countof(display_name), part, _TRUNCATE);
     }
 
-    if ((flags & PropertyStruct) != 0U ||
-        (flags & PropertyWBEMXmlFragment) != 0U ||
-        (flags & PropertyHasCustomSchema) != 0U) {
+    if ((flags & PropertyStruct) != 0U) {
         wprintf(
-            L"  property_value[%lu] name=%ls status=skipped reason=complex_property\n",
+            L"  property_value[%lu] name=%ls status=skipped reason=struct_property\n",
             (unsigned long)index,
             display_name
         );
@@ -220,6 +342,19 @@ static void print_event_property_value_element(
 
     value = decoded_value.data;
     value_size = decoded_value.size;
+
+    if (!normalize_property_payload(
+            &in_type,
+            &value,
+            &value_size,
+            pointer_size)) {
+        wprintf(
+            L"  property_value[%lu] name=%ls status=unavailable reason=invalid_payload_framing\n",
+            (unsigned long)index,
+            display_name
+        );
+        goto cleanup;
+    }
 
     wprintf(
         L"  property_value[%lu] name=%ls ",
@@ -373,7 +508,21 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
-    case TDH_INTYPE_ANSICHAR:
+    case TDH_INTYPE_ANSICHAR: {
+        BYTE character;
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            goto cleanup;
+        }
+        CopyMemory(&character, value, sizeof(character));
+        if (character >= 0x20U && character <= 0x7EU) {
+            wprintf(L"value='%c'\n", (int)character);
+        } else {
+            wprintf(L"value=\\x%02x\n", (unsigned int)character);
+        }
+        goto cleanup;
+    }
+
     case TDH_INTYPE_UINT8: {
         BYTE number;
         if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT8, value_size, 0U)) {
@@ -396,7 +545,17 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
-    case TDH_INTYPE_UNICODECHAR:
+    case TDH_INTYPE_UNICODECHAR: {
+        USHORT character;
+        if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) {
+            wprintf(L"status=unavailable reason=type_size_mismatch\n");
+            goto cleanup;
+        }
+        CopyMemory(&character, value, sizeof(character));
+        wprintf(L"value=U+%04X\n", (unsigned int)character);
+        goto cleanup;
+    }
+
     case TDH_INTYPE_UINT16: {
         USHORT number;
         if (!comtrace_value_size_is_valid(COMTRACE_VALUE_UINT16, value_size, 0U)) {
@@ -564,40 +723,18 @@ static void print_event_property_value_element(
         }
 
     case TDH_INTYPE_BINARY:
-    case TDH_INTYPE_HEXDUMP: {
-        ULONG displayed = value_size > 64U ? 64U : value_size;
-        ULONG offset;
-
-        wprintf(L"value=hex:");
-
-        for (offset = 0U; offset < displayed; ++offset) {
-            wprintf(L"%02x", (unsigned int)value[offset]);
-        }
-
-        if (displayed < value_size) {
-            wprintf(
-                L"...(+%lu bytes)",
-                (unsigned long)(value_size - displayed)
-            );
-        }
-
-        wprintf(L"\n");
+        print_binary_value(value, value_size);
         goto cleanup;
-    }
 
-    default: {
-        ULONG displayed = value_size > 64U ? 64U : value_size;
-        ULONG offset;
-        wprintf(L"value=hex:");
-        for (offset = 0U; offset < displayed; ++offset) {
-            wprintf(L"%02x", (unsigned int)value[offset]);
+    case TDH_INTYPE_SID:
+        if (!print_sid_value(value, value_size)) {
+            wprintf(L"status=unavailable reason=invalid_sid\n");
         }
-        if (displayed < value_size) {
-            wprintf(L"...(+%lu bytes)", (unsigned long)(value_size - displayed));
-        }
-        wprintf(L"\n");
         goto cleanup;
-    }
+
+    default:
+        print_binary_value(value, value_size);
+        goto cleanup;
     }
 cleanup:
     comtrace_etl_property_value_destroy(&decoded_value);
@@ -832,13 +969,22 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
                 name
             );
         } else {
+            USHORT input_type =
+                (property->Flags & PropertyHasCustomSchema) != 0U
+                    ? property->customSchemaType.InType
+                    : property->nonStructType.InType;
+            USHORT output_type =
+                (property->Flags & PropertyHasCustomSchema) != 0U
+                    ? property->customSchemaType.OutType
+                    : property->nonStructType.OutType;
+
             wprintf(
                 L"  property[%lu] name=%.*ls in_type=%u out_type=%u\n",
                 (unsigned long)index,
                 (int)name_length,
                 name,
-                (unsigned int)property->nonStructType.InType,
-                (unsigned int)property->nonStructType.OutType
+                (unsigned int)input_type,
+                (unsigned int)output_type
             );
         }
         if (index < 16U) {

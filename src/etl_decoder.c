@@ -34,11 +34,7 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
         return COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT;
     }
 
-    if ((property->Flags & (
-            PropertyStruct |
-            PropertyWBEMXmlFragment |
-            PropertyHasCustomSchema
-        )) != 0U) {
+    if ((property->Flags & PropertyStruct) != 0U) {
         return COMTRACE_ETL_PROPERTY_READ_UNSUPPORTED;
     }
 

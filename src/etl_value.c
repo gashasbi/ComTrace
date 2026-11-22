@@ -104,3 +104,66 @@ int comtrace_decode_systemtime(const unsigned char *value, size_t value_size, Co
     *system_time = decoded;
     return 1;
 }
+
+
+int comtrace_decode_length_prefixed_payload(
+    const unsigned char *value,
+    size_t value_size,
+    size_t prefix_size,
+    int reverse_order,
+    size_t *payload_offset,
+    size_t *payload_size
+)
+{
+    size_t index;
+    size_t decoded_length = 0U;
+
+    if (value == NULL ||
+        payload_offset == NULL ||
+        payload_size == NULL ||
+        (prefix_size != 2U && prefix_size != 4U) ||
+        value_size < prefix_size) {
+        return 0;
+    }
+
+    for (index = 0U; index < prefix_size; ++index) {
+        size_t shift = reverse_order
+            ? (prefix_size - index - 1U) * 8U
+            : index * 8U;
+
+        decoded_length |= (size_t)value[index] << shift;
+    }
+
+    if (decoded_length > value_size - prefix_size) {
+        return 0;
+    }
+
+    *payload_offset = prefix_size;
+    *payload_size = decoded_length;
+    return 1;
+}
+
+int comtrace_decode_wbem_sid_payload(
+    size_t value_size,
+    size_t pointer_size,
+    size_t *payload_offset,
+    size_t *payload_size
+)
+{
+    size_t offset;
+
+    if (payload_offset == NULL ||
+        payload_size == NULL ||
+        (pointer_size != 4U && pointer_size != 8U)) {
+        return 0;
+    }
+
+    offset = pointer_size * 2U;
+    if (value_size <= offset) {
+        return 0;
+    }
+
+    *payload_offset = offset;
+    *payload_size = value_size - offset;
+    return 1;
+}

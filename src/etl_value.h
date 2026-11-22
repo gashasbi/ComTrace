@@ -53,4 +53,20 @@ int comtrace_value_size_is_valid(
 
 int comtrace_decode_systemtime(const unsigned char *value, size_t value_size, ComTraceSystemTime *system_time);
 
+int comtrace_decode_length_prefixed_payload(
+    const unsigned char *value,
+    size_t value_size,
+    size_t prefix_size,
+    int reverse_order,
+    size_t *payload_offset,
+    size_t *payload_size
+);
+
+int comtrace_decode_wbem_sid_payload(
+    size_t value_size,
+    size_t pointer_size,
+    size_t *payload_offset,
+    size_t *payload_size
+);
+
 #endif
