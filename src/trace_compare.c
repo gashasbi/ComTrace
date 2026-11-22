@@ -1942,7 +1942,7 @@ static void write_json_lifetime_records(
         for (position = 0U; position < record->activity_id_count; ++position) {
             const COMTRACE_LIFETIME_ACTIVITY_ID *activity =
                 &record->activity_ids[position];
-            wprintf(L"%ls{\\\"activity_id\\\": ",
+            wprintf(L"%ls{\"activity_id\": ",
                 position == 0U ? L"" : L", ");
             if (activity->has_activity_id) {
                 putwchar(L'"');
@@ -1951,7 +1951,7 @@ static void write_json_lifetime_records(
             } else {
                 wprintf(L"null");
             }
-            wprintf(L", \\"related_activity_id\\\": ");
+            wprintf(L", \"related_activity_id\": ");
             if (activity->has_related_activity_id) {
                 putwchar(L'"');
                 print_guid_text(&activity->related_activity_id);
