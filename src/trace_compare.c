@@ -1007,6 +1007,16 @@ static ULONG compare_lifetime_record_fields(
         left->destroy_events != right->destroy_events ||
         left->release_zero_results != right->release_zero_results) changed_fields |= 0x8U;
     if (!lifetime_native_identity_sets_equal(left, right)) changed_fields |= 0x10U;
+    if (left->has_initial_reference_count &&
+        right->has_initial_reference_count &&
+        left->initial_reference_count != right->initial_reference_count) {
+        changed_fields |= 0x20U;
+    }
+    if (left->has_last_reference_count_result &&
+        right->has_last_reference_count_result &&
+        left->last_reference_count_result != right->last_reference_count_result) {
+        changed_fields |= 0x40U;
+    }
     return changed_fields;
 }
 
@@ -1833,7 +1843,7 @@ static void write_json_lifetime_records(
             wprintf(L"null");
         }
         wprintf(
-            L", \"object_instance_id\": \"0x%llx\", \"created\": %ls, \"destroyed\": %ls, \"create_events\": %llu, \"add_ref_events\": %llu, \"release_events\": %llu, \"destroy_events\": %llu, \"release_zero_results\": %llu, \"first_seen_ticks\": \"%llu\", \"last_seen_ticks\": \"%llu\", \"created_ticks\": ",
+            L", \"object_instance_id\": \"0x%llx\", \"created\": %ls, \"destroyed\": %ls, \"create_events\": %llu, \"add_ref_events\": %llu, \"release_events\": %llu, \"destroy_events\": %llu, \"release_zero_results\": %llu, \"observation_count\": %llu, \"first_seen_ticks\": \"%llu\", \"last_seen_ticks\": \"%llu\", \"created_ticks\": ",
             (unsigned long long)record->object_instance_id,
             record->has_created ? L"true" : L"false",
             record->has_destroyed ? L"true" : L"false",
@@ -1842,9 +1852,22 @@ static void write_json_lifetime_records(
             (unsigned long long)record->release_events,
             (unsigned long long)record->destroy_events,
             (unsigned long long)record->release_zero_results,
+            (unsigned long long)record->observation_count,
             (unsigned long long)record->first_seen_timestamp,
             (unsigned long long)record->last_seen_timestamp
         );
+        wprintf(L", \"initial_reference_count\": ");
+        if (record->has_initial_reference_count) {
+            wprintf(L"%lu", (unsigned long)record->initial_reference_count);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(L", \"last_reference_count_result\": ");
+        if (record->has_last_reference_count_result) {
+            wprintf(L"%lu", (unsigned long)record->last_reference_count_result);
+        } else {
+            wprintf(L"null");
+        }
         if (record->has_created) {
             wprintf(L"\"%llu\"", (unsigned long long)record->created_timestamp);
         } else {
@@ -1955,7 +1978,17 @@ static void write_json_lifetime_summary(
         L"\"added\": %llu, \"removed\": %llu, \"changed\": %llu, "
         L"\"left_events\": %llu, \"right_events\": %llu, "
         L"\"left_native_identity_bind_events\": %llu, "
-        L"\"right_native_identity_bind_events\": %llu}",
+        L"\"right_native_identity_bind_events\": %llu, "
+        L"\"left_events_without_creation\": %llu, "
+        L"\"right_events_without_creation\": %llu, "
+        L"\"left_events_after_destruction\": %llu, "
+        L"\"right_events_after_destruction\": %llu, "
+        L"\"left_duplicate_creations\": %llu, "
+        L"\"right_duplicate_creations\": %llu, "
+        L"\"left_destructions_without_creation\": %llu, "
+        L"\"right_destructions_without_creation\": %llu, "
+        L"\"left_duplicate_destructions\": %llu, "
+        L"\"right_duplicate_destructions\": %llu}",
         (unsigned long long)comparison->left.lifetime_analysis.record_count,
         (unsigned long long)comparison->right.lifetime_analysis.record_count,
         (unsigned long long)comparison->added_lifetime_objects,
@@ -1964,7 +1997,17 @@ static void write_json_lifetime_summary(
         (unsigned long long)comparison->left.lifetime_analysis.events_seen,
         (unsigned long long)comparison->right.lifetime_analysis.events_seen,
         (unsigned long long)comparison->left.lifetime_analysis.native_identity_bind_events,
-        (unsigned long long)comparison->right.lifetime_analysis.native_identity_bind_events
+        (unsigned long long)comparison->right.lifetime_analysis.native_identity_bind_events,
+        (unsigned long long)comparison->left.lifetime_analysis.events_without_creation,
+        (unsigned long long)comparison->right.lifetime_analysis.events_without_creation,
+        (unsigned long long)comparison->left.lifetime_analysis.events_after_destruction,
+        (unsigned long long)comparison->right.lifetime_analysis.events_after_destruction,
+        (unsigned long long)comparison->left.lifetime_analysis.duplicate_creations,
+        (unsigned long long)comparison->right.lifetime_analysis.duplicate_creations,
+        (unsigned long long)comparison->left.lifetime_analysis.destructions_without_creation,
+        (unsigned long long)comparison->right.lifetime_analysis.destructions_without_creation,
+        (unsigned long long)comparison->left.lifetime_analysis.duplicate_destructions,
+        (unsigned long long)comparison->right.lifetime_analysis.duplicate_destructions
     );
 }
 

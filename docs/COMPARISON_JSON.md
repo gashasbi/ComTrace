@@ -164,13 +164,18 @@ object_lifetimes.right, and object_lifetime_changes.
 Each lifetime record is keyed by process ID, process generation when available,
 and the application-level object instance ID. It records explicit creation and
 destruction observations, AddRef/Release event counts, zero-valued Release
-observations, raw ETW timestamps, CLSID, all observed interface IDs, and any
-native identity links explicitly supplied by the instrumented application.
+observations, raw ETW timestamps, CLSID, all observed interface IDs, initial
+and last observed reference counts when available, and any native identity
+links explicitly supplied by the instrumented application. Each record also
+contains an observation_count. Missing reference-count values are JSON null.
 
 The lifetime diff matches records using the same process and application
 identity key. Its changed_fields mask uses 0x1 for CLSID, 0x2 for the set of
 interface IDs, 0x4 for creation/destruction state, 0x8 for lifecycle event
-counts, and 0x10 for explicit native identity bindings. Native OID/IPID values
+counts, 0x10 for explicit native identity bindings, 0x20 for a changed initial
+reference count, and 0x40 for a changed last observed reference-count result.
+Reference-count differences are reported only when both traces contain the
+corresponding value. Native OID/IPID values
 are not inferred from PID, timestamp proximity, or IID equality. Only mappings
 passed through the lifetime instrumentation API are included.
 

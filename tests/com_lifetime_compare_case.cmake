@@ -59,11 +59,17 @@ string(JSON right_interface_count LENGTH "${compare_output}" object_lifetimes ri
 string(JSON right_native_count LENGTH "${compare_output}" object_lifetimes right 0 native_identities)
 string(JSON right_native_object_id GET "${compare_output}" object_lifetimes right 0 native_identities 0 native_object_id)
 string(JSON right_native_ipid GET "${compare_output}" object_lifetimes right 0 native_identities 0 ipid)
+string(JSON right_initial_reference_type TYPE "${compare_output}" object_lifetimes right 0 initial_reference_count)
+string(JSON right_last_reference_count GET "${compare_output}" object_lifetimes right 0 last_reference_count_result)
+string(JSON right_observation_count GET "${compare_output}" object_lifetimes right 0 observation_count)
 if(NOT changed_objects EQUAL 1 OR
    NOT added_objects EQUAL 0 OR
    NOT removed_objects EQUAL 0 OR
    NOT change_count EQUAL 1 OR
-   NOT changed_fields STREQUAL "0x1e" OR
+   NOT changed_fields STREQUAL "0x5e" OR
+   NOT right_initial_reference_type STREQUAL "NULL" OR
+   NOT right_last_reference_count EQUAL 0 OR
+   NOT right_observation_count EQUAL 4 OR
    NOT right_interface_count EQUAL 2 OR
    NOT right_native_count EQUAL 1 OR
    NOT right_native_object_id STREQUAL "0xabcdef0123456789" OR
