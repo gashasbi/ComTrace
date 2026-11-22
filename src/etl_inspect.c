@@ -5,6 +5,7 @@
 #include <evntcons.h>
 #include <tdh.h>
 #include <stddef.h>
+#include <limits.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
