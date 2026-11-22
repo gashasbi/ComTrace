@@ -47,7 +47,7 @@ static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
 }
 
 static int get_trace_event_name(
-    const EVENT_RECORD *event_record,
+    EVENT_RECORD *event_record,
     wchar_t *name,
     size_t name_capacity
 )
@@ -126,7 +126,7 @@ static int get_trace_event_name(
 
 static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     COMTRACE_TRACE_SUMMARY *summary,
-    const EVENT_RECORD *event_record
+    EVENT_RECORD *event_record
 )
 {
     wchar_t trace_event_name[128];
