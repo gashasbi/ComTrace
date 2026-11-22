@@ -42,6 +42,10 @@ typedef struct {
     DWORD thread_id;
     GUID guid;
     ULONGLONG value;
+    ULONGLONG observation_count;
+    LONGLONG first_seen_timestamp;
+    LONGLONG last_seen_timestamp;
+    BOOL has_observed_timestamp;
 } COMTRACE_GRAPH_NODE;
 
 typedef struct {
