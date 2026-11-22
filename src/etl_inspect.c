@@ -739,6 +739,10 @@ static void print_event_property_value_element(
     }
 
     switch (in_type) {
+    case TDH_INTYPE_RESERVED24:
+        print_binary_value(value, value_size);
+        goto cleanup;
+
     case TDH_INTYPE_UNICODESTRING: {
         size_t content_size;
         size_t displayed_size;
