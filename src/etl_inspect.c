@@ -944,6 +944,7 @@ static void print_com_lifetime_event_classification(
     wchar_t trace_event_name[128];
     const wchar_t *event_name = NULL;
     ULONGLONG object_instance_id = 0ULL;
+    ULONG initial_reference_count = 0U;
     ULONG reference_count = 0U;
     GUID value;
 
@@ -990,6 +991,15 @@ static void print_com_lifetime_event_classification(
         wprintf(L"  com_lifetime_iid=");
         print_guid(&value);
         wprintf(L"\n");
+    }
+
+    if (comtrace_extract_uint32_property(
+            event_record,
+            L"InitialReferenceCount",
+            &initial_reference_count
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_initial_reference_count=%lu\n",
+            (unsigned long)initial_reference_count);
     }
 
     if (comtrace_extract_uint32_property(
