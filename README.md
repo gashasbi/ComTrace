@@ -56,7 +56,7 @@ ComTrace.exe --compare before.etl after.etl
 ComTrace.exe --compare before.etl after.ctra --json
 ```
 
-**Capture** enables the configured COM Performance and OLE Performance ETW providers. The duration must be between 1 and 3600 seconds. The output path must end in `.etl` and must not already exist. Depending on the machine's ETW permissions, capture may require an elevated terminal.
+**Capture** enables the COM Performance and OLE Performance ETW providers and, when Windows permits a private system logger, Kernel Process start/stop events in the same ETL. If the system logger is unavailable, capture falls back to the COM/OLE providers without process lifecycle events and prints a warning. The duration must be between 1 and 3600 seconds. The output path must end in `.etl` and must not already exist. Depending on the machine's ETW permissions, capture may require an elevated terminal.
 
 **Inspect** processes the full trace and prints a bounded sample of events (100 by default; accepted range 1–10000), event-type counts, COM and OLE operation timelines, and a relationship-graph summary. The sample limit only limits detailed event output; the trace analysis continues across the full ETL.
 
