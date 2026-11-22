@@ -108,11 +108,11 @@ static void copy_event_metadata(
         }
     }
 
-    if (event->has_interface_uuid) {
+    if (!record->has_interface_uuid && event->has_interface_uuid) {
         record->interface_uuid = event->interface_uuid;
         record->has_interface_uuid = TRUE;
     }
-    if (event->has_procedure_number) {
+    if (!record->has_procedure_number && event->has_procedure_number) {
         record->procedure_number = event->procedure_number;
         record->has_procedure_number = TRUE;
     }
@@ -129,7 +129,11 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
     if (wcscmp(record->operation, event->operation) != 0 ||
         record->process_id != event->process_id ||
         record->thread_id != event->thread_id ||
-        record->has_activity_id != event_has_activity) {
+        record->has_activity_id != event_has_activity ||
+        (record->has_interface_uuid && event->has_interface_uuid &&
+         memcmp(&record->interface_uuid, &event->interface_uuid, sizeof(GUID)) != 0) ||
+        (record->has_procedure_number && event->has_procedure_number &&
+         record->procedure_number != event->procedure_number)) {
         return COMTRACE_RPC_TIMELINE_MATCH_NONE;
     }
 
