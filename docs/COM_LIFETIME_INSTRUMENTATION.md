@@ -20,10 +20,13 @@ The four event operations are:
 | `comtrace_lifetime_add_ref` | From the actual implementation of `IUnknown::AddRef` | `ComAddRef` |
 | `comtrace_lifetime_release` | From the actual implementation of `IUnknown::Release` | `ComRelease` |
 | `comtrace_lifetime_object_destroyed` | From the object's actual final-destruction path | `ComObjectDestroyed` |
+| `comtrace_lifetime_bind_native_identity` | Only when the implementation has an authoritative native OID and, optionally, IPID for this exact object/interface | `ComObjectNativeIdentityBound` |
 
 `comtrace_lifetime_object_created` returns a process-local `ObjectInstanceId`. Store it in the object and pass it to every later instrumentation call for that same logical object. For aggregated objects or objects exposing multiple interfaces, use one instance ID for the controlling object and pass the IID corresponding to the interface method being observed.
 
 The creation event records the initial reference count as `InitialReferenceCount`. AddRef and Release events record their method return values as `ReferenceCountResult`. These values are observations only. Microsoft documents the `IUnknown::AddRef` return value as intended for test purposes, so ComTrace does not treat a numeric value by itself as a definitive lifetime boundary. Emit `comtrace_lifetime_object_destroyed` only from the implementation's real destruction path; this explicit event is the destruction observation used by downstream analysis.
+
+`comtrace_lifetime_bind_native_identity` provides an explicit bridge to native COM ETW identity. Call it only when the application or a trusted integration layer already knows the native OID and can prove that it belongs to this exact instrumented object and interface. The IPID is optional. ComTrace records the supplied binding and exposes it in the lifetime record and relationship graph; it does not discover or infer the OID/IPID from an arbitrary COM pointer, CLSID/IID match, or nearby RPC event. A guessed binding is worse than no binding.
 
 A typical implementation records the ID after its initial reference has been established, then emits each method result from the corresponding implementation:
 
@@ -67,7 +70,7 @@ Inspect the resulting trace with:
 ComTrace.exe --inspect trace.etl
 ```
 
-Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Process ID and thread ID come from the ETW event header. Combine the process ID with the instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
+Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Explicit native bindings are displayed as `com_lifetime_native_object_id` and, when supplied, `com_lifetime_ipid`. Process ID and thread ID come from the ETW event header. Combine the process ID with the instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
 
 The provider GUID is `{6F3B5E21-7C14-4A90-9D42-81316CE2A750}`. Its TraceLogging events carry their own metadata and are decoded by TDH without installing a separate event manifest.
 
