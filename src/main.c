@@ -33,6 +33,16 @@ static const COMTRACE_PROVIDER known_providers[] = {
         L"Microsoft-Windows-COM-RundownInstrumentation",
         L"Microsoft-Windows-COM-RundownInstrumentation",
         L"{2957313D-FCAA-5D4A-2F69-32CE5F0AC44E}"
+    },
+    {
+        L"Microsoft-Windows-RPC",
+        L"Microsoft-Windows-RPC",
+        L"{6AD52B32-D609-4BE9-AE07-CE8DAE937E39}"
+    },
+    {
+        L"Microsoft-Windows-RPCSS",
+        L"Microsoft-Windows-RPCSS",
+        L"{D8975F88-7DDB-4ED0-91BF-3ADF48C48E0C}"
     }
 };
 
@@ -49,7 +59,7 @@ static int run_self_test(void)
     size_t count = ARRAY_COUNT(known_providers);
     size_t index;
 
-    if (count != (size_t)3) {
+    if (count != (size_t)5) {
         fwprintf(stderr, L"Provider catalog size check failed.\n");
         return EXIT_FAILURE;
     }
@@ -148,7 +158,7 @@ static int list_providers(void)
     }
 
     wprintf(L"ComTrace %hs\n", COMTRACE_VERSION);
-    wprintf(L"COM/OLE ETW provider inventory\n");
+    wprintf(L"COM/RPC ETW provider inventory\n");
     wprintf(L"Source: Windows Trace Data Helper\n\n");
 
     for (catalog_index = 0U;
@@ -212,7 +222,7 @@ static int list_providers(void)
     }
 
     wprintf(
-        L"\nFound %zu of %zu known COM ETW providers.\n",
+        L"\nFound %zu of %zu known COM/RPC ETW providers.\n",
         found_count,
         ARRAY_COUNT(known_providers)
     );
