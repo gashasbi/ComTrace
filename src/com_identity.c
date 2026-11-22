@@ -1,11 +1,8 @@
 #include "com_identity.h"
+#include "etl_decoder.h"
 
-#include <stddef.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include <tdh.h>
-
-#define COMTRACE_MAX_EVENT_INFO_SIZE 65536U
 
 static COMTRACE_IDENTITY_STATUS extract_property_value(
     const EVENT_RECORD *event_record,
@@ -15,99 +12,37 @@ static COMTRACE_IDENTITY_STATUS extract_property_value(
     ULONG expected_size
 )
 {
-    ULONG buffer_size = 0U;
-    ULONG allocated_size;
-    ULONG status;
-    ULONG available_count;
+    COMTRACE_ETL_EVENT_INFO event_info;
+    COMTRACE_ETL_EVENT_INFO_STATUS info_status;
     ULONG index;
-    BYTE *buffer;
-    TRACE_EVENT_INFO *event_info;
-    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
     COMTRACE_IDENTITY_STATUS result = COMTRACE_IDENTITY_PROPERTY_NOT_FOUND;
 
     if (event_record == NULL ||
         property_name == NULL ||
-        property_name[0] == L'\0' ||
+        property_name[0] == L'\\0' ||
         value == NULL ||
         expected_size == 0U ||
         expected_size > sizeof(GUID)) {
         return COMTRACE_IDENTITY_INVALID_ARGUMENT;
     }
 
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        NULL,
-        &buffer_size
-    );
-
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        buffer_size < property_offset ||
-        buffer_size > COMTRACE_MAX_EVENT_INFO_SIZE) {
+    ZeroMemory(&event_info, sizeof(event_info));
+    info_status = comtrace_etl_event_info_open(event_record, &event_info);
+    if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
         return COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
     }
 
-    allocated_size = buffer_size;
-    buffer = (BYTE *)malloc(buffer_size);
-    if (buffer == NULL) {
-        return COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
-    }
-
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        (PTRACE_EVENT_INFO)buffer,
-        &buffer_size
-    );
-
-    if (status != ERROR_SUCCESS ||
-        buffer_size < property_offset ||
-        buffer_size > allocated_size) {
-        free(buffer);
-        return COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
-    }
-
-    event_info = (TRACE_EVENT_INFO *)buffer;
-    available_count = (ULONG)(
-        (buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO)
-    );
-
-    if (event_info->PropertyCount > available_count ||
-        event_info->TopLevelPropertyCount > event_info->PropertyCount) {
-        free(buffer);
-        return COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
-    }
-
-    for (index = 0U; index < event_info->TopLevelPropertyCount; ++index) {
+    for (index = 0U; index < event_info.top_level_property_count; ++index) {
         const EVENT_PROPERTY_INFO *property =
-            &event_info->EventPropertyInfoArray[index];
-        ULONG name_offset = property->NameOffset;
-        ULONG remaining;
-        ULONG name_length = 0U;
-        const wchar_t *name;
-        PROPERTY_DATA_DESCRIPTOR descriptor;
-        ULONG value_size = 0U;
-        BYTE property_value[sizeof(GUID)];
-
-        if (name_offset >= buffer_size ||
-            (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
-            result = COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
-            break;
-        }
-
-        name = (const wchar_t *)(buffer + name_offset);
-        remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-
-        while (name_length < remaining && name[name_length] != L'\0') {
-            ++name_length;
-        }
-
-        if (name_length == remaining) {
-            result = COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
-            break;
-        }
+            &event_info.info->EventPropertyInfoArray[index];
+        const wchar_t *name =
+            (const wchar_t *)(event_info.buffer + property->NameOffset);
+        USHORT input_type =
+            (property->Flags & PropertyHasCustomSchema) != 0U
+                ? property->customSchemaType.InType
+                : property->nonStructType.InType;
+        COMTRACE_ETL_PROPERTY_VALUE property_value;
+        COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
 
         if (wcscmp(name, property_name) != 0) {
             continue;
@@ -120,50 +55,40 @@ static COMTRACE_IDENTITY_STATUS extract_property_value(
                 PropertyWBEMXmlFragment |
                 PropertyHasCustomSchema
             )) != 0U ||
-            property->nonStructType.InType != expected_type) {
+            input_type != expected_type) {
             result = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
             break;
         }
 
-        ZeroMemory(&descriptor, sizeof(descriptor));
-        descriptor.PropertyName = (ULONGLONG)(ULONG_PTR)name;
-        descriptor.ArrayIndex = 0xFFFFFFFFUL;
-
-        status = TdhGetPropertySize(
-            (PEVENT_RECORD)event_record,
-            0U,
+        ZeroMemory(&property_value, sizeof(property_value));
+        read_status = comtrace_etl_read_property_value(
+            event_record,
+            property,
+            name,
             NULL,
-            1U,
-            &descriptor,
-            &value_size
+            NULL,
+            0U,
+            0xFFFFFFFFUL,
+            &property_value
         );
-
-        if (status != ERROR_SUCCESS || value_size != expected_size) {
+        if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
             result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
             break;
         }
 
-        status = TdhGetProperty(
-            (PEVENT_RECORD)event_record,
-            0U,
-            NULL,
-            1U,
-            &descriptor,
-            value_size,
-            property_value
-        );
-
-        if (status != ERROR_SUCCESS) {
+        if (property_value.size != expected_size) {
+            comtrace_etl_property_value_destroy(&property_value);
             result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
             break;
         }
 
-        CopyMemory(value, property_value, expected_size);
+        CopyMemory(value, property_value.data, expected_size);
+        comtrace_etl_property_value_destroy(&property_value);
         result = COMTRACE_IDENTITY_SUCCESS;
         break;
     }
 
-    free(buffer);
+    comtrace_etl_event_info_close(&event_info);
     return result;
 }
 
