@@ -54,7 +54,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--com | --ole] [--max-events <n>]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--com | --ole] [--max-events <n>]]\n",
         program_name
     );
 }
@@ -270,6 +270,37 @@ static int parse_decimal_value(
     return 1;
 }
 
+static int parse_uint64_filter(const wchar_t *text, ULONGLONG *value)
+{
+    wchar_t *end = NULL;
+    const wchar_t *digits;
+    unsigned long long parsed;
+    int base = 10;
+
+    if (text == NULL || value == NULL || text[0] == L'\\0' ||
+        text[0] == L'-' || text[0] == L'+') {
+        return 0;
+    }
+
+    digits = text;
+    if (text[0] == L'0' && (text[1] == L'x' || text[1] == L'X')) {
+        digits += 2;
+        base = 16;
+        if (digits[0] == L'\\0') {
+            return 0;
+        }
+    }
+
+    errno = 0;
+    parsed = wcstoull(digits, &end, base);
+    if (errno == ERANGE || end == digits || end == NULL || *end != L'\\0') {
+        return 0;
+    }
+
+    *value = (ULONGLONG)parsed;
+    return 1;
+}
+
 static int parse_hex_digit(wchar_t character)
 {
     if (character >= L'0' && character <= L'9') {
@@ -389,6 +420,11 @@ static int run_etl_search(int argc, wchar_t **argv)
                    wcscmp(option, L"--event-id") == 0 ||
                    wcscmp(option, L"--pid") == 0 ||
                    wcscmp(option, L"--tid") == 0 ||
+                   wcscmp(option, L"--clsid") == 0 ||
+                   wcscmp(option, L"--iid") == 0 ||
+                   wcscmp(option, L"--activity-id") == 0 ||
+                   wcscmp(option, L"--oid") == 0 ||
+                   wcscmp(option, L"--lifetime-id") == 0 ||
                    wcscmp(option, L"--max-events") == 0) {
             const wchar_t *argument;
 
@@ -424,6 +460,38 @@ static int run_etl_search(int argc, wchar_t **argv)
                     return EXIT_FAILURE;
                 }
                 filters.has_thread_id = TRUE;
+            } else if (wcscmp(option, L"--clsid") == 0) {
+                if (!parse_guid_filter(argument, &filters.class_id)) {
+                    fwprintf(stderr, L"Invalid CLSID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_class_id = TRUE;
+            } else if (wcscmp(option, L"--iid") == 0) {
+                if (!parse_guid_filter(argument, &filters.interface_id)) {
+                    fwprintf(stderr, L"Invalid IID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_interface_id = TRUE;
+            } else if (wcscmp(option, L"--activity-id") == 0) {
+                if (!parse_guid_filter(argument, &filters.activity_id)) {
+                    fwprintf(stderr, L"Invalid Activity ID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_activity_id = TRUE;
+            } else if (wcscmp(option, L"--oid") == 0) {
+                if (!parse_uint64_filter(argument, &filters.object_id) ||
+                    filters.object_id == 0ULL) {
+                    fwprintf(stderr, L"Invalid OID. Use decimal or 0x-prefixed hexadecimal.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_object_id = TRUE;
+            } else if (wcscmp(option, L"--lifetime-id") == 0) {
+                if (!parse_uint64_filter(argument, &filters.lifetime_object_id) ||
+                    filters.lifetime_object_id == 0ULL) {
+                    fwprintf(stderr, L"Invalid lifetime object ID.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_lifetime_object_id = TRUE;
             } else {
                 if (!parse_decimal_value(argument, 10000UL, &filters.sample_limit) ||
                     filters.sample_limit == 0U) {

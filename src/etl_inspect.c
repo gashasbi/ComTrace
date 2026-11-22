@@ -2784,16 +2784,51 @@ static int event_matches_filters(
 
     operation = NULL;
     phase = NULL;
-    if (context->filters.ole_only &&
-        !comtrace_classify_ole_event(
-            &event_record->EventHeader.ProviderId,
-            event_record->EventHeader.EventDescriptor.Id,
-            event_record->EventHeader.EventDescriptor.Version,
-            event_record->EventHeader.EventDescriptor.Opcode,
-            &operation,
-            &phase
-        )) {
-        return 0;
+    if (context->filters.has_class_id ||
+        context->filters.has_interface_id ||
+        context->filters.has_object_id) {
+        COMTRACE_COM_OBJECT_IDENTITY identity;
+
+        if (comtrace_extract_com_object_identity(event_record, &identity) !=
+            COMTRACE_IDENTITY_SUCCESS) {
+            return 0;
+        }
+        if (context->filters.has_class_id &&
+            (!identity.has_clsid ||
+             memcmp(&identity.clsid, &context->filters.class_id, sizeof(GUID)) != 0)) {
+            return 0;
+        }
+        if (context->filters.has_interface_id &&
+            (!identity.has_iid ||
+             memcmp(&identity.iid, &context->filters.interface_id, sizeof(GUID)) != 0)) {
+            return 0;
+        }
+        if (context->filters.has_object_id &&
+            (!identity.has_oid || identity.oid != context->filters.object_id)) {
+            return 0;
+        }
+    }
+
+    if (context->filters.has_lifetime_object_id) {
+        ULONGLONG object_instance_id = 0ULL;
+        if (comtrace_extract_uint64_property(
+                event_record, L"ObjectInstanceId", &object_instance_id
+            ) != COMTRACE_IDENTITY_SUCCESS ||
+            object_instance_id != context->filters.lifetime_object_id) {
+            return 0;
+        }
+    }
+
+    if (context->filters.has_activity_id) {
+        COMTRACE_ACTIVITY_IDS activity_ids;
+        if (comtrace_extract_activity_ids(event_record, &activity_ids) !=
+            COMTRACE_IDENTITY_SUCCESS ||
+            ((!activity_ids.has_activity_id ||
+              memcmp(&activity_ids.activity_id, &context->filters.activity_id, sizeof(GUID)) != 0) &&
+             (!activity_ids.has_related_activity_id ||
+              memcmp(&activity_ids.related_activity_id, &context->filters.activity_id, sizeof(GUID)) != 0))) {
+            return 0;
+        }
     }
 
     return 1;

@@ -461,11 +461,10 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_com_object_identity(
         &result.iid
     );
     if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
-        status = comtrace_extract_guid_property(
-            event_record,
-            L"IID",
-            &result.iid
-        );
+        status = comtrace_extract_guid_property(event_record, L"IID", &result.iid);
+    }
+    if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        status = comtrace_extract_guid_property(event_record, L"InterfaceId", &result.iid);
     }
     result.has_iid = status == COMTRACE_IDENTITY_SUCCESS;
 

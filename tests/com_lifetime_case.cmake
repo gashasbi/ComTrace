@@ -77,4 +77,32 @@ foreach(expected_text
     endif()
 endforeach()
 
-message(STATUS "COM lifetime ETW instrumentation and inspection passed.")
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${etl_path}" --lifetime-id 1 --max-events 100
+    RESULT_VARIABLE lifetime_search_result
+    OUTPUT_VARIABLE lifetime_search_output
+    ERROR_VARIABLE lifetime_search_error
+)
+if(NOT lifetime_search_result EQUAL 0)
+    message(FATAL_ERROR "Lifetime object search failed: ${lifetime_search_error}")
+endif()
+string(FIND "${lifetime_search_output}" "com_lifetime_event=ComObjectCreated" lifetime_search_position)
+if(lifetime_search_position LESS 0)
+    message(FATAL_ERROR "Lifetime object ID filter did not return its creation event.")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${etl_path}" --clsid "{183A5C71-2F49-4D83-9106-274A5B6C7D8E}" --max-events 100
+    RESULT_VARIABLE clsid_search_result
+    OUTPUT_VARIABLE clsid_search_output
+    ERROR_VARIABLE clsid_search_error
+)
+if(NOT clsid_search_result EQUAL 0)
+    message(FATAL_ERROR "CLSID search failed: ${clsid_search_error}")
+endif()
+string(FIND "${clsid_search_output}" "com_lifetime_event=ComObjectCreated" clsid_search_position)
+if(clsid_search_position LESS 0)
+    message(FATAL_ERROR "CLSID filter did not return the matching COM creation event.")
+endif()
+
+message(STATUS "COM lifetime ETW instrumentation, inspection, and identity search passed.")

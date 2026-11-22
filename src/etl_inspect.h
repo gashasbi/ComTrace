@@ -15,6 +15,16 @@ typedef struct {
     ULONG thread_id;
     BOOL com_only;
     BOOL ole_only;
+    BOOL has_class_id;
+    GUID class_id;
+    BOOL has_interface_id;
+    GUID interface_id;
+    BOOL has_object_id;
+    ULONGLONG object_id;
+    BOOL has_lifetime_object_id;
+    ULONGLONG lifetime_object_id;
+    BOOL has_activity_id;
+    GUID activity_id;
     ULONG sample_limit;
 } COMTRACE_ETL_FILTERS;
 
