@@ -998,7 +998,34 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
         }
     }
 
-    if (record->has_interface_id) {
+    if (record->interface_id_count != 0U) {
+        size_t position;
+
+        for (position = 0U; position < record->interface_id_count; ++position) {
+            status = add_node(
+                graph,
+                COMTRACE_GRAPH_NODE_IID,
+                0U,
+                0U,
+                &record->interface_ids[position].interface_id,
+                0ULL,
+                &interface_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+
+            status = add_edge(
+                graph,
+                COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID,
+                object_index,
+                interface_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    } else if (record->has_interface_id) {
         status = add_node(
             graph,
             COMTRACE_GRAPH_NODE_IID,
@@ -1020,6 +1047,93 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
         );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
+        }
+    }
+
+    {
+        size_t position;
+
+        for (position = 0U; position < record->native_identity_count; ++position) {
+            const COMTRACE_LIFETIME_NATIVE_IDENTITY *native_identity =
+                &record->native_identities[position];
+            size_t native_object_index;
+            size_t ipid_index;
+            size_t native_iid_index;
+
+            status = add_node_with_generation(
+                graph,
+                COMTRACE_GRAPH_NODE_COM_OBJECT,
+                record->process_id,
+                0U,
+                NULL,
+                native_identity->native_object_id,
+                record->process_generation,
+                record->has_process_generation,
+                &native_object_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+
+            status = add_edge(
+                graph,
+                COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_MAPS_TO_NATIVE_OBJECT,
+                object_index,
+                native_object_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+
+            if (native_identity->has_native_ipid) {
+                status = add_node(
+                    graph,
+                    COMTRACE_GRAPH_NODE_IPID,
+                    0U,
+                    0U,
+                    &native_identity->native_ipid,
+                    0ULL,
+                    &ipid_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+
+                status = add_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID,
+                    native_object_index,
+                    ipid_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+
+                if (native_identity->has_interface_id) {
+                    status = add_node(
+                        graph,
+                        COMTRACE_GRAPH_NODE_IID,
+                        0U,
+                        0U,
+                        &native_identity->interface_id,
+                        0ULL,
+                        &native_iid_index
+                    );
+                    if (status != COMTRACE_GRAPH_SUCCESS) {
+                        return status;
+                    }
+
+                    status = add_edge(
+                        graph,
+                        COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID,
+                        ipid_index,
+                        native_iid_index
+                    );
+                    if (status != COMTRACE_GRAPH_SUCCESS) {
+                        return status;
+                    }
+                }
+            }
         }
     }
 

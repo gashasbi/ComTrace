@@ -1020,6 +1020,60 @@ static int test_instrumented_lifetime_object_graph(void)
     return 1;
 }
 
+static int test_multiple_lifetime_interfaces_and_native_link(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_LIFETIME_RECORD record;
+    COMTRACE_LIFETIME_INTERFACE_ID interfaces[2];
+    COMTRACE_LIFETIME_NATIVE_IDENTITY native_identity;
+    size_t index;
+    int found_native_object = 0;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&record, sizeof(record));
+    ZeroMemory(interfaces, sizeof(interfaces));
+    ZeroMemory(&native_identity, sizeof(native_identity));
+
+    interfaces[0].interface_id = class_id;
+    interfaces[1].interface_id = interface_id;
+    native_identity.native_object_id = 0xABCDEF0123456789ULL;
+    native_identity.has_native_ipid = TRUE;
+    native_identity.native_ipid = interface_id;
+    native_identity.has_interface_id = TRUE;
+    native_identity.interface_id = interface_id;
+
+    record.process_id = 401U;
+    record.object_instance_id = 0x5678ULL;
+    record.interface_ids = interfaces;
+    record.interface_id_count = 2U;
+    record.native_identities = &native_identity;
+    record.native_identity_count = 1U;
+
+    if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_IID) != 2U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_COM_OBJECT) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID) != 2U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_MAPS_TO_NATIVE_OBJECT) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID) != 1U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph.nodes[index];
+        if (node->type == COMTRACE_GRAPH_NODE_COM_OBJECT &&
+            node->process_id == 401U &&
+            node->value == 0xABCDEF0123456789ULL) {
+            found_native_object = 1;
+        }
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return found_native_object;
+}
+
 int main(void)
 {
     if (!test_client_server_graph() ||
@@ -1036,7 +1090,8 @@ int main(void)
         !test_process_generations_separate_graph_objects() ||
         !test_object_owner_uses_target_process_generation() ||
         !test_missing_relationship_fields() ||
-        !test_instrumented_lifetime_object_graph()) {
+        !test_instrumented_lifetime_object_graph() ||
+        !test_multiple_lifetime_interfaces_and_native_link()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
     }
