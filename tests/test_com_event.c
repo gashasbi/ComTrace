@@ -124,6 +124,95 @@ static int run_null_argument_cases(void)
     return 1;
 }
 
+
+static const GUID com_rundown_provider = {
+    0x2957313DUL,
+    0xFCAAU,
+    0x5D4AU,
+    {0x2F, 0x69, 0x32, 0xCE, 0x5F, 0x0A, 0xC4, 0x4E}
+};
+
+static int test_com_rundown_classification(void)
+{
+    static const wchar_t *const expected_names[] = {
+        L"RundownInstrumentation",
+        L"RundownInstrumentation2",
+        L"RundownInstrumentation3",
+        L"RundownInstrumentation4",
+        L"RundownInstrumentation5",
+        L"RundownInstrumentation6",
+        L"RundownInstrumentation7_V1",
+        L"RundownInstrumentation8",
+        L"RundownInstrumentation9",
+        L"RundownInstrumentation10_V1",
+        L"RundownInstrumentation11_V1",
+        L"RundownInstrumentation12",
+        L"RundownInstrumentation13",
+        L"RundownInstrumentation14",
+        L"RundownInstrumentation15",
+        L"RundownInstrumentation16",
+        L"RundownInstrumentation17",
+        L"RundownInstrumentation18",
+        L"RundownInstrumentation19",
+        L"RundownInstrumentation20",
+        L"RundownInstrumentation21",
+        L"RundownInstrumentation22",
+        L"RundownInstrumentation23",
+        L"RundownInstrumentation24",
+        L"RundownInstrumentation25"
+    };
+    size_t index;
+
+    for (index = 0U; index < sizeof(expected_names) / sizeof(expected_names[0]); ++index) {
+        USHORT event_id = (USHORT)(index + 1U);
+        UCHAR version =
+            (event_id == 7U || event_id == 10U || event_id == 11U) ? 1U : 0U;
+        const wchar_t *event_name = NULL;
+
+        if (!comtrace_classify_com_rundown_event(
+                &com_rundown_provider,
+                event_id,
+                version,
+                0U,
+                &event_name
+            ) ||
+            event_name == NULL ||
+            wcscmp(event_name, expected_names[index]) != 0) {
+            fwprintf(stderr, L"COM rundown event %u classification failed\n",
+                (unsigned int)event_id);
+            return 0;
+        }
+    }
+
+    {
+        const wchar_t *event_name = L"unchanged";
+
+        if (comtrace_classify_com_rundown_event(
+                &com_rundown_provider, 7U, 0U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_com_rundown_event(
+                &com_rundown_provider, 10U, 0U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_com_rundown_event(
+                &com_rundown_provider, 11U, 0U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_com_rundown_event(
+                &com_rundown_provider, 1U, 0U, 1U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_com_rundown_event(
+                &com_perf_provider, 1U, 0U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_com_rundown_event(
+                &com_rundown_provider, 26U, 0U, 0U, &event_name) ||
+            event_name != NULL) {
+            fputs("COM rundown event rejection cases failed\n", stderr);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -201,6 +290,10 @@ int main(void)
     }
 
     rejection_count += 11U;
+
+    if (!test_com_rundown_classification()) {
+        return 1;
+    }
 
     printf("COM event classification tests passed: %zu mappings and %zu rejection cases\n",
         sizeof(cases) / sizeof(cases[0]), rejection_count);
