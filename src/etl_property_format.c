@@ -555,7 +555,7 @@ int comtrace_etl_print_mapped_property_value(
     );
     if (status != ERROR_INSUFFICIENT_BUFFER ||
         map_size < offsetof(EVENT_MAP_INFO, MapEntryArray) ||
-        map_size > 1048576U) {
+        map_size > COMTRACE_ETL_MAX_METADATA_BYTES) {
         return 0;
     }
 
