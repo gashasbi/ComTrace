@@ -338,6 +338,33 @@ static int test_related_activity_without_activity(void)
     return found;
 }
 
+static int test_identical_activity_ids_do_not_create_self_edge(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    activity_ids.activity_id = activity_id;
+    activity_ids.related_activity_id = activity_id;
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.has_related_activity_id = TRUE;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_ACTIVITY) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO) != 0U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_duplicate_event_is_idempotent(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -543,6 +570,7 @@ int main(void)
         !test_interface_without_object_id() ||
         !test_oid_without_known_process() ||
         !test_related_activity_without_activity() ||
+        !test_identical_activity_ids_do_not_create_self_edge() ||
         !test_duplicate_event_is_idempotent() ||
         !test_zero_process_ids_are_ignored() ||
         !test_zero_target_process_uses_local_process() ||
