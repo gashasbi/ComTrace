@@ -989,13 +989,16 @@ static void print_event_property_value_element(
     if ((flags & PropertyHasTags) != 0U) {
         wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
     }
+    if (out_type == TDH_OUTTYPE_NOPRINT) {
+        wprintf(L"status=skipped reason=out_type_noprint\n");
+        goto cleanup;
+    }
     if ((flags & PropertyHasCustomSchema) != 0U) {
         print_binary_value(value, value_size);
         goto cleanup;
     }
 
-    if ((flags & PropertyHasCustomSchema) == 0U &&
-        property->nonStructType.MapNameOffset != 0U &&
+    if (property->nonStructType.MapNameOffset != 0U &&
         print_mapped_property_value(
             event_record,
             metadata_buffer,
@@ -1011,6 +1014,13 @@ static void print_event_property_value_element(
     }
 
     if (out_type == TDH_OUTTYPE_DATETIME ||
+        out_type == TDH_OUTTYPE_DATETIME_UTC ||
+        out_type == TDH_OUTTYPE_CULTURE_INSENSITIVE_DATETIME ||
+        out_type == TDH_OUTTYPE_CIMDATETIME ||
+        out_type == TDH_OUTTYPE_ETWTIME ||
+        out_type == TDH_OUTTYPE_REDUCEDSTRING ||
+        (in_type == TDH_INTYPE_BINARY &&
+         out_type == TDH_OUTTYPE_PKCS7_WITH_TYPE_INFO) ||
         (out_type == TDH_OUTTYPE_STRING &&
          in_type != TDH_INTYPE_UNICODESTRING &&
          in_type != TDH_INTYPE_ANSISTRING &&
