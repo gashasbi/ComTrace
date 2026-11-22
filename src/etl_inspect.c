@@ -959,7 +959,8 @@ static void print_event_property_value_element(
     value = decoded_value.data;
     value_size = decoded_value.size;
 
-    if (!normalize_property_payload(
+    if ((flags & PropertyHasCustomSchema) == 0U &&
+        !normalize_property_payload(
             &in_type,
             &value,
             &value_size,
@@ -1023,6 +1024,10 @@ static void print_event_property_value_element(
     }
     if ((flags & PropertyHasTags) != 0U) {
         wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
+    }
+    if ((flags & PropertyHasCustomSchema) != 0U) {
+        print_binary_value(value, value_size);
+        goto cleanup;
     }
 
     switch (in_type) {
