@@ -283,6 +283,93 @@ static int test_system_idle_process_id_is_valid(void)
     return 1;
 }
 
+
+static int test_generation_resolution_uses_lifecycle_bounds(void)
+{
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG catalog;
+    COMTRACE_PROCESS_EVENT event;
+    ULONGLONG generation = 0ULL;
+
+    comtrace_process_lifecycle_catalog_init(&catalog);
+
+    event = make_event(101U, COMTRACE_PROCESS_EVENT_START, 100);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event = make_event(101U, COMTRACE_PROCESS_EVENT_END, 200);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event = make_event(101U, COMTRACE_PROCESS_EVENT_START, 300);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event = make_event(101U, COMTRACE_PROCESS_EVENT_END, 400);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS ||
+        !comtrace_process_lifecycle_resolve_generation(
+            &catalog, 101U, 150, &generation
+        ) ||
+        generation != 1ULL ||
+        !comtrace_process_lifecycle_resolve_generation(
+            &catalog, 101U, 350, &generation
+        ) ||
+        generation != 2ULL ||
+        comtrace_process_lifecycle_resolve_generation(
+            &catalog, 101U, 250, &generation
+        ) ||
+        comtrace_process_lifecycle_resolve_generation(
+            &catalog, 101U, 450, &generation
+        ) ||
+        comtrace_process_lifecycle_resolve_generation(
+            &catalog, 999U, 350, &generation
+        )) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_process_lifecycle_catalog_destroy(&catalog);
+    return 1;
+}
+
+static int test_overlapping_lifetimes_are_not_guessed(void)
+{
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG catalog;
+    COMTRACE_PROCESS_EVENT event;
+    ULONGLONG generation = 0ULL;
+
+    comtrace_process_lifecycle_catalog_init(&catalog);
+
+    event = make_event(202U, COMTRACE_PROCESS_EVENT_START, 100);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event = make_event(202U, COMTRACE_PROCESS_EVENT_START, 300);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS ||
+        comtrace_process_lifecycle_resolve_generation(
+            &catalog, 202U, 350, &generation
+        )) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_process_lifecycle_catalog_destroy(&catalog);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_event_classification() ||
@@ -290,7 +377,9 @@ int main(void)
         !test_rundown_is_not_creation_or_exit() ||
         !test_unmatched_end_is_preserved() ||
         !test_duplicate_start_does_not_create_generation() ||
-        !test_system_idle_process_id_is_valid()) {
+        !test_system_idle_process_id_is_valid() ||
+        !test_generation_resolution_uses_lifecycle_bounds() ||
+        !test_overlapping_lifetimes_are_not_guessed()) {
         fputs("Process lifecycle tests failed.\n", stderr);
         return 1;
     }
