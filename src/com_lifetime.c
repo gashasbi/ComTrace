@@ -27,7 +27,7 @@ void comtrace_lifetime_shutdown(void)
 ULONGLONG comtrace_lifetime_object_created(
     const GUID *class_id,
     const GUID *interface_id,
-    ULONG reference_count
+    ULONG initial_reference_count
 )
 {
     LONGLONG next_id;
@@ -49,7 +49,7 @@ ULONGLONG comtrace_lifetime_object_created(
         TraceLoggingUInt64((ULONGLONG)next_id, "ObjectInstanceId"),
         TraceLoggingGuid(*class_id, "ClassId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
-        TraceLoggingUInt32(reference_count, "ReferenceCountResult")
+        TraceLoggingUInt32(initial_reference_count, "InitialReferenceCount")
     );
 
     return (ULONGLONG)next_id;
@@ -58,7 +58,7 @@ ULONGLONG comtrace_lifetime_object_created(
 void comtrace_lifetime_add_ref(
     ULONGLONG object_instance_id,
     const GUID *interface_id,
-    ULONG reference_count
+    ULONG reference_count_result
 )
 {
     if (object_instance_id == 0ULL || interface_id == NULL) {
@@ -72,14 +72,14 @@ void comtrace_lifetime_add_ref(
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
-        TraceLoggingUInt32(reference_count, "ReferenceCountResult")
+        TraceLoggingUInt32(reference_count_result, "ReferenceCountResult")
     );
 }
 
 void comtrace_lifetime_release(
     ULONGLONG object_instance_id,
     const GUID *interface_id,
-    ULONG reference_count
+    ULONG reference_count_result
 )
 {
     if (object_instance_id == 0ULL || interface_id == NULL) {
@@ -93,7 +93,7 @@ void comtrace_lifetime_release(
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
-        TraceLoggingUInt32(reference_count, "ReferenceCountResult")
+        TraceLoggingUInt32(reference_count_result, "ReferenceCountResult")
     );
 }
 
