@@ -38,6 +38,8 @@ static const GUID interface_pointer_id = {
     { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
 };
 
+static const GUID empty_activity_id = { 0 };
+
 static const ULONGLONG object_id = 0x1122334455667788ULL;
 static const ULONGLONG call_trace_id = 0x8877665544332211ULL;
 
@@ -207,7 +209,7 @@ int wmain(int argc, wchar_t **argv)
     status = EventWriteTransfer(
         provider,
         &descriptor,
-        NULL,
+        &empty_activity_id,
         &related_activity_id,
         1U,
         &related_data
