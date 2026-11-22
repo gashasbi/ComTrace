@@ -30,6 +30,20 @@ static const GUID native_ipid = {
     {0xc4, 0x39, 0x5a, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1}
 };
 
+static const GUID activity_id = {
+    0x5b9ea0b5,
+    0x6d8f,
+    0x41c7,
+    {0xd5, 0x4a, 0x6b, 0x8c, 0x9d, 0xae, 0xbf, 0xc0}
+};
+
+static const GUID related_activity_id = {
+    0x6cafb1c6,
+    0x7e90,
+    0x42d8,
+    {0xe6, 0x5b, 0x7c, 0x9d, 0xae, 0xbf, 0xc0, 0xd1}
+};
+
 static int add_event(
     COMTRACE_COM_LIFETIME_ANALYSIS *analysis,
     COMTRACE_LIFETIME_EVENT_TYPE type,
@@ -184,6 +198,10 @@ static int test_multiple_interfaces_and_native_identity(void)
     event.interface_id = second_interface_id;
     event.has_reference_count_result = TRUE;
     event.reference_count_result = 2U;
+    event.has_activity_id = TRUE;
+    event.activity_id = activity_id;
+    event.has_related_activity_id = TRUE;
+    event.related_activity_id = related_activity_id;
     if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
         COMTRACE_LIFETIME_SUCCESS) {
         comtrace_lifetime_analysis_destroy(&analysis);
@@ -213,6 +231,11 @@ static int test_multiple_interfaces_and_native_identity(void)
     if (record == NULL ||
         record->interface_id_count != 2U ||
         record->native_identity_count != 1U ||
+        record->activity_id_count != 1U ||
+        !record->activity_ids[0].has_activity_id ||
+        memcmp(&record->activity_ids[0].activity_id, &activity_id, sizeof(GUID)) != 0 ||
+        !record->activity_ids[0].has_related_activity_id ||
+        memcmp(&record->activity_ids[0].related_activity_id, &related_activity_id, sizeof(GUID)) != 0 ||
         !record->has_native_object_id ||
         record->native_object_id != 0xABCDEF0123456789ULL ||
         !record->native_identities[0].has_native_ipid ||
