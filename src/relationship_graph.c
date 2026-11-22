@@ -281,7 +281,8 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
         return status;
     }
 
-    if (identity->has_process_id && identity->has_thread_id) {
+    if (identity->has_process_id && identity->process_id != 0U &&
+        identity->has_thread_id && identity->thread_id != 0U) {
         status = add_thread(
             graph,
             identity->process_id,
@@ -324,7 +325,7 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
         target_thread_index = remote_thread_index;
         current_process_index = (size_t)-1;
 
-        if (identity->has_process_id) {
+        if (identity->has_process_id && identity->process_id != 0U) {
             status = add_process(graph, identity->process_id, &current_process_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
@@ -348,7 +349,7 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
         target_thread_index = current_thread_index;
         current_process_index = (size_t)-1;
 
-        if (identity->has_process_id) {
+        if (identity->has_process_id && identity->process_id != 0U) {
             status = add_process(graph, identity->process_id, &current_process_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
@@ -439,14 +440,15 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
         return COMTRACE_GRAPH_INVALID_ARGUMENT;
     }
 
-    if (identity->has_process_id) {
+    if (identity->has_process_id && identity->process_id != 0U) {
         status = add_process(graph, identity->process_id, &current_process_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
     }
 
-    if (identity->has_process_id && identity->has_thread_id) {
+    if (identity->has_process_id && identity->process_id != 0U &&
+        identity->has_thread_id && identity->thread_id != 0U) {
         status = add_thread(
             graph,
             identity->process_id,
@@ -545,57 +547,6 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
     }
 
     if (identity->has_call_trace_id) {
-            status = add_node(
-                graph,
-                COMTRACE_GRAPH_NODE_CALL,
-                0U,
-                0U,
-                NULL,
-                identity->call_trace_id,
-                &call_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-
-            status = add_edge(
-                graph,
-                COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY,
-                call_index,
-                activity_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-
-        if (activity_ids->has_related_activity_id) {
-            status = add_node(
-                graph,
-                COMTRACE_GRAPH_NODE_ACTIVITY,
-                0U,
-                0U,
-                &activity_ids->related_activity_id,
-                0ULL,
-                &related_activity_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-
-            status = add_edge(
-                graph,
-                COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO,
-                activity_index,
-                related_activity_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-    }
-
-    if (identity->has_call_trace_id) {
         status = add_call_relationship(graph, identity);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
@@ -664,9 +615,11 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
         }
     }
 
-    object_process_id = identity->has_target_process_id
+    object_process_id = identity->has_target_process_id && identity->target_process_id != 0U
         ? identity->target_process_id
-        : (identity->has_process_id ? identity->process_id : 0U);
+        : (identity->has_process_id && identity->process_id != 0U
+            ? identity->process_id
+            : 0U);
 
     if (identity->has_oid && object_process_id != 0U) {
         size_t owner_process_index;
