@@ -391,6 +391,22 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_archive_reader COMMAND ComTraceArchiveReaderTests)
 
+    add_executable(ComTraceArchiveStressTests
+        tests/test_archive_stress.c
+        src/archive_writer.c
+        src/archive_reader.c
+        src/archive_checksum.c
+    )
+    target_include_directories(ComTraceArchiveStressTests PRIVATE src)
+    target_link_libraries(ComTraceArchiveStressTests PRIVATE Psapi)
+    if(MSVC)
+        target_compile_options(ComTraceArchiveStressTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceArchiveStressTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_archive_stress COMMAND ComTraceArchiveStressTests)
+    set_tests_properties(comtrace_archive_stress PROPERTIES TIMEOUT 180)
+
     add_executable(ComTraceArchiveTestFixture tests/archive_cli_fixture.c src/archive_writer.c)
     target_include_directories(ComTraceArchiveTestFixture PRIVATE src)
     target_link_libraries(ComTraceArchiveTestFixture PRIVATE Advapi32)
