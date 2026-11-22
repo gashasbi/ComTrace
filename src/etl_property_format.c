@@ -362,14 +362,19 @@ static int get_map_numeric_value(
         return 1;
     }
     case TDH_INTYPE_UINT64:
-    case TDH_INTYPE_HEXINT64:
+    case TDH_INTYPE_HEXINT64: {
+        ULONGLONG number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        if (number_value > (ULONGLONG)ULONG_MAX) return 0;
+        *number = (ULONG)number_value;
+        return 1;
+    }
     case TDH_INTYPE_SIZET:
     case TDH_INTYPE_POINTER: {
         ULONGLONG number_value = 0ULL;
-        if ((value_size != sizeof(ULONG) &&
-             value_size != sizeof(ULONGLONG)) ||
-            (in_type == TDH_INTYPE_SIZET && value_size != 4U && value_size != 8U) ||
-            (in_type == TDH_INTYPE_POINTER && value_size != 4U && value_size != 8U)) {
+        if (value_size != sizeof(ULONG) &&
+            value_size != sizeof(ULONGLONG)) {
             return 0;
         }
         CopyMemory(&number_value, value, value_size);
@@ -595,6 +600,7 @@ int comtrace_etl_print_mapped_property_value(
     }
 
     if (is_value_map &&
+        (flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) == 0U &&
         map_info->MapEntryValueType == EVENTMAP_ENTRY_VALUETYPE_STRING) {
         for (index = 0U; index < map_info->EntryCount; ++index) {
             input_offset = map_info->MapEntryArray[index].InputOffset;
