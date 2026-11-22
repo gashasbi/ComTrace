@@ -77,4 +77,11 @@ COMTRACE_PROCESS_LIFECYCLE_STATUS comtrace_process_lifecycle_catalog_add(
     const COMTRACE_PROCESS_EVENT *process_event
 );
 
+BOOL comtrace_process_lifecycle_resolve_generation(
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog,
+    DWORD process_id,
+    LONGLONG timestamp,
+    ULONGLONG *generation
+);
+
 #endif
