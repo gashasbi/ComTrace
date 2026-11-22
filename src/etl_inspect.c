@@ -1568,24 +1568,18 @@ static void print_relationship_graph_node(
     }
 }
 
-static void add_relationship_graph_event(
+static void add_process_lifecycle_event(
     ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
 )
 {
-    const wchar_t *operation = NULL;
-    const wchar_t *phase = NULL;
-    COMTRACE_COM_OBJECT_IDENTITY identity;
-    COMTRACE_ACTIVITY_IDS activity_ids;
-    COMTRACE_ACTIVITY_IDS *activity_ids_ptr = NULL;
-    int is_com_event;
-    int is_ole_event;
-
-    if (context == NULL || event_record == NULL) {
+    if (context == NULL ||
+        event_record == NULL ||
+        !comtrace_process_lifecycle_is_event(event_record)) {
         return;
     }
 
-    if (comtrace_process_lifecycle_is_event(event_record)) {
+    {
         COMTRACE_PROCESS_EVENT process_event;
         COMTRACE_PROCESS_LIFECYCLE_STATUS process_status;
 
@@ -1606,9 +1600,26 @@ static void add_relationship_graph_event(
         } else if (context->process_lifecycle_failures != ULLONG_MAX) {
             ++context->process_lifecycle_failures;
         }
+    }
+}
 
+static void add_relationship_graph_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_ACTIVITY_IDS *activity_ids_ptr = NULL;
+    int is_com_event;
+    int is_ole_event;
+
+    if (context == NULL || event_record == NULL) {
         return;
     }
+
 
     is_com_event = comtrace_classify_com_event(
         &event_record->EventHeader.ProviderId,
@@ -1650,10 +1661,11 @@ static void add_relationship_graph_event(
         activity_ids_ptr = &activity_ids;
     }
 
-    if (comtrace_relationship_graph_add_event(
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
             &context->relationship_graph,
             &identity,
-            activity_ids_ptr
+            activity_ids_ptr,
+            &context->process_lifecycle
         ) != COMTRACE_GRAPH_SUCCESS) {
         context->graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
@@ -1879,6 +1891,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     context = (ETL_INSPECT_CONTEXT *)event_record->UserContext;
     ++context->total_events;
+    add_process_lifecycle_event(context, event_record);
 
     if (!event_matches_filters(context, event_record)) {
         return;
