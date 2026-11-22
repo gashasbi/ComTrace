@@ -135,6 +135,7 @@ int comtrace_etl_read_property_count(
     ULONG status;
     USHORT in_type;
     BYTE value[8];
+    LONGLONG signed_value = 0LL;
     ULONGLONG count_value = 0ULL;
 
     if (event_record == NULL ||
@@ -172,16 +173,22 @@ int comtrace_etl_read_property_count(
 
     in_type = count_property->nonStructType.InType;
     switch (in_type) {
+    case TDH_INTYPE_INT8:
     case TDH_INTYPE_UINT8:
         expected_size = 1U;
         break;
+    case TDH_INTYPE_INT16:
     case TDH_INTYPE_UINT16:
         expected_size = 2U;
         break;
+    case TDH_INTYPE_INT32:
     case TDH_INTYPE_UINT32:
+    case TDH_INTYPE_HEXINT32:
         expected_size = 4U;
         break;
+    case TDH_INTYPE_INT64:
     case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_HEXINT64:
         expected_size = 8U;
         break;
     default:
@@ -217,7 +224,43 @@ int comtrace_etl_read_property_count(
         return 0;
     }
 
-    CopyMemory(&count_value, value, value_size);
+    switch (in_type) {
+    case TDH_INTYPE_INT8: {
+        CHAR number;
+        CopyMemory(&number, value, sizeof(number));
+        signed_value = (LONGLONG)number;
+        break;
+    }
+    case TDH_INTYPE_INT16: {
+        SHORT number;
+        CopyMemory(&number, value, sizeof(number));
+        signed_value = (LONGLONG)number;
+        break;
+    }
+    case TDH_INTYPE_INT32: {
+        LONG number;
+        CopyMemory(&number, value, sizeof(number));
+        signed_value = (LONGLONG)number;
+        break;
+    }
+    case TDH_INTYPE_INT64:
+        CopyMemory(&signed_value, value, sizeof(signed_value));
+        break;
+    default:
+        CopyMemory(&count_value, value, value_size);
+        break;
+    }
+
+    if (in_type == TDH_INTYPE_INT8 ||
+        in_type == TDH_INTYPE_INT16 ||
+        in_type == TDH_INTYPE_INT32 ||
+        in_type == TDH_INTYPE_INT64) {
+        if (signed_value < 0LL) {
+            return 0;
+        }
+        count_value = (ULONGLONG)signed_value;
+    }
+
     if (count_value > (ULONGLONG)COMTRACE_ETL_MAX_ARRAY_ELEMENTS) {
         return 0;
     }
