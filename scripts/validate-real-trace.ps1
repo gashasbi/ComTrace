@@ -382,7 +382,7 @@ $rundownIdentityValueCount = [regex]::Matches(
     $rundownSearchOutput,
     "(?im)^\s*com_rundown_(?:oid|iid|ipid)="
 ).Count
-$rundownValidationStatus = "PASS"
+$rundownValidationStatus = "PRESENT"
 if ($rundownEventCount -eq 0) {
     $rundownValidationStatus = "NOT_EMITTED"
     Write-Warning "The COM-RundownInstrumentation provider emitted no events in this trace."
