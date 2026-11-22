@@ -330,6 +330,21 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_etl_value COMMAND ComTraceEtlValueTests)
 
+    add_executable(ComTraceEtlPropertyFormatTests
+        tests/test_etl_property_format.c
+        src/etl_property_format.c
+    )
+    target_include_directories(ComTraceEtlPropertyFormatTests PRIVATE src)
+    target_link_libraries(ComTraceEtlPropertyFormatTests PRIVATE Tdh Advapi32)
+
+    if(MSVC)
+        target_compile_options(ComTraceEtlPropertyFormatTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceEtlPropertyFormatTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_etl_property_format COMMAND ComTraceEtlPropertyFormatTests)
+
     add_executable(ComTraceEventRecordTests
         tests/test_event_record.c
         src/event_record.c
