@@ -2850,6 +2850,11 @@ static void add_dde_timeline_event(
     switch (event_type) {
     case COMTRACE_DDE_EVENT_CONVERSATION_OPENED:
         timeline_event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_OPENED;
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"DdeInstanceId",
+            &timeline_event.dde_instance_id
+        );
         if (comtrace_extract_string_property(
                 event_record,
                 L"Role",
@@ -3266,6 +3271,9 @@ static void print_dde_timeline_summary(
             (unsigned long)record->thread_id,
             (unsigned long long)record->conversation_id
         );
+        if (record->dde_instance_id != 0U) {
+            wprintf(L" dde_instance=%lu", (unsigned long)record->dde_instance_id);
+        }
         if (record->has_opened) {
             wprintf(L" opened=%llu", (unsigned long long)record->opened_timestamp);
         }
