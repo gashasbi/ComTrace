@@ -38,6 +38,26 @@ static const GUID interface_pointer_id = {
     { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
 };
 
+static const GUID rpc_interface_uuid = {
+    0x50617283, 0x94a5, 0xb6c7,
+    { 0xd8, 0xe9, 0xfa, 0x0b, 0x1c, 0x2d, 0x3e, 0x4f }
+};
+
+static const GUID rpcss_interface_uuid = {
+    0x60718293, 0xa4b5, 0xc6d7,
+    { 0xe8, 0xf9, 0x0a, 0x1b, 0x2c, 0x3d, 0x4e, 0x5f }
+};
+
+static const GUID rpcss_object_uuid = {
+    0x708192a3, 0xb4c5, 0xd6e7,
+    { 0xf8, 0x09, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f }
+};
+
+static const GUID type_manager_uuid = {
+    0x8091a2b3, 0xc4d5, 0xe6f7,
+    { 0x08, 0x19, 0x2a, 0x3b, 0x4c, 0x5d, 0x6e, 0x7f }
+};
+
 static const GUID empty_activity_id = { 0 };
 
 static const ULONGLONG object_id = 0x1122334455667788ULL;
@@ -61,6 +81,7 @@ int wmain(int argc, wchar_t **argv)
     EVENT_DATA_DESCRIPTOR call_trace_data;
     EVENT_DATA_DESCRIPTOR related_data;
     EVENT_DATA_DESCRIPTOR rundown_data[3];
+    EVENT_DATA_DESCRIPTOR rpc_data[4];
     ULONG call_trace_id_32 = 0x12345678UL;
     ULONG related_marker = 456U;
     ULONG target_process_id = 0x12345678UL;
@@ -227,6 +248,17 @@ int wmain(int argc, wchar_t **argv)
     status = EventWrite(provider, &descriptor, 3U, rundown_data);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"Rundown identity event write failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    descriptor.Id = 6U;
+    EventDataDescCreate(&rpc_data[0], (PVOID)&rpc_interface_uuid, (ULONG)sizeof(rpc_interface_uuid));
+    EventDataDescCreate(&rpc_data[1], (PVOID)&rpcss_interface_uuid, (ULONG)sizeof(rpcss_interface_uuid));
+    EventDataDescCreate(&rpc_data[2], (PVOID)&rpcss_object_uuid, (ULONG)sizeof(rpcss_object_uuid));
+    EventDataDescCreate(&rpc_data[3], (PVOID)&type_manager_uuid, (ULONG)sizeof(type_manager_uuid));
+    status = EventWrite(provider, &descriptor, 4U, rpc_data);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"RPC identity event write failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
