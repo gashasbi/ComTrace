@@ -596,7 +596,9 @@ int comtrace_etl_print_mapped_property_value(
             &string_length,
             0
         );
-        wprintf(L"map_type=pattern_map message_only=true");
+        wprintf(L"map_type=pattern_map message_only=true map_name=\"");
+        print_escaped_map_string(map_name, name_length);
+        wprintf(L"\"");
         if (map_string != NULL) {
             wprintf(L" pattern_format=\"");
             print_escaped_map_string(map_string, string_length);
@@ -658,6 +660,10 @@ int comtrace_etl_print_mapped_property_value(
         free(map_buffer);
         return 0;
     }
+
+    wprintf(L"map_type=%ls map_name=\"", is_bitmap ? L"bitmap" : L"value_map");
+    print_escaped_map_string(map_name, name_length);
+    wprintf(L"\" ");
 
     if (is_value_map &&
         (flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) == 0U &&
