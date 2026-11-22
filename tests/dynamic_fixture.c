@@ -45,6 +45,13 @@ int wmain(int argc, wchar_t **argv)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
     };
     LONG hresult_value = (LONG)0x80004005UL;
+    BYTE hex8_value = 0xABU;
+    USHORT hex16_value = 0xCDEFU;
+    ULONG hex32_value = 0x89ABCDEFUL;
+    ULONGLONG hex64_value = 0x0123456789ABCDEFULL;
+    ULONG error_code_value = 0x00000005UL;
+    ULONG ntstatus_value = 0xC0000005UL;
+    ULONG code_pointer_value = 0x12345678UL;
     int result = 1;
 
     if (argc != 2) {
@@ -119,7 +126,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, hresult_value);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
