@@ -216,7 +216,8 @@ int comtrace_etl_read_property_count(
         ULONG member_start;
         ULONG member_count;
 
-        if (parent_property_index >= property_count) {
+        if (parent_names[index] == NULL ||
+            parent_property_index >= property_count) {
             return 0;
         }
 
@@ -271,7 +272,7 @@ int comtrace_etl_read_property_count(
 
     switch (in_type) {
     case TDH_INTYPE_INT8: {
-        CHAR number;
+        signed char number;
         CopyMemory(&number, value, sizeof(number));
         signed_value = (LONGLONG)number;
         break;
