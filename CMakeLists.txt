@@ -703,7 +703,11 @@ install(TARGETS ComTrace ComTraceArchive
 install(TARGETS ComTraceLifetimeInstrumentation ComTraceDdeInstrumentation
     ARCHIVE DESTINATION lib
 )
-install(FILES include/comtrace_lifetime.h DESTINATION include)
+install(FILES
+    include/comtrace_lifetime.h
+    include/comtrace_dde.h
+    DESTINATION include
+)
 install(FILES README.md LICENSE DESTINATION .)
 install(DIRECTORY docs DESTINATION .)
 install(DIRECTORY scripts DESTINATION .)
