@@ -340,6 +340,79 @@ static int test_duplicate_event_is_idempotent(void)
     return 1;
 }
 
+static int test_zero_process_ids_are_ignored(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.has_target_process_id = TRUE;
+    identity.has_target_thread_id = TRUE;
+    identity.has_oid = TRUE;
+    identity.oid = 0x1122334455667788ULL;
+    identity.has_call_trace_id = TRUE;
+    identity.call_trace_id = 0x123456789ABCDEF0ULL;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_PROCESS) != 0U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_THREAD) != 0U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_COM_OBJECT) != 0U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_CALL) != 1U ||
+        graph.edge_count != 0U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
+static int test_zero_target_process_uses_local_process(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    const COMTRACE_GRAPH_NODE *node;
+    size_t index;
+    int found = 0;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+
+    identity.process_id = 303U;
+    identity.has_process_id = TRUE;
+    identity.target_process_id = 0U;
+    identity.has_target_process_id = TRUE;
+    identity.oid = 0x8877665544332211ULL;
+    identity.has_oid = TRUE;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_PROCESS) != 1U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_COM_OBJECT) != 1U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        node = comtrace_relationship_graph_get_node(&graph, index);
+        if (node != NULL &&
+            node->type == COMTRACE_GRAPH_NODE_COM_OBJECT &&
+            node->process_id == 303U &&
+            node->value == identity.oid) {
+            found = 1;
+            break;
+        }
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return found;
+}
+
 static int test_missing_relationship_fields(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -376,6 +449,8 @@ int main(void)
         !test_oid_without_known_process() ||
         !test_related_activity_without_activity() ||
         !test_duplicate_event_is_idempotent() ||
+        !test_zero_process_ids_are_ignored() ||
+        !test_zero_target_process_uses_local_process() ||
         !test_missing_relationship_fields()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
