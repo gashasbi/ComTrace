@@ -1058,6 +1058,119 @@ static void print_com_rundown_event_classification(
     }
 }
 
+
+static void print_com_runtime_event_classification(
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *event_name = NULL;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+
+    if (event_record == NULL ||
+        !comtrace_classify_com_runtime_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &event_name
+        )) {
+        return;
+    }
+
+    wprintf(L"  com_runtime_event=%ls\n", event_name);
+
+    if (comtrace_extract_com_object_identity(event_record, &identity) !=
+        COMTRACE_IDENTITY_SUCCESS) {
+        return;
+    }
+
+    if (identity.has_iid) {
+        wprintf(L"  com_stub_iid=");
+        print_guid(&identity.iid);
+        wprintf(L"\n");
+    }
+    if (identity.has_ipid) {
+        wprintf(L"  com_stub_ipid=");
+        print_guid(&identity.ipid);
+        wprintf(L"\n");
+    }
+}
+
+static void print_rpc_event_classification(
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *event_name = NULL;
+    const wchar_t *phase = NULL;
+    GUID interface_id;
+
+    if (event_record == NULL ||
+        !comtrace_classify_rpc_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &event_name,
+            &phase
+        )) {
+        return;
+    }
+
+    wprintf(L"  rpc_event=%ls phase=%ls\n", event_name, phase);
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceUuid",
+            &interface_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  rpc_interface_uuid=");
+        print_guid(&interface_id);
+        wprintf(L"\n");
+    }
+}
+
+static void print_rpcss_event_classification(
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *event_name = NULL;
+    GUID interface_id;
+    GUID object_id;
+
+    if (event_record == NULL ||
+        !comtrace_classify_rpcss_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &event_name
+        )) {
+        return;
+    }
+
+    wprintf(L"  rpcss_event=%ls\n", event_name);
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceUUID",
+            &interface_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  rpcss_interface_uuid=");
+        print_guid(&interface_id);
+        wprintf(L"\n");
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"ObjectUUID",
+            &object_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  rpcss_object_uuid=");
+        print_guid(&object_id);
+        wprintf(L"\n");
+    }
+}
+
 static void add_com_timeline_event(
     ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
@@ -2039,6 +2152,9 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     print_com_event_classification(owned_event);
     print_com_rundown_event_classification(owned_event);
+    print_com_runtime_event_classification(owned_event);
+    print_rpc_event_classification(owned_event);
+    print_rpcss_event_classification(owned_event);
     print_ole_event_classification(owned_event);
     print_event_properties(owned_event, context->pointer_size);
 
