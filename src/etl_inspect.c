@@ -267,6 +267,36 @@ static int is_hex_output_type(USHORT out_type)
         out_type == TDH_OUTTYPE_CODE_POINTER;
 }
 
+static int format_binary_hex_text(
+    const BYTE *value,
+    ULONG value_size,
+    wchar_t *text,
+    size_t text_capacity
+)
+{
+    static const wchar_t digits[] = L"0123456789abcdef";
+    size_t index;
+
+    if (value == NULL || text == NULL ||
+        text_capacity < 5U ||
+        (size_t)value_size > (text_capacity - 5U) / 2U) {
+        return 0;
+    }
+
+    text[0] = L'h';
+    text[1] = L'e';
+    text[2] = L'x';
+    text[3] = L':';
+
+    for (index = 0U; index < (size_t)value_size; ++index) {
+        text[4U + index * 2U] = digits[value[index] >> 4U];
+        text[5U + index * 2U] = digits[value[index] & 0x0FU];
+    }
+
+    text[4U + (size_t)value_size * 2U] = L'\0';
+    return 1;
+}
+
 static int format_socket_address(
     const BYTE *value,
     ULONG value_size,
@@ -350,7 +380,7 @@ static int format_socket_address(
         ) >= 0;
     }
 
-    return 0;
+    return format_binary_hex_text(value, value_size, text, text_capacity);
 }
 
 static int is_utf8_string_output_type(USHORT out_type)
@@ -980,7 +1010,7 @@ static void print_event_property_value_element(
                 wprintf(L"value=%ls\n", address);
             }
         } else if (out_type == TDH_OUTTYPE_SOCKETADDRESS) {
-            wchar_t address[128];
+            wchar_t address[1024];
             if (!format_socket_address(value, value_size, address, _countof(address))) {
                 wprintf(L"status=unavailable reason=invalid_socket_address\n");
             } else {

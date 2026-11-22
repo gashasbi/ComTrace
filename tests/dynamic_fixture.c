@@ -50,6 +50,16 @@ int wmain(int argc, wchar_t **argv)
         0x02, 0x00, 0x01, 0xBB, 0xC0, 0x00, 0x02, 0x0A,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
+    BYTE socket_address_v6[28] = {
+        0x17, 0x00, 0x01, 0xBB, 0x00, 0x00, 0x00, 0x00,
+        0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00
+    };
+    BYTE socket_address_other[16] = {
+        0x34, 0x12, 0x01, 0x02, 0x11, 0x22, 0x33, 0x44,
+        0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC
+    };
     LONG hresult_value = (LONG)0x80004005UL;
     BYTE hex8_value = 0xABU;
     USHORT hex16_value = 0xCDEFU;
@@ -132,7 +142,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
