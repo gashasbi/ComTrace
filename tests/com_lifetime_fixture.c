@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <evntrace.h>
+#include <evntprov.h>
 #include <unknwn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -243,6 +244,8 @@ int wmain(int argc, wchar_t **argv)
     BOOL provider_registered = FALSE;
     BOOL alternate = FALSE;
     BOOL pair_capture = FALSE;
+    BOOL activity_id_set = FALSE;
+    GUID previous_activity_id;
     const wchar_t *first_etl_path = NULL;
     const wchar_t *second_etl_path = NULL;
 
@@ -334,6 +337,17 @@ int wmain(int argc, wchar_t **argv)
     }
 
     if (alternate) {
+        status = EventActivityIdControl(
+            EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
+            &previous_activity_id
+        );
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Unable to create ETW activity ID: %lu\\n",
+                (unsigned long)status);
+            goto cleanup;
+        }
+        activity_id_set = TRUE;
+
         add_ref_count = (ULONG)InterlockedIncrement(&object->reference_count);
         comtrace_lifetime_add_ref(
             object->object_instance_id,
@@ -389,6 +403,18 @@ cleanup:
             (void)object->interface_pointer.lpVtbl->Release(
                 &object->interface_pointer
             );
+        }
+    }
+
+    if (activity_id_set) {
+        status = EventActivityIdControl(
+            EVENT_ACTIVITY_CTRL_SET_ID,
+            &previous_activity_id
+        );
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Unable to restore ETW activity ID: %lu\\n",
+                (unsigned long)status);
+            result = EXIT_FAILURE;
         }
     }
 
