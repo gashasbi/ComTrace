@@ -1703,6 +1703,8 @@ static void print_relationship_graph_summary(
 {
     size_t index;
     size_t displayed;
+    size_t known_process_generations = 0U;
+    size_t unknown_process_generations = 0U;
 
     if (graph == NULL) {
         return;
@@ -1729,6 +1731,26 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID)
+    );
+
+    for (index = 0U; index < graph->node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph->nodes[index];
+
+        if (node->type != COMTRACE_GRAPH_NODE_PROCESS) {
+            continue;
+        }
+
+        if (node->has_process_generation) {
+            ++known_process_generations;
+        } else {
+            ++unknown_process_generations;
+        }
+    }
+
+    wprintf(
+        L"Process node generations: known=%llu unknown=%llu\n",
+        (unsigned long long)known_process_generations,
+        (unsigned long long)unknown_process_generations
     );
 
     displayed = graph->edge_count > 100U ? 100U : graph->edge_count;
