@@ -40,7 +40,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG second_code = 0x55667788UL;
     USHORT second_status = 0x99AAU;
     ULONG fixed_first_code = 0xA1B2C3D4UL;
-    USHORT fixed_first_status = 0x1234U;
+    USHORT fixed_first_status = 7U;
     ULONG fixed_second_code = 0x10203040UL;
     USHORT fixed_second_status = 0x5678U;
     USHORT outer_numbers_count = 2U;
