@@ -103,6 +103,10 @@ The first command converts an ETL trace to the CTRA archive format. New archives
 
 Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windows machine to capture or supply a trace with COM and OLE activity, confirm both providers' events and operation timelines, convert ETL to CTRA, verify CRC32, and compare the original trace with the archive round trip. The script is `scripts/validate-real-trace.ps1`; new captures also run `ComTraceOleActivityFixture.exe` to generate OLE clipboard and drag-drop registration traffic. Capturing a new trace requires elevated 64-bit PowerShell; validating an existing ETL does not require elevation.
 
+## DDE instrumentation
+
+ComTrace includes the optional **ComTraceDdeInstrumentation** library for applications that need DDE conversation and transaction timelines. It records conversation lifecycle, transaction start/completion, server callbacks, and explicit cross-process correlation IDs. **This is opt-in application instrumentation, not automatic interception of arbitrary DDEML calls.** The application must call the API at its DDE client/server lifecycle points and propagate correlation IDs across processes. See [DDE_INSTRUMENTATION.md](docs/DDE_INSTRUMENTATION.md).
+
 ## COM/OLE analysis and limitations
 
 - COM Performance, COMRuntime, RPC, RPCSS, COM-RundownInstrumentation, and OLE Performance event classification is limited to the provider, event ID, version, and opcode mappings explicitly defined in `src/com_event.c` and `src/ole_event.c`. Provider payloads and interpretation limits are documented in [COM_RUNDOWN_EVENTS.md](docs/COM_RUNDOWN_EVENTS.md) and [COM_RPC_EVENTS.md](docs/COM_RPC_EVENTS.md).
