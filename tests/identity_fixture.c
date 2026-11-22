@@ -76,7 +76,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
-    EVENT_DATA_DESCRIPTOR data[11];
+    EVENT_DATA_DESCRIPTOR data[13];
     EVENT_DATA_DESCRIPTOR class_id_alias_data;
     EVENT_DATA_DESCRIPTOR call_trace_data;
     EVENT_DATA_DESCRIPTOR related_data;
@@ -90,6 +90,8 @@ int wmain(int argc, wchar_t **argv)
     ULONG source_thread_id = 0x10203040UL;
     LONG hresult = (LONG)0x80004005UL;
     ULONG not_guid = 123U;
+    wchar_t display_name[] = L"ComTrace Object";
+    char ansi_name[] = "ComTrace ANSI";
     int result = 1;
 
     if (argc != 2) {
@@ -183,13 +185,15 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&data[8], &not_guid, (ULONG)sizeof(not_guid));
     EventDataDescCreate(&data[9], &source_process_id, (ULONG)sizeof(source_process_id));
     EventDataDescCreate(&data[10], &source_thread_id, (ULONG)sizeof(source_thread_id));
+    EventDataDescCreate(&data[11], display_name, (ULONG)sizeof(display_name));
+    EventDataDescCreate(&data[12], ansi_name, (ULONG)sizeof(ansi_name));
 
     status = EventWriteTransfer(
         provider,
         &descriptor,
         &activity_id,
         &related_activity_id,
-        11U,
+        (ULONG)_countof(data),
         data
     );
     if (status != ERROR_SUCCESS) {
