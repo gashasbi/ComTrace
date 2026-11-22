@@ -43,7 +43,9 @@ Supported values include:
 - SYSTEMTIME values as `YYYY-MM-DDTHH:mm:ss.fff`
 
 For `--contains`, only ANSI and Unicode strings are considered. ANSI strings
-are converted using the active Windows code page. Numeric ordering operators
+are converted using the active Windows code page. Binary properties support exact
+`--equals hex:<bytes>` matching, where each byte is two hexadecimal digits and the
+complete payload must match. Numeric ordering operators
 support signed and unsigned integers, FILETIME, floating-point values, HEXINT,
 pointer, and SIZE_T properties. GUID, Boolean, character, and time-structure
 values support equality only.
@@ -51,8 +53,9 @@ values support equality only.
 ## Unsupported property shapes
 
 Array properties, nested structure members, WBEM XML fragments, custom-schema
-properties, binary payloads, and values whose TDH metadata or payload cannot be
-read are not matched by this filter. A missing or unsupported property produces
+properties, and values whose TDH metadata or payload cannot be read are not
+matched by this filter. Binary properties do not support substring or numeric
+ordering comparisons. A missing or unsupported property produces
 no match; it does not make the whole trace search fail.
 
 Property search does not change ETL payload decoding or CTRA storage. It is a

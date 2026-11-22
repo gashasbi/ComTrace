@@ -3137,6 +3137,61 @@ static int format_search_property_value(
     }
 }
 
+static int search_binary_property_matches(
+    const BYTE *value,
+    ULONG value_size,
+    const wchar_t *expected
+)
+{
+    size_t expected_length;
+    size_t index;
+
+    if (value == NULL || expected == NULL ||
+        _wcsnicmp(expected, L"hex:", 4U) != 0) {
+        return 0;
+    }
+
+    expected_length = wcslen(expected);
+    if (expected_length < 4U ||
+        ((expected_length - 4U) % 2U) != 0U ||
+        (expected_length - 4U) / 2U != (size_t)value_size) {
+        return 0;
+    }
+
+    for (index = 0U; index < (size_t)value_size; ++index) {
+        wchar_t high_character = expected[4U + index * 2U];
+        wchar_t low_character = expected[5U + index * 2U];
+        int high;
+        int low;
+
+        if (high_character >= L'0' && high_character <= L'9') {
+            high = (int)(high_character - L'0');
+        } else if (high_character >= L'a' && high_character <= L'f') {
+            high = (int)(high_character - L'a') + 10;
+        } else if (high_character >= L'A' && high_character <= L'F') {
+            high = (int)(high_character - L'A') + 10;
+        } else {
+            return 0;
+        }
+
+        if (low_character >= L'0' && low_character <= L'9') {
+            low = (int)(low_character - L'0');
+        } else if (low_character >= L'a' && low_character <= L'f') {
+            low = (int)(low_character - L'a') + 10;
+        } else if (low_character >= L'A' && low_character <= L'F') {
+            low = (int)(low_character - L'A') + 10;
+        } else {
+            return 0;
+        }
+
+        if (value[index] != (BYTE)((high << 4) | low)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static int event_property_matches_filter(
     const EVENT_RECORD *event_record,
     const COMTRACE_ETL_FILTERS *filters,
@@ -3261,16 +3316,24 @@ static int event_property_matches_filter(
                 &in_type,
                 &value,
                 &value_size,
-                pointer_size) &&
-            format_search_property_value(
-                in_type,
-                value,
-                value_size,
-                pointer_size,
-                actual,
-                _countof(actual)
-            )) {
-            matched = search_property_text_matches(in_type, actual, filters);
+                pointer_size)) {
+            if (in_type == TDH_INTYPE_BINARY &&
+                filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
+                matched = search_binary_property_matches(
+                    value,
+                    value_size,
+                    filters->property_value
+                );
+            } else if (format_search_property_value(
+                    in_type,
+                    value,
+                    value_size,
+                    pointer_size,
+                    actual,
+                    _countof(actual)
+                )) {
+                matched = search_property_text_matches(in_type, actual, filters);
+            }
         }
 
         comtrace_etl_property_value_destroy(&property_value);
