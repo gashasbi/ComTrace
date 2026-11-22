@@ -1,4 +1,5 @@
 #include <string.h>
+#include <wchar.h>
 #include "com_event.h"
 
 static const GUID com_perf_provider = {
@@ -302,6 +303,42 @@ int comtrace_classify_rpcss_event(
     }
     if (event_id == 3U) {
         *event_name = L"InterfaceUnregister";
+        return 1;
+    }
+
+    return 0;
+}
+
+
+static const GUID com_lifetime_provider = {
+    0x6F3B5E21UL,
+    0x7C14U,
+    0x4A90U,
+    {0x9D, 0x42, 0x81, 0x31, 0x6C, 0xE2, 0xA7, 0x50}
+};
+
+int comtrace_classify_com_lifetime_event(
+    const GUID *provider_id,
+    const wchar_t *trace_event_name,
+    const wchar_t **event_name
+)
+{
+    if (event_name != NULL) {
+        *event_name = NULL;
+    }
+
+    if (provider_id == NULL ||
+        trace_event_name == NULL ||
+        event_name == NULL ||
+        memcmp(provider_id, &com_lifetime_provider, sizeof(GUID)) != 0) {
+        return 0;
+    }
+
+    if (wcscmp(trace_event_name, L"ComObjectCreated") == 0 ||
+        wcscmp(trace_event_name, L"ComAddRef") == 0 ||
+        wcscmp(trace_event_name, L"ComRelease") == 0 ||
+        wcscmp(trace_event_name, L"ComObjectDestroyed") == 0) {
+        *event_name = trace_event_name;
         return 1;
     }
 
