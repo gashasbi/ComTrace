@@ -164,6 +164,16 @@ if(BUILD_TESTING)
     )
     set_tests_properties(comtrace_com_server_activation PROPERTIES RUN_SERIAL TRUE)
 
+    add_test(
+        NAME comtrace_lifetime_compare
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceComLifetimeFixture>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/com-lifetime-compare-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_lifetime_compare_case.cmake"
+    )
+    set_tests_properties(comtrace_lifetime_compare PROPERTIES RUN_SERIAL TRUE)
+
     add_executable(ComTraceTimelineTests
         tests/test_com_timeline.c
         src/com_timeline.c

@@ -37,6 +37,20 @@ static const GUID fixture_interface_id = {
     {0xa2, 0x17, 0x38, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f}
 };
 
+static const GUID alternate_interface_id = {
+    0x397c8e93,
+    0x4b6d,
+    0x4fa5,
+    {0xb3, 0x28, 0x49, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0}
+};
+
+static const GUID fixture_native_ipid = {
+    0x4a8d9fa4,
+    0x5c7e,
+    0x40b6,
+    {0xc4, 0x39, 0x5a, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1}
+};
+
 typedef struct {
     IUnknown interface_pointer;
     volatile LONG reference_count;
@@ -227,11 +241,15 @@ int wmain(int argc, wchar_t **argv)
     PEVENT_TRACE_PROPERTIES properties = NULL;
     COMTRACE_FIXTURE_OBJECT *object = NULL;
     BOOL provider_registered = FALSE;
+    BOOL alternate = FALSE;
 
-    if (argc != 2 || argv[1] == NULL || argv[1][0] == L'\0') {
-        fwprintf(stderr, L"Usage: ComTraceComLifetimeFixture <output.etl>\n");
+    if (argc < 2 || argc > 3 || argv[1] == NULL ||
+        argv[1][0] == L'\0' ||
+        (argc == 3 && wcscmp(argv[2], L"alternate") != 0)) {
+        fwprintf(stderr, L"Usage: ComTraceComLifetimeFixture <output.etl> [alternate]\n");
         return EXIT_FAILURE;
     }
+    alternate = argc == 3;
 
     if (!start_trace_session(argv[1], &trace_handle, &properties)) {
         goto cleanup;
@@ -277,6 +295,29 @@ int wmain(int argc, wchar_t **argv)
     );
     if (release_count != 1U) {
         goto cleanup;
+    }
+
+    if (alternate) {
+        add_ref_count = (ULONG)InterlockedIncrement(&object->reference_count);
+        comtrace_lifetime_add_ref(
+            object->object_instance_id,
+            &alternate_interface_id,
+            add_ref_count
+        );
+
+        release_count = (ULONG)InterlockedDecrement(&object->reference_count);
+        comtrace_lifetime_release(
+            object->object_instance_id,
+            &alternate_interface_id,
+            release_count
+        );
+
+        comtrace_lifetime_bind_native_identity(
+            object->object_instance_id,
+            0xABCDEF0123456789ULL,
+            &alternate_interface_id,
+            &fixture_native_ipid
+        );
     }
 
     release_count = object->interface_pointer.lpVtbl->Release(
