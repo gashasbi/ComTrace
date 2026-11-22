@@ -104,12 +104,16 @@ void comtrace_lifetime_bind_native_identity(
     const GUID *native_ipid
 )
 {
-    GUID empty_ipid = {0};
+    GUID ipid_value = {0};
 
     if (object_instance_id == 0ULL ||
         native_object_id == 0ULL ||
         interface_id == NULL) {
         return;
+    }
+
+    if (native_ipid != NULL) {
+        ipid_value = *native_ipid;
     }
 
     TraceLoggingWrite(
@@ -120,7 +124,7 @@ void comtrace_lifetime_bind_native_identity(
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingUInt64(native_object_id, "NativeObjectId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
-        TraceLoggingGuid(native_ipid == NULL ? empty_ipid : *native_ipid, "Ipid")
+        TraceLoggingGuid(ipid_value, "Ipid")
     );
 }
 
