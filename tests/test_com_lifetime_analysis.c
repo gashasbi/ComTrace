@@ -16,6 +16,20 @@ static const GUID interface_id = {
     {0xa2, 0x17, 0x38, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f}
 };
 
+static const GUID second_interface_id = {
+    0x397c8e93,
+    0x4b6d,
+    0x4fa5,
+    {0xb3, 0x28, 0x49, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0}
+};
+
+static const GUID native_ipid = {
+    0x4a8d9fa4,
+    0x5c7e,
+    0x40b6,
+    {0xc4, 0x39, 0x5a, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1}
+};
+
 static int add_event(
     COMTRACE_COM_LIFETIME_ANALYSIS *analysis,
     COMTRACE_LIFETIME_EVENT_TYPE type,
@@ -144,6 +158,81 @@ static int test_process_identity_separation(void)
     return 1;
 }
 
+static int test_multiple_interfaces_and_native_identity(void)
+{
+    COMTRACE_COM_LIFETIME_ANALYSIS analysis;
+    COMTRACE_LIFETIME_EVENT event;
+    const COMTRACE_LIFETIME_RECORD *record = NULL;
+
+    comtrace_lifetime_analysis_init(&analysis);
+    if (!add_event(
+            &analysis, COMTRACE_LIFETIME_EVENT_CREATED, 100U,
+            1ULL, TRUE, 33ULL, 10ULL, TRUE, 1U, &record
+        )) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_LIFETIME_EVENT_ADD_REF;
+    event.process_id = 100U;
+    event.process_generation = 1ULL;
+    event.has_process_generation = TRUE;
+    event.object_instance_id = 33ULL;
+    event.timestamp = 20ULL;
+    event.has_interface_id = TRUE;
+    event.interface_id = second_interface_id;
+    event.has_reference_count_result = TRUE;
+    event.reference_count_result = 2U;
+    if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
+        COMTRACE_LIFETIME_SUCCESS) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND;
+    event.process_id = 100U;
+    event.process_generation = 1ULL;
+    event.has_process_generation = TRUE;
+    event.object_instance_id = 33ULL;
+    event.timestamp = 30ULL;
+    event.has_interface_id = TRUE;
+    event.interface_id = second_interface_id;
+    event.has_native_object_id = TRUE;
+    event.native_object_id = 0xABCDEF0123456789ULL;
+    event.has_native_ipid = TRUE;
+    event.native_ipid = native_ipid;
+    if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
+        COMTRACE_LIFETIME_SUCCESS) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    record = comtrace_lifetime_analysis_get(&analysis, 0U);
+    if (record == NULL ||
+        record->interface_id_count != 2U ||
+        record->native_identity_count != 1U ||
+        !record->has_native_object_id ||
+        record->native_object_id != 0xABCDEF0123456789ULL ||
+        !record->native_identities[0].has_native_ipid ||
+        memcmp(&record->native_identities[0].native_ipid, &native_ipid, sizeof(GUID)) != 0 ||
+        analysis.native_identity_bind_events != 1ULL) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    event.has_native_object_id = FALSE;
+    if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
+        COMTRACE_LIFETIME_INVALID_ARGUMENT) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    comtrace_lifetime_analysis_destroy(&analysis);
+    return 1;
+}
+
 static int test_lifetime_anomalies(void)
 {
     COMTRACE_COM_LIFETIME_ANALYSIS analysis;
@@ -185,6 +274,7 @@ int main(void)
 {
     if (!test_lifetime_sequence() ||
         !test_process_identity_separation() ||
+        !test_multiple_interfaces_and_native_identity() ||
         !test_lifetime_anomalies()) {
         fputs("COM lifetime analysis tests failed.\n", stderr);
         return 1;

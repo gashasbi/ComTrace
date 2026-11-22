@@ -1160,6 +1160,28 @@ static void print_com_lifetime_event_classification(
         wprintf(L"  com_lifetime_reference_count_result=%lu\n",
             (unsigned long)reference_count);
     }
+
+    if (comtrace_extract_uint64_property(
+            event_record,
+            L"NativeObjectId",
+            &object_instance_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_native_object_id=0x%llx\n",
+            (unsigned long long)object_instance_id);
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"Ipid",
+            &value
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        GUID empty_ipid = {0};
+        if (memcmp(&value, &empty_ipid, sizeof(GUID)) != 0) {
+            wprintf(L"  com_lifetime_ipid=");
+            print_guid(&value);
+            wprintf(L"\n");
+        }
+    }
 }
 
 
@@ -1219,6 +1241,8 @@ static void add_com_lifetime_analysis_event(
         event.type = COMTRACE_LIFETIME_EVENT_RELEASE;
     } else if (wcscmp(event_name, L"ComObjectDestroyed") == 0) {
         event.type = COMTRACE_LIFETIME_EVENT_DESTROYED;
+    } else if (wcscmp(event_name, L"ComObjectNativeIdentityBound") == 0) {
+        event.type = COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND;
     } else {
         return;
     }
@@ -1266,6 +1290,33 @@ static void add_com_lifetime_analysis_event(
             &event.class_id
         ) == COMTRACE_IDENTITY_SUCCESS) {
         event.has_class_id = TRUE;
+    }
+
+    if (event.type == COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND) {
+        GUID empty_ipid = {0};
+
+        if (comtrace_extract_uint64_property(
+                event_record,
+                L"NativeObjectId",
+                &event.native_object_id
+            ) != COMTRACE_IDENTITY_SUCCESS ||
+            event.native_object_id == 0ULL ||
+            !event.has_interface_id) {
+            if (context->lifetime_decode_failures != ULLONG_MAX) {
+                ++context->lifetime_decode_failures;
+            }
+            return;
+        }
+        event.has_native_object_id = TRUE;
+
+        if (comtrace_extract_guid_property(
+                event_record,
+                L"Ipid",
+                &event.native_ipid
+            ) == COMTRACE_IDENTITY_SUCCESS &&
+            memcmp(&event.native_ipid, &empty_ipid, sizeof(GUID)) != 0) {
+            event.has_native_ipid = TRUE;
+        }
     }
 
     if (event.type == COMTRACE_LIFETIME_EVENT_CREATED &&
@@ -1440,9 +1491,32 @@ static void print_com_lifetime_summary(
             wprintf(L" clsid=");
             print_guid(&record->class_id);
         }
-        if (record->has_interface_id) {
+        if (record->interface_id_count != 0U) {
+            size_t interface_position;
+            wprintf(L" iids=");
+            for (interface_position = 0U;
+                 interface_position < record->interface_id_count;
+                 ++interface_position) {
+                if (interface_position != 0U) {
+                    wprintf(L",");
+                }
+                print_guid(&record->interface_ids[interface_position].interface_id);
+            }
+        } else if (record->has_interface_id) {
             wprintf(L" iid=");
             print_guid(&record->interface_id);
+        }
+        if (record->has_native_object_id) {
+            wprintf(L" native_oid=0x%llx",
+                (unsigned long long)record->native_object_id);
+        }
+        if (record->has_native_ipid) {
+            wprintf(L" native_ipid=");
+            print_guid(&record->native_ipid);
+        }
+        if (record->native_identity_count > 1U) {
+            wprintf(L" native_identity_bindings=%llu",
+                (unsigned long long)record->native_identity_count);
         }
         if (record->has_initial_reference_count) {
             wprintf(L" initial_reference_count=%lu",
@@ -2264,6 +2338,8 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"lifetime_object_has_clsid";
     case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID:
         return L"lifetime_object_exposes_iid";
+    case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_MAPS_TO_NATIVE_OBJECT:
+        return L"lifetime_object_maps_to_native_object";
     case COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT:
         return L"call_uses_object";
     case COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID:
