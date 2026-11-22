@@ -75,7 +75,7 @@ foreach(expected "name=AddressV4 value=127.0.0.1" "name=AddressV6 value=2001:db8
     string(FIND "${inspect_output}" "${expected}" found)
     if(found EQUAL -1)
         execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
-        message(FATAL_ERROR "Missing formatted IP property: ${expected}")
+        message(FATAL_ERROR "Missing formatted IP property: ${expected}\n${inspect_output}")
     endif()
 endforeach()
 
