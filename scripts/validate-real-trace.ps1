@@ -238,11 +238,24 @@ Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 $processProviderGuid = "{3D6FA8D0-FE05-11D0-9DDA-00C04FD7BA7C}"
 $processStartPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*1\s*\|"
 $processEndPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*2\s*\|"
-$processStartCount = [regex]::Matches($inspectOutput, $processStartPattern).Count
-$processEndCount = [regex]::Matches($inspectOutput, $processEndPattern).Count
+$processStartTypeCount = [regex]::Matches($inspectOutput, $processStartPattern).Count
+$processEndTypeCount = [regex]::Matches($inspectOutput, $processEndPattern).Count
+$processLifecycleMatch = [regex]::Match(
+    $inspectOutput,
+    "Process lifecycle events:\s*start=(\d+) end=(\d+) dc_start=(\d+) dc_end=(\d+) defunct=(\d+) decode_failures=(\d+)"
+)
 
-if ($processStartCount -eq 0 -or $processEndCount -eq 0) {
-    throw "Kernel Process start/stop events were not both found. Start=$processStartCount End=$processEndCount. Review $inspectPath"
+if (-not $processLifecycleMatch.Success) {
+    throw "The process lifecycle summary was not found. Review $inspectPath"
+}
+
+$processStartCount = [UInt64]::Parse($processLifecycleMatch.Groups[1].Value)
+$processEndCount = [UInt64]::Parse($processLifecycleMatch.Groups[2].Value)
+$processDecodeFailures = [UInt64]::Parse($processLifecycleMatch.Groups[6].Value)
+
+if ($processStartTypeCount -eq 0 -or $processEndTypeCount -eq 0 -or
+    $processStartCount -eq 0 -or $processEndCount -eq 0) {
+    throw "Kernel Process start/stop payloads were not both decoded. Provider Start=$processStartTypeCount End=$processEndTypeCount; decoded Start=$processStartCount End=$processEndCount. Review $inspectPath"
 }
 
 Write-Host "Checking for COM Performance events."
@@ -390,10 +403,16 @@ $leftOleTimeline = ConvertTo-Json -InputObject $report.timeline_summary.left_ole
 $rightOleTimeline = ConvertTo-Json -InputObject $report.timeline_summary.right_ole -Compress -Depth 5
 $leftOperationTimings = ConvertTo-Json -InputObject @($report.timeline.left) -Compress -Depth 5
 $rightOperationTimings = ConvertTo-Json -InputObject @($report.timeline.right) -Compress -Depth 5
+$leftProcessLifetimes = ConvertTo-Json -InputObject @($report.process_lifetimes.left) -Compress -Depth 8
+$rightProcessLifetimes = ConvertTo-Json -InputObject @($report.process_lifetimes.right) -Compress -Depth 8
+$leftProcessSummary = ConvertTo-Json -InputObject $report.process_lifecycle_summary.left -Compress -Depth 5
+$rightProcessSummary = ConvertTo-Json -InputObject $report.process_lifecycle_summary.right -Compress -Depth 5
 
 if ($leftComTimeline -ne $rightComTimeline -or
     $leftOleTimeline -ne $rightOleTimeline -or
-    $leftOperationTimings -ne $rightOperationTimings) {
+    $leftOperationTimings -ne $rightOperationTimings -or
+    $leftProcessLifetimes -ne $rightProcessLifetimes -or
+    $leftProcessSummary -ne $rightProcessSummary) {
     throw "ETL and CTRA timeline summaries do not match."
 }
 
@@ -410,6 +429,7 @@ $summary = [ordered]@{
     event_types = $report.left.event_types
     process_start_events = $processStartCount
     process_end_events = $processEndCount
+    process_decode_failures = $processDecodeFailures
     com_events = $comEventCount
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
@@ -446,6 +466,9 @@ Write-Host ""
 Write-Host "Real ETL validation: PASS"
 Write-Host "Events: $($report.left.events)"
 Write-Host "Distinct event types: $($report.left.event_types)"
+Write-Host "Kernel Process Start events: $processStartCount"
+Write-Host "Kernel Process End events: $processEndCount"
+Write-Host "Kernel Process decode failures: $processDecodeFailures"
 Write-Host "COM Performance events: $comEventCount"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
