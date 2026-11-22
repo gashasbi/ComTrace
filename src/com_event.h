@@ -47,4 +47,10 @@ int comtrace_classify_rpcss_event(
     const wchar_t **event_name
 );
 
+int comtrace_classify_com_lifetime_event(
+    const GUID *provider_id,
+    const wchar_t *trace_event_name,
+    const wchar_t **event_name
+);
+
 #endif
