@@ -71,6 +71,7 @@ Each `object_changes` entry contains:
 | Field | Type | Description |
 |---|---|---|
 | `process_id` | number | Process ID associated with the object |
+| `process_generation` | number or null | Resolved one-based Process generation within this trace; null when no unique lifecycle interval matches |
 | `oid` | string | Object ID as a hexadecimal string with a `0x` prefix |
 | `left_present` | boolean | Whether the object is present in the left input |
 | `right_present` | boolean | Whether the object is present in the right input |
@@ -84,7 +85,7 @@ The `changed_fields` bits are:
 | `0x2` | IID set changed |
 | `0x4` | IPID set changed |
 
-Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. Process generations are tracked separately when the trace contains actual Kernel Process Start and End events; the current object comparison key remains process ID and OID and does not yet use those generations. The currently mapped COM events still do not provide a verified object-release signal, so a reused OID within one process cannot yet be separated into distinct object generations.
+Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID, resolved Process generation, and OID. An unresolved generation is kept distinct from a resolved generation. Process generation values are one-based ordinals local to each trace, not globally stable process identifiers; comparing captures with different lifecycle coverage can therefore produce added/removed objects even when the underlying process is the same. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. Process generations are tracked separately when the trace contains actual Kernel Process Start and End events; the current object comparison key remains process ID and OID and does not yet use those generations. The currently mapped COM events still do not provide a verified object-release signal, so a reused OID within one process cannot yet be separated into distinct object generations.
 
 ## COM object observations
 
@@ -121,7 +122,7 @@ Each `process_lifetimes` entry contains:
 
 The `process_lifecycle_summary` object contains `left` and `right` event counters: `start_events`, `end_events`, `dc_start_events`, `dc_end_events`, `defunct_events`, and `decode_failures`. Decode failures count recognized Process events for which the payload's `ProcessId` could not be read. Process IDs are extracted from the named payload property, not `EVENT_HEADER.ProcessId`, because the latter can refer to the parent process for creation events. Parent PIDs are retained as event metadata but are not treated as durable process identities because Windows can reuse PIDs.
 
-Actual process generations can only be separated when the corresponding Start/End events are present in the ETL. Captures that fall back to COM/OLE-only mode, traces with lost events, and older ETLs may contain incomplete generations.
+Actual process generations can only be resolved when exactly one observed lifecycle interval contains the event timestamp. Overlapping intervals, unmatched End records, missing Start events, captures that fall back to COM/OLE-only mode, traces with lost events, and older ETLs can leave the generation unknown. Graph nodes with unknown generations are not merged into a known generation.
 
 ## Timeline summaries
 
@@ -148,7 +149,7 @@ Duration calculations use the trace performance frequency. A trace without usabl
 ## Interpretation notes
 
 - Event type identity includes the complete provider GUID and event descriptor, not only the event ID.
-- COM objects are matched using process ID and OID. Process IDs and OIDs can be reused across different trace sessions, so compare traces from compatible capture contexts.
+- COM objects are matched using process ID, process generation, and OID. Process generation values are trace-local; use captures with compatible lifecycle coverage when comparing traces. OID reuse within a single Process generation is not yet separated because no verified COM object-release event is available.
 - An added or removed event type reflects a difference in the captured inputs; it does not by itself indicate a system fault.
 - Timing and identity summaries depend on information present in the ETW event schemas and trace metadata.
 - The report is descriptive trace data. It does not determine whether an operation is malicious or vulnerable.
