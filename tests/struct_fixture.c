@@ -165,7 +165,7 @@ int wmain(int argc, wchar_t **argv)
         TraceLoggingCustom(
             custom_value,
             sizeof(custom_value),
-            0x1234U,
+            0x15U,
             (0x11U, 0x22U, 0x33U),
             3U,
             "CustomField"
