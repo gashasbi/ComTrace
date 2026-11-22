@@ -235,6 +235,16 @@ Write-Host "Inspecting ETL."
 $inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, "10000") -Description "ETL inspection"
 Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 
+$processProviderGuid = "{3D6FA8D0-FE05-11D0-9DDA-00C04FD7BA7C}"
+$processStartPattern = "(?im)^\\s*$([regex]::Escape($processProviderGuid))\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*1\\s*\\|"
+$processEndPattern = "(?im)^\\s*$([regex]::Escape($processProviderGuid))\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*2\\s*\\|"
+$processStartCount = [regex]::Matches($inspectOutput, $processStartPattern).Count
+$processEndCount = [regex]::Matches($inspectOutput, $processEndPattern).Count
+
+if ($processStartCount -eq 0 -or $processEndCount -eq 0) {
+    throw "Kernel Process start/stop events were not both found. Start=$processStartCount End=$processEndCount. Review $inspectPath"
+}
+
 Write-Host "Checking for COM Performance events."
 $searchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--com", "--max-events", "10000") -Description "COM event search"
 Set-Content -LiteralPath $searchPath -Value $searchOutput -Encoding UTF8
@@ -398,6 +408,8 @@ $summary = [ordered]@{
     archive_path = $archivePath
     events = $report.left.events
     event_types = $report.left.event_types
+    process_start_events = $processStartCount
+    process_end_events = $processEndCount
     com_events = $comEventCount
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
