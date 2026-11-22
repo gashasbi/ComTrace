@@ -3011,6 +3011,8 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"lifetime_object_has_clsid";
     case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID:
         return L"lifetime_object_exposes_iid";
+    case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_ACTIVITY:
+        return L"lifetime_object_has_activity";
     case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_MAPS_TO_NATIVE_OBJECT:
         return L"lifetime_object_maps_to_native_object";
     case COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT:
@@ -3269,7 +3271,7 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IPID)
     );
     wprintf(
-        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu call_uses_object=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu lifetime_objects_owned=%llu\n",
+        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu call_uses_object=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu lifetime_objects_owned=%llu lifetime_object_activity=%llu\n",
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD),
@@ -3277,7 +3279,8 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID),
-        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT)
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_ACTIVITY)
     );
 
     for (index = 0U; index < graph->node_count; ++index) {
