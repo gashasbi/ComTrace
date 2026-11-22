@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 #include "com_identity.h"
 #include "etl_decoder.h"
 
@@ -79,6 +80,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     ULONG number = 0U;
     ULONGLONG wide_number = 0U;
     LONG signed_number = 0;
+    wchar_t string_value[64];
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_COM_OBJECT_IDENTITY object_identity;
     COMTRACE_ETL_PROPERTY_VALUE decoded_value;
@@ -380,6 +382,30 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     status = comtrace_extract_guid_property(event_record, L"NotGuid", &value);
     if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
         fwprintf(stderr, L"NotGuid GUID type rejection failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_string_property(
+        event_record,
+        L"DisplayName",
+        string_value,
+        _countof(string_value)
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        wcscmp(string_value, L"ComTrace Object") != 0) {
+        fwprintf(stderr, L"Unicode identity string extraction failed: status=%u\n", (unsigned int)status);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_string_property(
+        event_record,
+        L"AnsiName",
+        string_value,
+        _countof(string_value)
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        wcscmp(string_value, L"ComTrace ANSI") != 0) {
+        fwprintf(stderr, L"ANSI identity string extraction failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
