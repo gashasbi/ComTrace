@@ -1989,13 +1989,14 @@ static int inspect_etl_internal(
     DWORD attributes;
     int result = EXIT_FAILURE;
 
+    ZeroMemory(&context, sizeof(context));
+
     if (etl_path == NULL || etl_path[0] == L'\0') {
         fwprintf(stderr, L"An ETL input path is required.\n");
         destroy_inspect_context(&context);
         return EXIT_FAILURE;
     }
 
-    ZeroMemory(&context, sizeof(context));
     ZeroMemory(&logfile, sizeof(logfile));
     comtrace_event_catalog_init(&context.event_catalog);
     comtrace_timeline_init(&context.timeline);
