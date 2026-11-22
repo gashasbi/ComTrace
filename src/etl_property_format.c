@@ -649,7 +649,11 @@ int comtrace_etl_print_mapped_property_value(
         ((flags & EVENTMAP_INFO_FLAG_WBEM_VALUEMAP) != 0U &&
          (flags & EVENTMAP_INFO_FLAG_WBEM_FLAG) == 0U);
 
-    if (!is_value_map && !is_bitmap) {
+    if ((!is_value_map && !is_bitmap) ||
+        (map_info->MapEntryValueType != EVENTMAP_ENTRY_VALUETYPE_ULONG &&
+         map_info->MapEntryValueType != EVENTMAP_ENTRY_VALUETYPE_STRING) ||
+        (is_bitmap &&
+         map_info->MapEntryValueType != EVENTMAP_ENTRY_VALUETYPE_ULONG)) {
         free(map_buffer);
         return 0;
     }
