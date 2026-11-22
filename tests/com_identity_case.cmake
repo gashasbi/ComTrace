@@ -147,6 +147,32 @@ if(related_only_match EQUAL -1)
     message(FATAL_ERROR "Related-only ActivityId event was not emitted: ${related_only_output}")
 endif()
 
+function(assert_identity_search_count option value expected_count label)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" "--${option}" "${value}" --max-events 10
+        RESULT_VARIABLE filter_status
+        OUTPUT_VARIABLE filter_output
+        ERROR_VARIABLE filter_error
+    )
+
+    if(NOT filter_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} search failed: ${filter_error}${filter_output}")
+    endif()
+
+    string(FIND "${filter_output}" "Events matching filters: ${expected_count}" filter_match)
+    if(filter_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} search returned an unexpected result count: ${filter_output}")
+    endif()
+endfunction()
+
+assert_identity_search_count(activity-id "{20314253-6475-8697-A8B9-CADBECFD0E1F}" 1 "Activity ID")
+assert_identity_search_count(activity-id "{30415263-7485-96A7-B8C9-DAEBFC0D1E2F}" 2 "Related Activity ID")
+assert_identity_search_count(oid "0x1122334455667788" 2 "OID")
+assert_identity_search_count(clsid "{00112233-4455-6677-8899-AABBCCDDEEFF}" 2 "CLSID")
+assert_identity_search_count(iid "{10213243-5465-7687-98A9-BACBDCEDFE0F}" 2 "IID")
+
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 3
     RESULT_VARIABLE call_trace_32_status
