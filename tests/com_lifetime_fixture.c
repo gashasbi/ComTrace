@@ -326,7 +326,7 @@ int wmain(int argc, wchar_t **argv)
 
         status = comtrace_lifetime_initialize();
         if (status != ERROR_SUCCESS) {
-            fwprintf(stderr, L"TraceLogging re-registration failed: %lu\\n",
+            fwprintf(stderr, L"TraceLogging re-registration failed: %lu\n",
                 (unsigned long)status);
             goto cleanup;
         }
