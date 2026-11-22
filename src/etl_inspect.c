@@ -2785,6 +2785,252 @@ static void add_ole_timeline_event(
     }
 }
 
+static void add_dde_timeline_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    wchar_t event_name[128];
+    wchar_t role_name[32];
+    wchar_t item[256];
+    wchar_t service[256];
+    wchar_t topic[256];
+    COMTRACE_DDE_EVENT_TYPE event_type;
+    COMTRACE_DDE_TIMELINE_EVENT timeline_event;
+    BOOL boolean_value;
+
+    if (context == NULL ||
+        event_record == NULL ||
+        !comtrace_is_dde_provider(&event_record->EventHeader.ProviderId) ||
+        !get_tracelogging_event_name(
+            event_record,
+            event_name,
+            sizeof(event_name) / sizeof(event_name[0])
+        ) ||
+        !comtrace_classify_dde_event(
+            &event_record->EventHeader.ProviderId,
+            event_name,
+            &event_type
+        )) {
+        return;
+    }
+
+    ZeroMemory(&timeline_event, sizeof(timeline_event));
+    ZeroMemory(role_name, sizeof(role_name));
+    ZeroMemory(item, sizeof(item));
+    ZeroMemory(service, sizeof(service));
+    ZeroMemory(topic, sizeof(topic));
+
+    if (comtrace_extract_uint64_property(
+            event_record,
+            L"ConversationId",
+            &timeline_event.conversation_id
+        ) != COMTRACE_IDENTITY_SUCCESS ||
+        timeline_event.conversation_id == 0ULL) {
+        return;
+    }
+
+    timeline_event.process_id = event_record->EventHeader.ProcessId;
+    timeline_event.thread_id = event_record->EventHeader.ThreadId;
+    timeline_event.timestamp =
+        (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    (void)comtrace_extract_uint64_property(
+        event_record,
+        L"ConversationCorrelationId",
+        &timeline_event.conversation_correlation_id
+    );
+
+    switch (event_type) {
+    case COMTRACE_DDE_EVENT_CONVERSATION_OPENED:
+        timeline_event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_OPENED;
+        if (comtrace_extract_string_property(
+                event_record,
+                L"Role",
+                role_name,
+                sizeof(role_name) / sizeof(role_name[0])
+            ) == COMTRACE_IDENTITY_SUCCESS &&
+            wcscmp(role_name, L"client") == 0) {
+            timeline_event.role = COMTRACE_DDE_ROLE_CLIENT;
+        } else {
+            timeline_event.role = COMTRACE_DDE_ROLE_SERVER;
+        }
+        (void)comtrace_extract_string_property(
+            event_record,
+            L"Service",
+            service,
+            sizeof(service) / sizeof(service[0])
+        );
+        (void)comtrace_extract_string_property(
+            event_record,
+            L"Topic",
+            topic,
+            sizeof(topic) / sizeof(topic[0])
+        );
+        timeline_event.service = service;
+        timeline_event.topic = topic;
+        break;
+
+    case COMTRACE_DDE_EVENT_CONVERSATION_CLOSED:
+        timeline_event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_CLOSED;
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"Result",
+            &timeline_event.result
+        );
+        break;
+
+    case COMTRACE_DDE_EVENT_TRANSACTION_STARTED:
+        timeline_event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED;
+        if (comtrace_extract_uint64_property(
+                event_record,
+                L"TransactionInstanceId",
+                &timeline_event.transaction_instance_id
+            ) != COMTRACE_IDENTITY_SUCCESS ||
+            timeline_event.transaction_instance_id == 0ULL) {
+            return;
+        }
+        (void)comtrace_extract_uint64_property(
+            event_record,
+            L"TransactionCorrelationId",
+            &timeline_event.transaction_correlation_id
+        );
+        if (comtrace_extract_boolean_property(
+                event_record,
+                L"IsClient",
+                &boolean_value
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.role = boolean_value
+                ? COMTRACE_DDE_ROLE_CLIENT
+                : COMTRACE_DDE_ROLE_SERVER;
+        }
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"DdeTransactionId",
+            &timeline_event.dde_transaction_id
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"TransactionType",
+            &timeline_event.transaction_type
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"Format",
+            &timeline_event.format
+        );
+        (void)comtrace_extract_boolean_property(
+            event_record,
+            L"Asynchronous",
+            &timeline_event.asynchronous
+        );
+        (void)comtrace_extract_string_property(
+            event_record,
+            L"Item",
+            item,
+            sizeof(item) / sizeof(item[0])
+        );
+        timeline_event.item = item;
+        break;
+
+    case COMTRACE_DDE_EVENT_TRANSACTION_COMPLETED:
+        timeline_event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED;
+        if (comtrace_extract_uint64_property(
+                event_record,
+                L"TransactionInstanceId",
+                &timeline_event.transaction_instance_id
+            ) != COMTRACE_IDENTITY_SUCCESS ||
+            timeline_event.transaction_instance_id == 0ULL) {
+            return;
+        }
+        (void)comtrace_extract_uint64_property(
+            event_record,
+            L"TransactionCorrelationId",
+            &timeline_event.transaction_correlation_id
+        );
+        if (comtrace_extract_boolean_property(
+                event_record,
+                L"IsClient",
+                &boolean_value
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.role = boolean_value
+                ? COMTRACE_DDE_ROLE_CLIENT
+                : COMTRACE_DDE_ROLE_SERVER;
+        }
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"DdeTransactionId",
+            &timeline_event.dde_transaction_id
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"Result",
+            &timeline_event.result
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"DataSize",
+            &timeline_event.data_size
+        );
+        (void)comtrace_extract_boolean_property(
+            event_record,
+            L"Succeeded",
+            &timeline_event.succeeded
+        );
+        break;
+
+    case COMTRACE_DDE_EVENT_CALLBACK_RECEIVED:
+        timeline_event.type = COMTRACE_DDE_TIMELINE_CALLBACK_RECEIVED;
+        (void)comtrace_extract_uint64_property(
+            event_record,
+            L"TransactionCorrelationId",
+            &timeline_event.transaction_correlation_id
+        );
+        if (comtrace_extract_boolean_property(
+                event_record,
+                L"IsServerCallback",
+                &boolean_value
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.role = boolean_value
+                ? COMTRACE_DDE_ROLE_SERVER
+                : COMTRACE_DDE_ROLE_CLIENT;
+        }
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"TransactionType",
+            &timeline_event.transaction_type
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"Format",
+            &timeline_event.format
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"DataSize",
+            &timeline_event.data_size
+        );
+        (void)comtrace_extract_string_property(
+            event_record,
+            L"Item",
+            item,
+            sizeof(item) / sizeof(item[0])
+        );
+        timeline_event.item = item;
+        break;
+
+    default:
+        return;
+    }
+
+    if (comtrace_dde_timeline_add_event(
+            &context->dde_timeline,
+            &timeline_event
+        ) != COMTRACE_DDE_TIMELINE_SUCCESS) {
+        context->dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    }
+}
+
 static const wchar_t *ole_timeline_match_name(
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type
 )
