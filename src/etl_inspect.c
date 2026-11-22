@@ -984,6 +984,26 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
+    if (out_type == TDH_OUTTYPE_DATETIME ||
+        (out_type == TDH_OUTTYPE_STRING &&
+         in_type != TDH_INTYPE_UNICODESTRING &&
+         in_type != TDH_INTYPE_ANSISTRING &&
+         in_type != TDH_INTYPE_NONNULLTERMINATEDSTRING &&
+         in_type != TDH_INTYPE_NONNULLTERMINATEDANSISTRING)) {
+        if (print_tdh_formatted_property(
+                metadata_buffer,
+                metadata_size,
+                property,
+                in_type,
+                out_type,
+                value,
+                value_size,
+                pointer_size
+            )) {
+            goto cleanup;
+        }
+    }
+
     wprintf(
         L"  property_value[%lu] name=%ls ",
         (unsigned long)index,
