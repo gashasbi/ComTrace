@@ -419,6 +419,34 @@ $rpcClassifiedEventCount = [regex]::Matches(
     $rpcSearchOutput,
     "(?im)^\s*rpc_event="
 ).Count
+$rpcClientCallStartCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=RpcClientCall phase=start"
+).Count
+$rpcClientCallStopCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=RpcClientCall phase=stop"
+).Count
+$rpcServerCallStartCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=RpcServerCall phase=start"
+).Count
+$rpcServerCallStopCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=RpcServerCall phase=stop"
+).Count
+$rpcFunctionTraceStartCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=FunctionTrace phase=start"
+).Count
+$rpcFunctionTraceStopCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=FunctionTrace phase=stop"
+).Count
+$rpcFunctionTraceEndpointCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event=FunctionTraceStart16 phase=start"
+).Count
 
 $rpcssSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rpcssProviderGuid, "--max-events", "10000") -Description "RPCSS event search"
 Set-Content -LiteralPath $rpcssSearchPath -Value $rpcssSearchOutput -Encoding UTF8
@@ -521,6 +549,13 @@ $summary = [ordered]@{
     com_premature_stub_rundown_events = $comRuntimeStubRundownCount
     rpc_events = $rpcEventCount
     rpc_classified_events = $rpcClassifiedEventCount
+    rpc_client_call_start_events = $rpcClientCallStartCount
+    rpc_client_call_stop_events = $rpcClientCallStopCount
+    rpc_server_call_start_events = $rpcServerCallStartCount
+    rpc_server_call_stop_events = $rpcServerCallStopCount
+    rpc_function_trace_start_events = $rpcFunctionTraceStartCount
+    rpc_function_trace_stop_events = $rpcFunctionTraceStopCount
+    rpc_function_trace_endpoint_events = $rpcFunctionTraceEndpointCount
     rpcss_events = $rpcssEventCount
     rpcss_classified_events = $rpcssClassifiedEventCount
     ole_validation_status = $oleValidationStatus
@@ -573,6 +608,9 @@ Write-Host "COM rundown identity values reported: $rundownIdentityValueCount"
 Write-Host "COMRuntime events: $comRuntimeEventCount"
 Write-Host "COM PrematureStubRundown events: $comRuntimeStubRundownCount"
 Write-Host "RPC events: $rpcEventCount (classified=$rpcClassifiedEventCount)"
+Write-Host "RPC client calls: start=$rpcClientCallStartCount stop=$rpcClientCallStopCount"
+Write-Host "RPC server calls: start=$rpcServerCallStartCount stop=$rpcServerCallStopCount"
+Write-Host "RPC FunctionTrace: start=$rpcFunctionTraceStartCount stop=$rpcFunctionTraceStopCount endpoint=$rpcFunctionTraceEndpointCount"
 Write-Host "RPCSS events: $rpcssEventCount (classified=$rpcssClassifiedEventCount)"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
