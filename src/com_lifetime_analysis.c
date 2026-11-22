@@ -130,6 +130,44 @@ static int add_native_identity(
     return 1;
 }
 
+static int add_activity_id(
+    COMTRACE_LIFETIME_RECORD *record,
+    const COMTRACE_LIFETIME_EVENT *event
+)
+{
+    size_t index;
+    COMTRACE_LIFETIME_ACTIVITY_ID *activity;
+
+    for (index = 0U; index < record->activity_id_count; ++index) {
+        activity = &record->activity_ids[index];
+        if (activity->has_activity_id == event->has_activity_id &&
+            (!event->has_activity_id ||
+             memcmp(&activity->activity_id, &event->activity_id, sizeof(GUID)) == 0) &&
+            activity->has_related_activity_id == event->has_related_activity_id &&
+            (!event->has_related_activity_id ||
+             memcmp(&activity->related_activity_id, &event->related_activity_id, sizeof(GUID)) == 0)) {
+            return 1;
+        }
+    }
+
+    if (!ensure_array_capacity(
+            (void **)&record->activity_ids,
+            &record->activity_id_capacity,
+            record->activity_id_count + 1U,
+            sizeof(*record->activity_ids))) {
+        return 0;
+    }
+
+    activity = &record->activity_ids[record->activity_id_count];
+    ZeroMemory(activity, sizeof(*activity));
+    activity->has_activity_id = event->has_activity_id;
+    activity->activity_id = event->activity_id;
+    activity->has_related_activity_id = event->has_related_activity_id;
+    activity->related_activity_id = event->related_activity_id;
+    ++record->activity_id_count;
+    return 1;
+}
+
 static int ensure_record_capacity(COMTRACE_COM_LIFETIME_ANALYSIS *analysis)
 {
     size_t capacity;
@@ -234,6 +272,7 @@ void comtrace_lifetime_analysis_destroy(
         for (index = 0U; index < analysis->record_count; ++index) {
             free(analysis->records[index].interface_ids);
             free(analysis->records[index].native_identities);
+            free(analysis->records[index].activity_ids);
         }
     }
 
@@ -279,6 +318,10 @@ COMTRACE_LIFETIME_STATUS comtrace_lifetime_analysis_add_event(
     }
     if (event->type == COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND &&
         !add_native_identity(record, event)) {
+        return COMTRACE_LIFETIME_ALLOCATION_FAILED;
+    }
+    if ((event->has_activity_id || event->has_related_activity_id) &&
+        !add_activity_id(record, event)) {
         return COMTRACE_LIFETIME_ALLOCATION_FAILED;
     }
 
