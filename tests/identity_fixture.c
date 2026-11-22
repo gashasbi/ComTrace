@@ -57,7 +57,9 @@ int wmain(int argc, wchar_t **argv)
     EVENT_DATA_DESCRIPTOR data[11];
     EVENT_DATA_DESCRIPTOR class_id_alias_data;
     EVENT_DATA_DESCRIPTOR call_trace_data;
+    EVENT_DATA_DESCRIPTOR related_data;
     ULONG call_trace_id_32 = 0x12345678UL;
+    ULONG related_marker = 456U;
     ULONG target_process_id = 0x12345678UL;
     ULONG target_thread_id = 0x87654321UL;
     ULONG source_process_id = 0x76543210UL;
@@ -197,6 +199,21 @@ int wmain(int argc, wchar_t **argv)
     );
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"32-bit CallTraceId event write failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    descriptor.Id = 4U;
+    EventDataDescCreate(&related_data, &related_marker, (ULONG)sizeof(related_marker));
+    status = EventWriteTransfer(
+        provider,
+        &descriptor,
+        NULL,
+        &related_activity_id,
+        1U,
+        &related_data
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"Related-only activity event write failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
