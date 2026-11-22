@@ -69,7 +69,7 @@ else()
     target_compile_options(ComTraceComLifetimeFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-add_library(ComTraceComServerFixture SHARED tests/com_server_fixture_dll.c)
+add_library(ComTraceComServerFixture SHARED tests/com_server_fixture_dll.c tests/com_server_fixture.def)
 target_include_directories(ComTraceComServerFixture PRIVATE include tests)
 target_link_libraries(ComTraceComServerFixture PRIVATE ComTraceLifetimeInstrumentation Ole32)
 add_executable(ComTraceComServerClient tests/com_server_fixture_client.c)

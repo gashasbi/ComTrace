@@ -147,7 +147,7 @@ static HRESULT STDMETHODCALLTYPE secondary_add(COMTRACE_SECONDARY *s, LONG v)
  CONTAINING_RECORD(s, FIXTURE_OBJECT, secondary)->value += v;
  return S_OK;
 }
-static const IUnknownVtbl inner_vtable = {inner_query,inner_addref,inner_release};
+static IUnknownVtbl inner_vtable = {inner_query,inner_addref,inner_release};
 static const COMTRACE_PRIMARY_VTBL primary_vtable = {primary_query,primary_addref,primary_release,primary_set,primary_get};
 static const COMTRACE_SECONDARY_VTBL secondary_vtable = {secondary_query,secondary_addref,secondary_release,secondary_add};
 
@@ -156,7 +156,7 @@ static ULONG STDMETHODCALLTYPE factory_addref(IClassFactory *);
 static ULONG STDMETHODCALLTYPE factory_release(IClassFactory *);
 static HRESULT STDMETHODCALLTYPE factory_create(IClassFactory *, IUnknown *, REFIID, void **);
 static HRESULT STDMETHODCALLTYPE factory_lock(IClassFactory *, BOOL);
-static const IClassFactoryVtbl factory_vtable = {factory_query,factory_addref,factory_release,factory_create,factory_lock};
+static IClassFactoryVtbl factory_vtable = {factory_query,factory_addref,factory_release,factory_create,factory_lock};
 static IClassFactory class_factory = {&factory_vtable};
 
 static HRESULT STDMETHODCALLTYPE factory_query(IClassFactory *s, REFIID iid, void **r)
@@ -221,7 +221,7 @@ static HRESULT STDMETHODCALLTYPE factory_lock(IClassFactory *s, BOOL lock)
  }
  return S_OK;
 }
-__declspec(dllexport) HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID clsid, REFIID iid, void **r)
+HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID clsid, REFIID iid, void **r)
 {
  HRESULT status;
  if (clsid == NULL || iid == NULL || r == NULL) return E_POINTER;
@@ -231,7 +231,7 @@ __declspec(dllexport) HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID clsid, R
  if (FAILED(status)) return status;
  return factory_query(&class_factory, iid, r);
 }
-__declspec(dllexport) HRESULT STDAPICALLTYPE DllCanUnloadNow(void)
+HRESULT STDAPICALLTYPE DllCanUnloadNow(void)
 {
  if (InterlockedCompareExchange(&object_count,0,0) != 0 ||
      InterlockedCompareExchange(&factory_refs,0,0) != 0 ||

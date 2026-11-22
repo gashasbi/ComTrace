@@ -28,7 +28,7 @@ static ULONG STDMETHODCALLTYPE outer_release(IUnknown *s)
  LONG c=InterlockedDecrement(&CONTAINING_RECORD(s,FIXTURE_OUTER,iface)->refs);
  return c<0?0U:(ULONG)c;
 }
-static const IUnknownVtbl outer_vtable={outer_query,outer_addref,outer_release};
+static IUnknownVtbl outer_vtable={outer_query,outer_addref,outer_release};
 static int register_server(const wchar_t *dll)
 {
  HKEY key=NULL; DWORD disp=0U,size; static const wchar_t threading[]=L"Both";

@@ -1,0 +1,4 @@
+LIBRARY ComTraceComServerFixture
+EXPORTS
+    DllGetClassObject
+    DllCanUnloadNow
