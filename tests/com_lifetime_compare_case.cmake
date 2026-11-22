@@ -33,6 +33,23 @@ if(NOT compare_result EQUAL 0)
     message(FATAL_ERROR "Lifetime comparison failed: ${compare_output}${compare_error}")
 endif()
 
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --inspect "${TEST_DIR}/lifetime-right.etl" 100
+    RESULT_VARIABLE right_inspect_result
+    OUTPUT_VARIABLE right_inspect_output
+    ERROR_VARIABLE right_inspect_error
+    TIMEOUT 30
+)
+if(NOT right_inspect_result EQUAL 0)
+    message(FATAL_ERROR "Inspecting the right lifetime trace failed: ${right_inspect_error}")
+endif()
+
+string(JSON left_lifetime_count LENGTH "${compare_output}" object_lifetimes left)
+string(JSON right_lifetime_count LENGTH "${compare_output}" object_lifetimes right)
+if(right_lifetime_count EQUAL 0)
+    message(FATAL_ERROR "Right trace has no lifetime records. JSON: ${compare_output}\nInspect: ${right_inspect_output}")
+endif()
+
 string(JSON changed_objects GET "${compare_output}" lifetime_summary changed)
 string(JSON added_objects GET "${compare_output}" lifetime_summary added)
 string(JSON removed_objects GET "${compare_output}" lifetime_summary removed)
