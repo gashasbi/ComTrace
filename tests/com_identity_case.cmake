@@ -74,7 +74,7 @@ if(search_match EQUAL -1)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 5
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 6
     RESULT_VARIABLE no_match_status
     OUTPUT_VARIABLE no_match_output
     ERROR_VARIABLE no_match_error
