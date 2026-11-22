@@ -39,8 +39,31 @@ static const GUID com_rundown_provider_guid = {
     {0x2f, 0x69, 0x32, 0xce, 0x5f, 0x0a, 0xc4, 0x4e}
 };
 
+static const GUID com_runtime_provider_guid = {
+    0xbf406804,
+    0x6afa,
+    0x46e7,
+    {0x8a, 0x48, 0x6c, 0x35, 0x7e, 0x1d, 0x6d, 0x61}
+};
+
+static const GUID rpc_provider_guid = {
+    0x6ad52b32,
+    0xd609,
+    0x4be9,
+    {0xae, 0x07, 0xce, 0x8d, 0xae, 0x93, 0x7e, 0x39}
+};
+
+static const GUID rpcss_provider_guid = {
+    0xd8975f88,
+    0x7ddb,
+    0x4ed0,
+    {0x91, 0xbf, 0x3a, 0xdf, 0x48, 0xc4, 0x8e, 0x0c}
+};
+
 static const ULONGLONG ole_perf_keyword = 0x8000000000000000ULL;
 static const ULONGLONG com_rundown_keyword = 0x1ULL;
+static const ULONGLONG com_runtime_keyword = 0x8ULL;
+static const ULONGLONG rpcss_keyword = 0x600ULL;
 
 static HANDLE g_stop_event = NULL;
 
@@ -94,7 +117,10 @@ static ULONG stop_trace_session(
     PEVENT_TRACE_PROPERTIES properties,
     BOOL com_provider_enabled,
     BOOL ole_provider_enabled,
-    BOOL rundown_provider_enabled
+    BOOL rundown_provider_enabled,
+    BOOL com_runtime_provider_enabled,
+    BOOL rpc_provider_enabled,
+    BOOL rpcss_provider_enabled
 )
 {
     ULONG status;
@@ -162,6 +188,61 @@ static ULONG stop_trace_session(
         }
     }
 
+
+    if (com_runtime_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &com_runtime_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Warning: COMRuntime provider disable returned status %lu.\n",
+                (unsigned long)status);
+        }
+    }
+
+    if (rpc_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &rpc_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Warning: RPC provider disable returned status %lu.\n",
+                (unsigned long)status);
+        }
+    }
+
+    if (rpcss_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &rpcss_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Warning: RPCSS provider disable returned status %lu.\n",
+                (unsigned long)status);
+        }
+    }
+
     return ControlTraceW(
         trace_handle,
         trace_session_name,
@@ -188,6 +269,9 @@ int comtrace_capture_com_perf(
     BOOL com_provider_enabled = FALSE;
     BOOL ole_provider_enabled = FALSE;
     BOOL rundown_provider_enabled = FALSE;
+    BOOL com_runtime_provider_enabled = FALSE;
+    BOOL rpc_provider_enabled = FALSE;
+    BOOL rpcss_provider_enabled = FALSE;
     BOOL process_lifecycle_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
@@ -446,6 +530,61 @@ int comtrace_capture_com_perf(
         );
     }
 
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &com_runtime_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        com_runtime_keyword,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        com_runtime_provider_enabled = TRUE;
+    } else {
+        fwprintf(stderr, L"Warning: COMRuntime provider enable returned status %lu.\n",
+            (unsigned long)status);
+    }
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &rpc_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        0U,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        rpc_provider_enabled = TRUE;
+    } else {
+        fwprintf(stderr, L"Warning: RPC provider enable returned status %lu.\n",
+            (unsigned long)status);
+    }
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &rpcss_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        rpcss_keyword,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        rpcss_provider_enabled = TRUE;
+    } else {
+        fwprintf(stderr, L"Warning: RPCSS provider enable returned status %lu.\n",
+            (unsigned long)status);
+    }
+
     stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (stop_event == NULL) {
         fwprintf(
@@ -476,6 +615,15 @@ int comtrace_capture_com_perf(
     wprintf(L"Provider: Microsoft-Windows-OLE-Perf\n");
     if (rundown_provider_enabled) {
         wprintf(L"Provider: Microsoft-Windows-COM-RundownInstrumentation\n");
+    }
+    if (com_runtime_provider_enabled) {
+        wprintf(L"Provider: Microsoft-Windows-COMRuntime (PrematureStubRundown)\n");
+    }
+    if (rpc_provider_enabled) {
+        wprintf(L"Provider: Microsoft-Windows-RPC\n");
+    }
+    if (rpcss_provider_enabled) {
+        wprintf(L"Provider: Microsoft-Windows-RPCSS (interface registration)\n");
     }
     if (process_lifecycle_enabled) {
         wprintf(L"Provider: Kernel Process start/stop events\n");
@@ -522,7 +670,10 @@ cleanup:
             properties,
             com_provider_enabled,
             ole_provider_enabled,
-            rundown_provider_enabled
+            rundown_provider_enabled,
+            com_runtime_provider_enabled,
+            rpc_provider_enabled,
+            rpcss_provider_enabled
         );
 
         if (status != ERROR_SUCCESS) {
