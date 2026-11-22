@@ -25,7 +25,9 @@ void comtrace_dde_conversation_closed(
 
 ULONGLONG comtrace_dde_transaction_started(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_client,
     ULONG dde_transaction_id,
     ULONG transaction_type,
     ULONG format,
@@ -35,8 +37,10 @@ ULONGLONG comtrace_dde_transaction_started(
 
 void comtrace_dde_transaction_completed(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_instance_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_client,
     ULONG dde_transaction_id,
     ULONG result,
     ULONG data_size,
@@ -45,7 +49,9 @@ void comtrace_dde_transaction_completed(
 
 void comtrace_dde_callback_received(
     ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_correlation_id,
+    BOOL is_server_callback,
     ULONG transaction_type,
     ULONG format,
     const wchar_t *item,
