@@ -718,6 +718,218 @@ static int test_missing_relationship_fields(void)
     return 1;
 }
 
+
+static int add_process_lifetime(
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog,
+    DWORD process_id,
+    LONGLONG start_timestamp,
+    LONGLONG end_timestamp
+)
+{
+    COMTRACE_PROCESS_EVENT event;
+
+    ZeroMemory(&event, sizeof(event));
+    event.process_id = process_id;
+    event.type = COMTRACE_PROCESS_EVENT_START;
+    event.timestamp = start_timestamp;
+    if (comtrace_process_lifecycle_catalog_add(catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        return 0;
+    }
+
+    event.type = COMTRACE_PROCESS_EVENT_END;
+    event.timestamp = end_timestamp;
+    return comtrace_process_lifecycle_catalog_add(catalog, &event) ==
+           COMTRACE_PROCESS_LIFECYCLE_SUCCESS;
+}
+
+static int test_process_generations_separate_graph_objects(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG catalog;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    const COMTRACE_GRAPH_NODE *first_object = NULL;
+    const COMTRACE_GRAPH_NODE *second_object = NULL;
+    const COMTRACE_GRAPH_NODE *unknown_object = NULL;
+    size_t process_count = 0U;
+    size_t thread_count = 0U;
+    size_t object_count = 0U;
+    size_t index;
+
+    comtrace_relationship_graph_init(&graph);
+    comtrace_process_lifecycle_catalog_init(&catalog);
+
+    if (!add_process_lifetime(&catalog, 321U, 100, 200) ||
+        !add_process_lifetime(&catalog, 321U, 300, 400)) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    ZeroMemory(&identity, sizeof(identity));
+    identity.process_id = 321U;
+    identity.thread_id = 8U;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.has_oid = TRUE;
+    identity.oid = 0x1122334455667788ULL;
+    identity.has_timestamp = TRUE;
+    identity.timestamp = 150;
+
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
+            &graph, &identity, NULL, &catalog
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    identity.timestamp = 160;
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
+            &graph, &identity, NULL, &catalog
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    identity.timestamp = 350;
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
+            &graph, &identity, NULL, &catalog
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    identity.timestamp = 250;
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
+            &graph, &identity, NULL, &catalog
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph.nodes[index];
+
+        if (node->type == COMTRACE_GRAPH_NODE_PROCESS) {
+            ++process_count;
+        } else if (node->type == COMTRACE_GRAPH_NODE_THREAD) {
+            ++thread_count;
+        } else if (node->type == COMTRACE_GRAPH_NODE_COM_OBJECT) {
+            ++object_count;
+
+            if (node->has_process_generation &&
+                node->process_generation == 1ULL) {
+                first_object = node;
+            } else if (node->has_process_generation &&
+                       node->process_generation == 2ULL) {
+                second_object = node;
+            } else if (!node->has_process_generation) {
+                unknown_object = node;
+            }
+        }
+    }
+
+    if (process_count != 3U ||
+        thread_count != 3U ||
+        object_count != 3U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OBJECT
+        ) != 3U ||
+        first_object == NULL ||
+        first_object->process_id != 321U ||
+        first_object->value != 0x1122334455667788ULL ||
+        first_object->observation_count != 2ULL ||
+        second_object == NULL ||
+        second_object->process_id != 321U ||
+        second_object->value != 0x1122334455667788ULL ||
+        second_object->observation_count != 1ULL ||
+        unknown_object == NULL ||
+        unknown_object->process_id != 321U ||
+        unknown_object->observation_count != 1ULL) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_process_lifecycle_catalog_destroy(&catalog);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
+static int test_object_owner_uses_target_process_generation(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG catalog;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    const COMTRACE_GRAPH_NODE *object_node = NULL;
+    const COMTRACE_GRAPH_NODE *owner_node = NULL;
+    size_t index;
+
+    comtrace_relationship_graph_init(&graph);
+    comtrace_process_lifecycle_catalog_init(&catalog);
+
+    if (!add_process_lifetime(&catalog, 410U, 100, 200) ||
+        !add_process_lifetime(&catalog, 410U, 300, 400)) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    ZeroMemory(&identity, sizeof(identity));
+    identity.process_id = 99U;
+    identity.has_process_id = TRUE;
+    identity.target_process_id = 410U;
+    identity.has_target_process_id = TRUE;
+    identity.has_oid = TRUE;
+    identity.oid = 0x8877665544332211ULL;
+    identity.has_timestamp = TRUE;
+    identity.timestamp = 350;
+
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
+            &graph, &identity, NULL, &catalog
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph.nodes[index];
+
+        if (node->type == COMTRACE_GRAPH_NODE_COM_OBJECT) {
+            object_node = node;
+        } else if (node->type == COMTRACE_GRAPH_NODE_PROCESS &&
+                   node->process_id == 410U) {
+            owner_node = node;
+        }
+    }
+
+    if (object_node == NULL ||
+        object_node->process_id != 410U ||
+        !object_node->has_process_generation ||
+        object_node->process_generation != 2ULL ||
+        owner_node == NULL ||
+        !owner_node->has_process_generation ||
+        owner_node->process_generation != 2ULL ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OBJECT
+        ) != 1U) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_process_lifecycle_catalog_destroy(&catalog);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_client_server_graph() ||
@@ -731,6 +943,8 @@ int main(void)
         !test_zero_target_process_uses_local_process() ||
         !test_object_and_ipid_observation_windows() ||
         !test_observations_without_timestamps_are_counted() ||
+        !test_process_generations_separate_graph_objects() ||
+        !test_object_owner_uses_target_process_generation() ||
         !test_missing_relationship_fields()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
