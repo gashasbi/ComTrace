@@ -1613,68 +1613,35 @@ static void print_event_property_value(
 
 static void print_event_properties(const EVENT_RECORD *event_record, ULONG pointer_size)
 {
-    ULONG buffer_size = 0U;
-    ULONG allocated_size;
-    ULONG status;
-    ULONG available_count;
+    COMTRACE_ETL_EVENT_INFO decoded_info;
+    COMTRACE_ETL_EVENT_INFO_STATUS info_status;
+    TRACE_EVENT_INFO *event_info;
     ULONG property_count;
     ULONG top_level_property_count;
-    ULONG index;
+    ULONG buffer_size;
     BYTE *buffer;
-    TRACE_EVENT_INFO *event_info;
-    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+    ULONG index;
 
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        NULL,
-        &buffer_size
-    );
-
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        buffer_size < property_offset ||
-        buffer_size > 65536U) {
-        wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)status);
+    ZeroMemory(&decoded_info, sizeof(decoded_info));
+    info_status = comtrace_etl_event_info_open(event_record, &decoded_info);
+    if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
+        if (info_status == COMTRACE_ETL_EVENT_INFO_ALLOCATION_FAILED) {
+            wprintf(L"  payload_schema=unavailable reason=allocation_failed\n");
+        } else if (info_status == COMTRACE_ETL_EVENT_INFO_INVALID_METADATA) {
+            wprintf(L"  payload_schema=unavailable reason=invalid_metadata\n");
+        } else {
+            wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)decoded_info.tdh_status);
+        }
         return;
     }
 
-    allocated_size = buffer_size;
-    buffer = (BYTE *)malloc(buffer_size);
-    if (buffer == NULL) {
-        wprintf(L"  payload_schema=unavailable reason=allocation_failed\n");
-        return;
-    }
-
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        (PTRACE_EVENT_INFO)buffer,
-        &buffer_size
-    );
-
-    if (status != ERROR_SUCCESS ||
-        buffer_size < property_offset ||
-        buffer_size > allocated_size) {
-        wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)status);
-        free(buffer);
-        return;
-    }
-
-    event_info = (TRACE_EVENT_INFO *)buffer;
-    available_count = (ULONG)((buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO));
-    property_count = event_info->PropertyCount;
-    top_level_property_count = event_info->TopLevelPropertyCount;
-
-    if (property_count > available_count) {
-        property_count = available_count;
-    }
-    if (top_level_property_count > property_count) {
-        top_level_property_count = property_count;
-    }
-    if (top_level_property_count > 64U) {
-        top_level_property_count = 64U;
+    event_info = decoded_info.info;
+    buffer = decoded_info.buffer;
+    buffer_size = decoded_info.size;
+    property_count = decoded_info.property_count;
+    top_level_property_count = decoded_info.top_level_property_count;
+    if (top_level_property_count > COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
+        top_level_property_count = COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES;
     }
 
     wprintf(L"  payload_properties=%lu\n", (unsigned long)top_level_property_count);
@@ -1696,7 +1663,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
         name = (const wchar_t *)(buffer + name_offset);
         remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
 
-        while (name_length < remaining && name[name_length] != L'\0') {
+        while (name_length < remaining && name[name_length] != L'\\0') {
             ++name_length;
         }
 
@@ -1749,22 +1716,38 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             } else if ((property->Flags & PropertyParamFixedLength) != 0U) {
                 wprintf(L" fixed_length=%u", (unsigned int)property->length);
             }
-            wprintf(L"\n");
+            wprintf(L"\\n");
         }
+
         if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
-            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, NULL, 0U);
-        } else if (index == COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
-            wprintf(
-                L"  payload_value_limit=%lu remaining=%lu\n",
-                (unsigned long)COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES,
-                (unsigned long)(top_level_property_count - COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES)
+            print_event_property_value(
+                event_record,
+                property,
+                name,
+                index,
+                pointer_size,
+                event_info->EventPropertyInfoArray,
+                property_count,
+                buffer,
+                buffer_size,
+                NULL,
+                NULL,
+                NULL,
+                0U
             );
         }
     }
 
-    free(buffer);
-}
+    if (decoded_info.top_level_property_count > top_level_property_count) {
+        wprintf(
+            L"  payload_value_limit=%lu remaining=%lu\\n",
+            (unsigned long)COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES,
+            (unsigned long)(decoded_info.top_level_property_count - top_level_property_count)
+        );
+    }
 
+    comtrace_etl_event_info_close(&decoded_info);
+}
 
 static BOOL get_tracelogging_event_name(
     const EVENT_RECORD *event_record,
