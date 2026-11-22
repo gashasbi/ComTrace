@@ -17,6 +17,7 @@ static int test_conversation_and_transaction_lifecycle(void)
     event.timestamp = 100ULL;
     event.conversation_id = 10ULL;
     event.conversation_correlation_id = 500ULL;
+    event.dde_instance_id = 7U;
     event.role = COMTRACE_DDE_ROLE_CLIENT;
     event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_OPENED;
     event.service = L"Service";
@@ -67,6 +68,7 @@ static int test_conversation_and_transaction_lifecycle(void)
         conversation->opened_timestamp != 100ULL ||
         conversation->closed_timestamp != 400ULL ||
         conversation->conversation_correlation_id != 500ULL ||
+        conversation->dde_instance_id != 7U ||
         transaction->has_start == FALSE ||
         transaction->has_completion == FALSE ||
         transaction->has_duration == FALSE ||
@@ -118,6 +120,7 @@ static int test_explicit_cross_process_exchange(void)
     event.conversation_id = 11ULL;
     event.transaction_instance_id = 0ULL;
     event.role = COMTRACE_DDE_ROLE_SERVER;
+    event.item = L"document";
     event.data_size = 128U;
     if (comtrace_dde_timeline_add_event(&timeline, &event) !=
             COMTRACE_DDE_TIMELINE_SUCCESS ||
@@ -184,7 +187,7 @@ static int test_ambiguous_and_unmatched_events(void)
         comtrace_dde_timeline_correlate(&timeline) !=
             COMTRACE_DDE_TIMELINE_SUCCESS ||
         comtrace_dde_timeline_exchange_count(&timeline) != 0U ||
-        timeline.ambiguous_correlations != 3ULL) {
+        timeline.ambiguous_correlations != 1ULL) {
         comtrace_dde_timeline_destroy(&timeline);
         return 0;
     }
