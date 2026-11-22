@@ -1159,6 +1159,54 @@ static void write_json_string(const wchar_t *value)
     putwchar(L'"');
 }
 
+static void write_json_object_observations(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph
+)
+{
+    size_t index;
+    size_t written = 0U;
+
+    wprintf(L"[");
+    if (graph == NULL) {
+        wprintf(L"]");
+        return;
+    }
+
+    for (index = 0U; index < graph->node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph->nodes[index];
+
+        if (node->type != COMTRACE_GRAPH_NODE_COM_OBJECT) {
+            continue;
+        }
+
+        wprintf(
+            L"%ls      {\"process_id\": %lu, \"oid\": \"0x%llx\", \"observations\": %llu",
+            written == 0U ? L"\n" : L",\n",
+            (unsigned long)node->process_id,
+            (unsigned long long)node->value,
+            (unsigned long long)node->observation_count
+        );
+
+        if (node->has_observed_timestamp) {
+            wprintf(
+                L", \"first_seen_ticks\": \"%lld\", \"last_seen_ticks\": \"%lld\"",
+                (long long)node->first_seen_timestamp,
+                (long long)node->last_seen_timestamp
+            );
+        } else {
+            wprintf(L", \"first_seen_ticks\": null, \"last_seen_ticks\": null");
+        }
+
+        wprintf(L"}");
+        ++written;
+    }
+
+    if (written != 0U) {
+        wprintf(L"\n    ");
+    }
+    wprintf(L"]");
+}
+
 void comtrace_trace_comparison_write_json(
     const COMTRACE_TRACE_COMPARISON *comparison,
     const wchar_t *left_path,
@@ -1309,6 +1357,12 @@ void comtrace_trace_comparison_write_json(
         wprintf(L"\n  ");
     }
     wprintf(L"],\n");
+
+    wprintf(L"  \"object_observations\": {\n    \"left\": ");
+    write_json_object_observations(&comparison->left.relationship_graph);
+    wprintf(L",\n    \"right\": ");
+    write_json_object_observations(&comparison->right.relationship_graph);
+    wprintf(L"\n  },\n");
 
     wprintf(L"  \"timeline\": {\n    \"left\": [");
     for (index = 0U; index < comparison->left.operation_timing_count; ++index) {
