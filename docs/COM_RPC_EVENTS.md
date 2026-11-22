@@ -64,13 +64,22 @@ ComTrace labels them with `rpcss_event` and prints `rpcss_interface_uuid` and `r
 
 ## Current real-trace evidence
 
-A 30-second Windows Server 2022 CI capture used for this change successfully enabled all six capture providers and completed with 59 buffers, zero lost events, and zero lost buffers. The ETL contained 2,471 events across 59 event types. COM Performance produced 843 events.
+A follow-up 30-second Windows Server 2022 CI capture successfully enabled all six named providers and completed with 50 buffers, zero lost events, and zero lost buffers. The ETL contained 2,313 events across 60 event types. COM Performance produced 780 events.
 
-The RPC provider produced 1,010 records. ComTrace classified all 1,010: 245 client-call starts, 245 client-call stops, 245 server-call starts, 245 server-call stops, 15 FunctionTrace starts, 13 FunctionTrace stops, and 2 FunctionTraceStart16 records. The COM call start records exposed 17 distinct `InterfaceUuid` values in the initial report; FunctionTrace records are now also classified and expose their named payload fields when present.
+The RPC provider produced 911 records, and the updated classifier recognized all 911:
 
-COMRuntime produced zero events, RPCSS produced zero events, and COM-RundownInstrumentation produced zero events in this particular CI environment. Their absence did not fail validation. OLE-Perf also emitted no events in this headless runner.
+- 219 client-call starts and 220 client-call stops
+- 219 server-call starts and 219 server-call stops
+- 15 FunctionTrace starts and 17 FunctionTrace stops
+- 2 FunctionTraceStart16 records
 
-The ETL converted to CTRA with 2,471 records; archive CRC32 validation passed and the ETL/CTRA comparison was identical. These measurements describe one runner and one capture window only. The observed RPC client/server start/stop counts are separate provider observations; ComTrace does not assume each client event is a matching server event, nor does it relate the RPC interface UUIDs to COM OID/IPID values.
+The differing client/server start and stop counts are intentionally kept as independent observations; ComTrace does not pair client and server records based on counts or timing. The trace exposed 17 distinct `InterfaceUuid` values in RPC start records.
+
+RPCSS produced two records, both `InterfaceUnregister` (event ID 3); no `InterfaceRegister` record was emitted in this capture. Both records had distinct `InterfaceUUID` values, `ObjectUUID` equal to the all-zero GUID, and protocol `ncalrpc`. These values describe RPC endpoint registration metadata and do not identify a COM OID or an object release.
+
+COMRuntime produced zero events, and COM-RundownInstrumentation produced zero events. OLE-Perf also emitted no events in this headless runner. These missing optional-provider events did not fail validation.
+
+The ETL converted to CTRA with 2,313 records; archive CRC32 validation passed and the ETL/CTRA comparison was identical. This is one Windows Server 2022 runner and one capture window only. The successful RPC classification does not establish an AddRef/Release sequence or an object-lifetime boundary.
 ## Inspecting a trace
 
 To search each provider independently:
