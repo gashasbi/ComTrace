@@ -25,6 +25,8 @@ static const GUID expected_interface_id = {
 
 static const ULONG expected_target_process_id = 0x12345678UL;
 static const ULONG expected_target_thread_id = 0x87654321UL;
+static const ULONG expected_source_process_id = 0x76543210UL;
+static const ULONG expected_source_thread_id = 0x10203040UL;
 
 static const GUID expected_ipid = {
     0x40516273, 0x8495, 0xa6b7,
@@ -122,6 +124,34 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
             ++context->failures;
         }
 
+        return;
+    }
+
+    if (event_record->EventHeader.EventDescriptor.Id == 2U) {
+        status = comtrace_extract_guid_property(event_record, L"ClassId", &value);
+        if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+            fwprintf(stderr, L"ClassId alias fixture unexpectedly exposed ClassId: status=%u\\n", (unsigned int)status);
+            ++context->failures;
+        }
+
+        status = comtrace_extract_guid_property(event_record, L"CLSID", &value);
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            memcmp(&value, &expected_class_id, sizeof(GUID)) != 0) {
+            fwprintf(stderr, L"CLSID alias extraction failed: status=%u\\n", (unsigned int)status);
+            ++context->failures;
+        }
+
+        status = comtrace_extract_com_object_identity(event_record, &object_identity);
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            !object_identity.has_clsid ||
+            object_identity.has_iid ||
+            object_identity.has_ipid ||
+            object_identity.has_oid ||
+            object_identity.has_call_trace_id ||
+            memcmp(&object_identity.clsid, &expected_class_id, sizeof(GUID)) != 0) {
+            fwprintf(stderr, L"CLSID alias identity model failed: status=%u\\n", (unsigned int)status);
+            ++context->failures;
+        }
         return;
     }
 
@@ -326,8 +356,12 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         !object_identity.has_call_trace_id ||
         !object_identity.has_process_id ||
         !object_identity.has_thread_id ||
+        !object_identity.has_source_process_id ||
+        !object_identity.has_source_thread_id ||
         object_identity.target_process_id != expected_target_process_id ||
         object_identity.target_thread_id != expected_target_thread_id ||
+        object_identity.source_process_id != expected_source_process_id ||
+        object_identity.source_thread_id != expected_source_thread_id ||
         memcmp(&object_identity.clsid, &expected_class_id, sizeof(GUID)) != 0 ||
         memcmp(&object_identity.iid, &expected_interface_id, sizeof(GUID)) != 0 ||
         memcmp(&object_identity.ipid, &expected_ipid, sizeof(GUID)) != 0 ||
@@ -373,7 +407,7 @@ static int verify_event(const wchar_t *etl_path)
         return 0;
     }
 
-    if (context.events_seen != 2U || context.failures != 0U) {
+    if (context.events_seen != 3U || context.failures != 0U) {
         fwprintf(
             stderr,
             L"Identity validation failed. Events: %lu Failures: %lu\n",
