@@ -11,7 +11,7 @@ ComTrace.exe --search trace.etl --property Text --equals Hello
 ComTrace.exe --search trace.etl --property Text --contains ell
 ComTrace.exe --search trace.etl --property Values[1] --equals 22
 ComTrace.exe --search trace.etl --property Values[1].Code --equals 1432778632
-ComTrace.exe --search trace.etl --property Outer.Inner[1].NestedCode --equals 287484603
+ComTrace.exe --search trace.etl --property Outer.Numbers[1] --equals 47
 ComTrace.exe --search trace.etl --property Outer.Inner.NestedCode --equals 1432778632
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
@@ -74,8 +74,8 @@ values support equality only.
 
 ## Unsupported property shapes
 
-Array properties without an index, multiple array indices in one property path,
-WBEM XML fragments, unsupported custom schemas, and values whose TDH
+Array properties without an index, nested struct arrays, multiple array indices
+in one property path, WBEM XML fragments, unsupported custom schemas, and values whose TDH
 metadata or payload cannot be read are not matched by this filter. Binary properties
 do not support numeric ordering comparisons. Scalar custom-schema properties are
 matched when their input and output types have a supported scalar representation. A missing or unsupported property produces
