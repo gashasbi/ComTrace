@@ -39,6 +39,11 @@ The Win10 17134 manifest defines the following mapped records:
 | 6 | 1 | Start (1) | RpcServerCallStart_V1 | RpcServerCall / start |
 | 7 | 1 | Stop (2) | RpcClientCallStop7_V1 | RpcClientCall / stop |
 | 8 | 1 | Stop (2) | RpcServerCallStop_V1 | RpcServerCall / stop |
+| 14 | 1 | Start (1) | FunctionTraceStart_V1 | FunctionTrace / start |
+| 15 | 1 | Stop (2) | FunctionTraceStop_V1 | FunctionTrace / stop |
+| 16 | 1 | Start (1) | FunctionTraceStart16_V1 | FunctionTraceStart16 / start |
+
+Events 14 and 15 expose `InterfaceUuid`, `TypeMgrUuid`, `Flags`, and `MaxCalls`; event 14 also carries the `SDSize` and `SD` fields. Event 16 carries `Protocol`, `Endpoint`, `NetworkAddress`, `PendingQueueSize`, `EndpointFlags`, and `NicFlags`.
 
 Start records expose fields including `InterfaceUuid`, `ProcNum`, `Protocol`, `NetworkAddress`, `Endpoint`, and authentication settings. Stop records expose status; event 1 has a different error-oriented payload. ComTrace labels mapped records with `rpc_event` and `phase`, and explicitly prints `rpc_interface_uuid` when that field exists.
 
@@ -61,7 +66,7 @@ ComTrace labels them with `rpcss_event` and prints `rpcss_interface_uuid` and `r
 
 A 30-second Windows Server 2022 CI capture used for this change successfully enabled all six capture providers and completed with 59 buffers, zero lost events, and zero lost buffers. The ETL contained 2,471 events across 59 event types. COM Performance produced 843 events.
 
-The RPC provider produced 1,010 records. ComTrace classified 980 of them: 245 client-call starts, 245 client-call stops, 245 server-call starts, and 245 server-call stops. The start records exposed 17 distinct `InterfaceUuid` values in this trace. The remaining 30 RPC records were retained as raw TDH events but are not mapped by the current classifier.
+The RPC provider produced 1,010 records. ComTrace classified all 1,010: 245 client-call starts, 245 client-call stops, 245 server-call starts, 245 server-call stops, 15 FunctionTrace starts, 13 FunctionTrace stops, and 2 FunctionTraceStart16 records. The COM call start records exposed 17 distinct `InterfaceUuid` values in the initial report; FunctionTrace records are now also classified and expose their named payload fields when present.
 
 COMRuntime produced zero events, RPCSS produced zero events, and COM-RundownInstrumentation produced zero events in this particular CI environment. Their absence did not fail validation. OLE-Perf also emitted no events in this headless runner.
 
