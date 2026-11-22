@@ -82,8 +82,7 @@ COMTRACE_PROCESS_LIFECYCLE_STATUS comtrace_process_lifecycle_extract(
         &result.process_id
     );
 
-    if (identity_status != COMTRACE_IDENTITY_SUCCESS ||
-        result.process_id == 0U) {
+    if (identity_status != COMTRACE_IDENTITY_SUCCESS) {
         return COMTRACE_PROCESS_LIFECYCLE_METADATA_UNAVAILABLE;
     }
 
@@ -93,8 +92,7 @@ COMTRACE_PROCESS_LIFECYCLE_STATUS comtrace_process_lifecycle_extract(
         &result.parent_process_id
     );
 
-    if (identity_status == COMTRACE_IDENTITY_SUCCESS &&
-        result.parent_process_id != 0U) {
+    if (identity_status == COMTRACE_IDENTITY_SUCCESS) {
         result.has_parent_process_id = TRUE;
     }
 
@@ -278,8 +276,7 @@ COMTRACE_PROCESS_LIFECYCLE_STATUS comtrace_process_lifecycle_catalog_add(
     BOOL rundown;
 
     if (catalog == NULL ||
-        process_event == NULL ||
-        process_event->process_id == 0U) {
+        process_event == NULL) {
         return COMTRACE_PROCESS_LIFECYCLE_INVALID_ARGUMENT;
     }
 
