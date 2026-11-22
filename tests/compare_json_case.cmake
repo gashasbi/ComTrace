@@ -119,6 +119,14 @@ endif()
 string(JSON object_change_count LENGTH "${output}" object_changes)
 string(JSON left_object_observation_count LENGTH "${output}" object_observations left)
 string(JSON right_object_observation_count LENGTH "${output}" object_observations right)
+string(JSON left_process_lifetime_count LENGTH "${output}" process_lifetimes left)
+string(JSON right_process_lifetime_count LENGTH "${output}" process_lifetimes right)
+string(JSON left_process_start_events GET "${output}" process_lifecycle_summary left start_events)
+string(JSON left_process_end_events GET "${output}" process_lifecycle_summary left end_events)
+string(JSON left_process_decode_failures GET "${output}" process_lifecycle_summary left decode_failures)
+string(JSON right_process_start_events GET "${output}" process_lifecycle_summary right start_events)
+string(JSON right_process_end_events GET "${output}" process_lifecycle_summary right end_events)
+string(JSON right_process_decode_failures GET "${output}" process_lifecycle_summary right decode_failures)
 string(JSON left_timeline_count LENGTH "${output}" timeline left)
 string(JSON right_timeline_count LENGTH "${output}" timeline right)
 string(JSON left_com_matched GET "${output}" timeline_summary left_com matched)
@@ -144,6 +152,14 @@ string(JSON right_ole_missing_activity GET "${output}" timeline_summary right_ol
 if(NOT object_change_count EQUAL 0 OR
    NOT left_object_observation_count EQUAL 0 OR
    NOT right_object_observation_count EQUAL 0 OR
+   NOT left_process_lifetime_count EQUAL 0 OR
+   NOT right_process_lifetime_count EQUAL 0 OR
+   NOT left_process_start_events EQUAL 0 OR
+   NOT left_process_end_events EQUAL 0 OR
+   NOT left_process_decode_failures EQUAL 0 OR
+   NOT right_process_start_events EQUAL 0 OR
+   NOT right_process_end_events EQUAL 0 OR
+   NOT right_process_decode_failures EQUAL 0 OR
    NOT left_timeline_count EQUAL 0 OR
    NOT right_timeline_count EQUAL 0 OR
    NOT left_com_matched EQUAL 0 OR
