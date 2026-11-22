@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <evntrace.h>
 #include <winmeta.h>
 #include <TraceLoggingProvider.h>
 #include "comtrace_lifetime.h"
@@ -43,7 +44,7 @@ ULONGLONG comtrace_lifetime_object_created(
     TraceLoggingWrite(
         g_comtrace_lifetime_provider,
         "ComObjectCreated",
-        TraceLoggingLevel(WINEVENT_LEVEL_INFORMATION),
+        TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64((ULONGLONG)next_id, "ObjectInstanceId"),
         TraceLoggingGuid(*class_id, "ClassId"),
@@ -67,7 +68,7 @@ void comtrace_lifetime_add_ref(
     TraceLoggingWrite(
         g_comtrace_lifetime_provider,
         "ComAddRef",
-        TraceLoggingLevel(WINEVENT_LEVEL_INFORMATION),
+        TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
@@ -88,7 +89,7 @@ void comtrace_lifetime_release(
     TraceLoggingWrite(
         g_comtrace_lifetime_provider,
         "ComRelease",
-        TraceLoggingLevel(WINEVENT_LEVEL_INFORMATION),
+        TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
@@ -108,7 +109,7 @@ void comtrace_lifetime_object_destroyed(
     TraceLoggingWrite(
         g_comtrace_lifetime_provider,
         "ComObjectDestroyed",
-        TraceLoggingLevel(WINEVENT_LEVEL_INFORMATION),
+        TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId")
