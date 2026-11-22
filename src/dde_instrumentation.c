@@ -8,32 +8,17 @@ TRACELOGGING_DEFINE_PROVIDER(
     (0x7b6d4a21, 0x9e35, 0x4c80, 0xa1, 0x72, 0x53, 0x94, 0xb6, 0xd8, 0x0f, 0x21)
 );
 
-static volatile LONG g_provider_registered = 0;
 static volatile LONG64 g_next_conversation_id = 0;
 static volatile LONG64 g_next_transaction_id = 0;
 
 ULONG comtrace_dde_initialize(void)
 {
-    ULONG status;
-
-    if (InterlockedCompareExchange(&g_provider_registered, 1, 0) != 0) {
-        return ERROR_SUCCESS;
-    }
-
-    status = TraceLoggingRegister(g_comtrace_dde_provider);
-    if (status != ERROR_SUCCESS) {
-        InterlockedExchange(&g_provider_registered, 0);
-        return status;
-    }
-
-    return ERROR_SUCCESS;
+    return TraceLoggingRegister(g_comtrace_dde_provider);
 }
 
 void comtrace_dde_shutdown(void)
 {
-    if (InterlockedExchange(&g_provider_registered, 0) != 0) {
-        TraceLoggingUnregister(g_comtrace_dde_provider);
-    }
+    TraceLoggingUnregister(g_comtrace_dde_provider);
 }
 
 ULONGLONG comtrace_dde_conversation_opened(
@@ -45,10 +30,6 @@ ULONGLONG comtrace_dde_conversation_opened(
 )
 {
     LONG64 conversation_id;
-
-    if (InterlockedCompareExchange(&g_provider_registered, 0, 0) == 0) {
-        return 0ULL;
-    }
 
     conversation_id = InterlockedIncrement64(&g_next_conversation_id);
     if (conversation_id <= 0) {
@@ -76,8 +57,7 @@ void comtrace_dde_conversation_closed(
     ULONG result
 )
 {
-    if (conversation_id == 0ULL ||
-        InterlockedCompareExchange(&g_provider_registered, 0, 0) == 0) {
+    if (conversation_id == 0ULL) {
         return;
     }
 
@@ -103,8 +83,7 @@ ULONGLONG comtrace_dde_transaction_started(
 {
     LONG64 transaction_instance_id;
 
-    if (conversation_id == 0ULL ||
-        InterlockedCompareExchange(&g_provider_registered, 0, 0) == 0) {
+    if (conversation_id == 0ULL) {
         return 0ULL;
     }
 
@@ -141,9 +120,7 @@ void comtrace_dde_transaction_completed(
     BOOL succeeded
 )
 {
-    if (conversation_id == 0ULL ||
-        transaction_instance_id == 0ULL ||
-        InterlockedCompareExchange(&g_provider_registered, 0, 0) == 0) {
+    if (conversation_id == 0ULL || transaction_instance_id == 0ULL) {
         return;
     }
 
