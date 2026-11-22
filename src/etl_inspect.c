@@ -480,6 +480,10 @@ static int read_event_property_count(
     const BYTE *buffer,
     ULONG buffer_size,
     const EVENT_PROPERTY_INFO *property,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    const ULONG *parent_property_indices,
+    ULONG parent_count,
     ULONG *count)
 {
     return comtrace_etl_read_property_count(
@@ -489,6 +493,10 @@ static int read_event_property_count(
         buffer,
         buffer_size,
         property,
+        parent_names,
+        parent_indices,
+        parent_property_indices,
+        parent_count,
         count
     );
 }
@@ -1320,6 +1328,7 @@ static void print_event_property_value(
     ULONG buffer_size,
     const wchar_t *const *parent_names,
     const ULONG *parent_indices,
+    const ULONG *parent_property_indices,
     ULONG parent_count)
 {
     ULONG flags = (ULONG)property->Flags;
@@ -1333,6 +1342,7 @@ static void print_event_property_value(
         ULONG struct_index;
         const wchar_t *nested_names[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
         ULONG nested_indices[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
+        ULONG nested_property_indices[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
 
         if (parent_count >= COMTRACE_ETL_MAX_PROPERTY_DEPTH) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_depth_limit\n", (unsigned long)index, name);
@@ -1343,7 +1353,10 @@ static void print_event_property_value(
             return;
         }
         if ((flags & PropertyParamCount) != 0U) {
-            if (!read_event_property_count(event_record, properties, property_count, buffer, buffer_size, property, &struct_count)) {
+            if (!read_event_property_count(
+                    event_record, properties, property_count, buffer, buffer_size,
+                    property, parent_names, parent_indices, parent_property_indices,
+                    parent_count, &struct_count)) {
                 wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
                 return;
             }
@@ -1357,8 +1370,10 @@ static void print_event_property_value(
         for (element_index = 0U; element_index < parent_count; ++element_index) {
             nested_names[element_index] = parent_names[element_index];
             nested_indices[element_index] = parent_indices[element_index];
+            nested_property_indices[element_index] = parent_property_indices[element_index];
         }
         nested_names[parent_count] = name;
+        nested_property_indices[parent_count] = (ULONG)(property - properties);
 
         for (struct_index = 0U; struct_index < struct_count; ++struct_index) {
             nested_indices[parent_count] =
@@ -1397,6 +1412,7 @@ static void print_event_property_value(
                     buffer_size,
                     nested_names,
                     nested_indices,
+                    nested_property_indices,
                     parent_count + 1U
                 );
             }
@@ -1406,7 +1422,10 @@ static void print_event_property_value(
 
     if ((flags & PropertyParamCount) != 0U) {
         ULONG count;
-        if (!read_event_property_count(event_record, properties, property_count, buffer, buffer_size, property, &count)) {
+        if (!read_event_property_count(
+                event_record, properties, property_count, buffer, buffer_size,
+                property, parent_names, parent_indices, parent_property_indices,
+                parent_count, &count)) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=invalid_count_property\n", (unsigned long)index, name);
             return;
         }
@@ -1580,7 +1599,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             wprintf(L"\n");
         }
         if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
-            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, 0U);
+            print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, NULL, 0U);
         } else if (index == COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
             wprintf(
                 L"  payload_value_limit=%lu remaining=%lu\n",
