@@ -227,7 +227,8 @@ static const wchar_t *get_map_string(
     const EVENT_MAP_INFO *map_info,
     ULONG map_size,
     ULONG offset,
-    ULONG *length
+    ULONG *length,
+    int trim_trailing_spaces
 )
 {
     ULONG remaining;
@@ -247,8 +248,10 @@ static const wchar_t *get_map_string(
     for (index = 0U; index < remaining; ++index) {
         if (value[index] == L'\0') {
             *length = index;
-            while (*length != 0U && value[*length - 1U] == L' ') {
-                --(*length);
+            if (trim_trailing_spaces) {
+                while (*length != 0U && value[*length - 1U] == L' ') {
+                    --(*length);
+                }
             }
             return value;
         }
@@ -583,7 +586,8 @@ int comtrace_etl_print_mapped_property_value(
             map_info,
             map_size,
             map_info->FormatStringOffset,
-            &string_length
+            &string_length,
+            0
         );
         wprintf(L"map_type=pattern_map message_only=true");
         if (map_string != NULL) {
@@ -601,13 +605,15 @@ int comtrace_etl_print_mapped_property_value(
                 map_info,
                 map_size,
                 map_info->MapEntryArray[index].InputOffset,
-                &pattern_length
+                &pattern_length,
+                0
             );
             replacement = get_map_string(
                 map_info,
                 map_size,
                 map_info->MapEntryArray[index].OutputOffset,
-                &replacement_length
+                &replacement_length,
+                0
             );
             if (pattern == NULL || replacement == NULL) {
                 continue;
@@ -648,7 +654,7 @@ int comtrace_etl_print_mapped_property_value(
         for (index = 0U; index < map_info->EntryCount; ++index) {
             input_offset = map_info->MapEntryArray[index].InputOffset;
             output_offset = map_info->MapEntryArray[index].OutputOffset;
-            map_string = get_map_string(map_info, map_size, input_offset, &map_value_length);
+            map_string = get_map_string(map_info, map_size, input_offset, &map_value_length, 0);
             if (map_string == NULL) {
                 continue;
             }
@@ -661,7 +667,7 @@ int comtrace_etl_print_mapped_property_value(
                     map_value_length)) {
                 continue;
             }
-            map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+            map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
             if (map_string == NULL) {
                 continue;
             }
@@ -675,7 +681,7 @@ int comtrace_etl_print_mapped_property_value(
             if ((flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) != 0U) {
                 if (numeric_value < map_info->EntryCount) {
                     output_offset = map_info->MapEntryArray[numeric_value].OutputOffset;
-                    map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
                     if (map_string != NULL) {
                         wprintf(L"value=\"");
                         print_escaped_map_string(map_string, string_length);
@@ -688,7 +694,7 @@ int comtrace_etl_print_mapped_property_value(
                         continue;
                     }
                     output_offset = map_info->MapEntryArray[index].OutputOffset;
-                    map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
                     if (map_string == NULL) {
                         continue;
                     }
@@ -717,7 +723,7 @@ int comtrace_etl_print_mapped_property_value(
                 }
 
                 output_offset = map_info->MapEntryArray[index].OutputOffset;
-                map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
                 if (map_string == NULL) {
                     continue;
                 }
