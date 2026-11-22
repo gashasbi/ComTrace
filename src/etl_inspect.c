@@ -28,6 +28,8 @@
 #include "relationship_graph.h"
 #include "ole_timeline.h"
 #include "rpc_timeline.h"
+#include "dde_event.h"
+#include "dde_timeline.h"
 #include "process_lifecycle.h"
 #include "com_lifetime_analysis.h"
 
@@ -51,6 +53,8 @@ typedef struct {
     COMTRACE_OLE_TIMELINE_STATUS ole_timeline_status;
     COMTRACE_RPC_TIMELINE rpc_timeline;
     COMTRACE_RPC_TIMELINE_STATUS rpc_timeline_status;
+    COMTRACE_DDE_TIMELINE dde_timeline;
+    COMTRACE_DDE_TIMELINE_STATUS dde_timeline_status;
     COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
     COMTRACE_GRAPH_STATUS graph_status;
     COMTRACE_PROCESS_LIFECYCLE_CATALOG process_lifecycle;
