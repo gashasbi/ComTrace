@@ -38,6 +38,8 @@ typedef struct {
     wchar_t operation[64];
     DWORD process_id;
     DWORD thread_id;
+    DWORD stop_process_id;
+    DWORD stop_thread_id;
     ULONGLONG start_timestamp;
     ULONGLONG stop_timestamp;
     ULONGLONG duration_ticks;
