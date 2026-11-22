@@ -76,3 +76,12 @@ The provider GUID is `{6F3B5E21-7C14-4A90-9D42-81316CE2A750}`. Its TraceLogging 
 This is explicit application instrumentation, not transparent system-wide COM interception. It observes only code paths that call the library. If the instrumented pointer is a COM proxy, the observations describe that local proxy implementation; they do not automatically describe the remote server object's reference count. Instrumentation must be placed in the implementation whose lifetime is being studied.
 
 The library does not infer lifetime from RPC call counts, RPCSS endpoint registration, COM rundown observations, pointer values, or time gaps. The native Windows providers remain useful context, but they do not replace explicit instrumentation of the object's actual reference-management and destruction paths.
+
+
+## Object lifetime analysis in Inspect
+
+Inspect groups the four event types into an object instance keyed by process ID, process generation when resolvable, and `ObjectInstanceId`. Each record keeps the creation and explicit-destruction timestamps, AddRef and Release event counts, the initial and last observed reference-count values, and the observed CLSID/IID. Durations use the ETL trace clock and are shown in milliseconds when its frequency is available; otherwise raw ticks are shown.
+
+The relationship graph uses a distinct `COM_LIFETIME_OBJECT` node type. These nodes connect to their owning process generation, CLSID, and observed IID. They are deliberately separate from native OID-based COM object nodes because the application-generated instance ID is not an OID.
+
+The timeline reports missing creation/destruction events, duplicate creation/destruction records, events after an explicit destruction, and Release-zero return observations without an explicit destruction event. A zero return value does not automatically mark an object destroyed. The explicit `ComObjectDestroyed` event remains the only lifetime end marker in this instrumentation model.

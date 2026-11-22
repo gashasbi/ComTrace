@@ -21,6 +21,7 @@
 #include "relationship_graph.h"
 #include "ole_timeline.h"
 #include "process_lifecycle.h"
+#include "com_lifetime_analysis.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -44,6 +45,9 @@ typedef struct {
     COMTRACE_GRAPH_STATUS graph_status;
     COMTRACE_PROCESS_LIFECYCLE_CATALOG process_lifecycle;
     ULONGLONG process_lifecycle_failures;
+    COMTRACE_COM_LIFETIME_ANALYSIS lifetime_analysis;
+    COMTRACE_LIFETIME_STATUS lifetime_status;
+    ULONGLONG lifetime_decode_failures;
     ULONGLONG trace_frequency;
 } ETL_INSPECT_CONTEXT;
 
@@ -1012,6 +1016,309 @@ static void print_com_lifetime_event_classification(
     }
 }
 
+
+static BOOL is_com_lifetime_event_record(
+    const EVENT_RECORD *event_record
+)
+{
+    wchar_t trace_event_name[128];
+    const wchar_t *event_name = NULL;
+
+    return event_record != NULL &&
+        get_tracelogging_event_name(
+            event_record,
+            trace_event_name,
+            _countof(trace_event_name)
+        ) &&
+        comtrace_classify_com_lifetime_event(
+            &event_record->EventHeader.ProviderId,
+            trace_event_name,
+            &event_name
+        );
+}
+
+static void add_com_lifetime_analysis_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    wchar_t trace_event_name[128];
+    const wchar_t *event_name = NULL;
+    COMTRACE_LIFETIME_EVENT event;
+    COMTRACE_LIFETIME_STATUS status;
+    ULONGLONG process_generation = 0ULL;
+    ULONG reference_count = 0U;
+
+    if (context == NULL ||
+        event_record == NULL ||
+        !get_tracelogging_event_name(
+            event_record,
+            trace_event_name,
+            _countof(trace_event_name)
+        ) ||
+        !comtrace_classify_com_lifetime_event(
+            &event_record->EventHeader.ProviderId,
+            trace_event_name,
+            &event_name
+        )) {
+        return;
+    }
+
+    ZeroMemory(&event, sizeof(event));
+    if (wcscmp(event_name, L"ComObjectCreated") == 0) {
+        event.type = COMTRACE_LIFETIME_EVENT_CREATED;
+    } else if (wcscmp(event_name, L"ComAddRef") == 0) {
+        event.type = COMTRACE_LIFETIME_EVENT_ADD_REF;
+    } else if (wcscmp(event_name, L"ComRelease") == 0) {
+        event.type = COMTRACE_LIFETIME_EVENT_RELEASE;
+    } else if (wcscmp(event_name, L"ComObjectDestroyed") == 0) {
+        event.type = COMTRACE_LIFETIME_EVENT_DESTROYED;
+    } else {
+        return;
+    }
+
+    event.process_id = event_record->EventHeader.ProcessId;
+    event.thread_id = event_record->EventHeader.ThreadId;
+    event.timestamp =
+        (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    if (event.process_id == 0U ||
+        comtrace_extract_uint64_property(
+            event_record,
+            L"ObjectInstanceId",
+            &event.object_instance_id
+        ) != COMTRACE_IDENTITY_SUCCESS ||
+        event.object_instance_id == 0ULL) {
+        if (context->lifetime_decode_failures != ULLONG_MAX) {
+            ++context->lifetime_decode_failures;
+        }
+        return;
+    }
+
+    if (comtrace_process_lifecycle_resolve_generation(
+            &context->process_lifecycle,
+            event.process_id,
+            (LONGLONG)event.timestamp,
+            &process_generation
+        )) {
+        event.process_generation = process_generation;
+        event.has_process_generation = TRUE;
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceId",
+            &event.interface_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        event.has_interface_id = TRUE;
+    }
+
+    if (event.type == COMTRACE_LIFETIME_EVENT_CREATED &&
+        comtrace_extract_guid_property(
+            event_record,
+            L"ClassId",
+            &event.class_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        event.has_class_id = TRUE;
+    }
+
+    if (event.type == COMTRACE_LIFETIME_EVENT_CREATED &&
+        comtrace_extract_uint32_property(
+            event_record,
+            L"InitialReferenceCount",
+            &event.initial_reference_count
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        event.has_initial_reference_count = TRUE;
+    }
+
+    if ((event.type == COMTRACE_LIFETIME_EVENT_ADD_REF ||
+         event.type == COMTRACE_LIFETIME_EVENT_RELEASE) &&
+        comtrace_extract_uint32_property(
+            event_record,
+            L"ReferenceCountResult",
+            &reference_count
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        event.reference_count_result = reference_count;
+        event.has_reference_count_result = TRUE;
+    }
+
+    status = comtrace_lifetime_analysis_add_event(
+        &context->lifetime_analysis,
+        &event,
+        NULL
+    );
+    if (status != COMTRACE_LIFETIME_SUCCESS) {
+        context->lifetime_status = status;
+    }
+}
+
+static void add_lifetime_records_to_graph(
+    ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t index;
+
+    if (context == NULL) {
+        return;
+    }
+
+    for (index = 0U;
+         index < comtrace_lifetime_analysis_count(&context->lifetime_analysis);
+         ++index) {
+        const COMTRACE_LIFETIME_RECORD *record =
+            comtrace_lifetime_analysis_get(&context->lifetime_analysis, index);
+
+        if (record != NULL &&
+            comtrace_relationship_graph_add_lifetime_record(
+                &context->relationship_graph,
+                record
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            context->graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+            return;
+        }
+    }
+}
+
+static void print_com_lifetime_summary(
+    const ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t index;
+    size_t count;
+    ULONGLONG created_objects = 0ULL;
+    ULONGLONG destroyed_objects = 0ULL;
+    ULONGLONG incomplete_objects = 0ULL;
+    ULONGLONG zero_release_without_destroy = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    count = comtrace_lifetime_analysis_count(&context->lifetime_analysis);
+
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_LIFETIME_RECORD *record =
+            comtrace_lifetime_analysis_get(&context->lifetime_analysis, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        if (record->has_created) {
+            ++created_objects;
+            if (!record->has_destroyed) {
+                ++incomplete_objects;
+            }
+        }
+        if (record->has_destroyed) {
+            ++destroyed_objects;
+        }
+        if (record->release_zero_results != 0ULL && !record->has_destroyed) {
+            ++zero_release_without_destroy;
+        }
+    }
+
+    wprintf(L"\nCOM object lifetime timeline summary\n");
+    wprintf(L"Objects tracked: %llu\n", (unsigned long long)count);
+    wprintf(L"Objects created: %llu\n", (unsigned long long)created_objects);
+    wprintf(L"Objects with explicit destruction: %llu\n",
+        (unsigned long long)destroyed_objects);
+    wprintf(L"Created objects without destruction event: %llu\n",
+        (unsigned long long)incomplete_objects);
+    wprintf(L"AddRef events: %llu\n",
+        (unsigned long long)context->lifetime_analysis.add_ref_events);
+    wprintf(L"Release events: %llu\n",
+        (unsigned long long)context->lifetime_analysis.release_events);
+    wprintf(L"Release-zero observations without destruction event: %llu\n",
+        (unsigned long long)zero_release_without_destroy);
+    wprintf(L"Events without creation: %llu\n",
+        (unsigned long long)context->lifetime_analysis.events_without_creation);
+    wprintf(L"Events after destruction: %llu\n",
+        (unsigned long long)context->lifetime_analysis.events_after_destruction);
+    wprintf(L"Duplicate creation events: %llu\n",
+        (unsigned long long)context->lifetime_analysis.duplicate_creations);
+    wprintf(L"Destructions without creation: %llu\n",
+        (unsigned long long)context->lifetime_analysis.destructions_without_creation);
+    wprintf(L"Duplicate destruction events: %llu\n",
+        (unsigned long long)context->lifetime_analysis.duplicate_destructions);
+    wprintf(L"Lifetime event decode failures: %llu\n",
+        (unsigned long long)context->lifetime_decode_failures);
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_LIFETIME_RECORD *record =
+            comtrace_lifetime_analysis_get(&context->lifetime_analysis, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(
+            L"  object pid=%lu generation=",
+            (unsigned long)record->process_id
+        );
+        if (record->has_process_generation) {
+            wprintf(L"%llu", (unsigned long long)record->process_generation);
+        } else {
+            wprintf(L"unknown");
+        }
+        wprintf(L" instance=0x%llx observations=%llu create=%ls destroy=%ls",
+            (unsigned long long)record->object_instance_id,
+            (unsigned long long)record->observation_count,
+            record->has_created ? L"observed" : L"missing",
+            record->has_destroyed ? L"observed" : L"missing");
+
+        if (record->has_created) {
+            wprintf(L" created_ticks=%llu",
+                (unsigned long long)record->created_timestamp);
+        }
+        if (record->has_destroyed) {
+            wprintf(L" destroyed_ticks=%llu",
+                (unsigned long long)record->destroyed_timestamp);
+            if (record->has_created &&
+                record->destroyed_timestamp >= record->created_timestamp) {
+                ULONGLONG duration =
+                    record->destroyed_timestamp - record->created_timestamp;
+                if (context->trace_frequency != 0ULL) {
+                    double duration_ms =
+                        1000.0 * (double)duration /
+                        (double)context->trace_frequency;
+                    wprintf(L" lifetime_ms=%.3f", duration_ms);
+                } else {
+                    wprintf(L" lifetime_ticks=%llu",
+                        (unsigned long long)duration);
+                }
+            }
+        }
+
+        if (record->has_class_id) {
+            wprintf(L" clsid=");
+            print_guid(&record->class_id);
+        }
+        if (record->has_interface_id) {
+            wprintf(L" iid=");
+            print_guid(&record->interface_id);
+        }
+        if (record->has_initial_reference_count) {
+            wprintf(L" initial_reference_count=%lu",
+                (unsigned long)record->initial_reference_count);
+        }
+        if (record->has_last_reference_count_result) {
+            wprintf(L" last_reference_count_result=%lu",
+                (unsigned long)record->last_reference_count_result);
+        }
+        if (record->release_zero_results != 0ULL) {
+            wprintf(L" release_zero_observations=%llu",
+                (unsigned long long)record->release_zero_results);
+        }
+        wprintf(L"\n");
+    }
+
+    if (count > 100U) {
+        wprintf(L"  lifetime_display_limit=100 remaining=%llu\n",
+            (unsigned long long)(count - 100U));
+    }
+}
+
 static void print_ole_event_classification(const EVENT_RECORD *event_record)
 {
     const wchar_t *operation = NULL;
@@ -1805,6 +2112,12 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"call_has_activity";
     case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OBJECT:
         return L"process_owns_object";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT:
+        return L"process_owns_lifetime_object";
+    case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_CLSID:
+        return L"lifetime_object_has_clsid";
+    case COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID:
+        return L"lifetime_object_exposes_iid";
     case COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT:
         return L"call_uses_object";
     case COMTRACE_GRAPH_EDGE_OBJECT_HAS_CLSID:
@@ -1882,6 +2195,25 @@ static void print_relationship_graph_node(
                 (long long)node->first_seen_timestamp,
                 (long long)node->last_seen_timestamp
             );
+        }
+        break;
+    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
+        wprintf(
+            L"com-lifetime-object:%lu/0x%llx observations=%llu",
+            (unsigned long)node->process_id,
+            (unsigned long long)node->value,
+            (unsigned long long)node->observation_count
+        );
+        if (node->has_process_generation) {
+            wprintf(L" generation=%llu",
+                (unsigned long long)node->process_generation);
+        } else {
+            wprintf(L" generation=unknown");
+        }
+        if (node->has_observed_timestamp) {
+            wprintf(L" observed_ticks=%lld..%lld",
+                (long long)node->first_seen_timestamp,
+                (long long)node->last_seen_timestamp);
         }
         break;
     case COMTRACE_GRAPH_NODE_CLSID:
@@ -2030,25 +2362,27 @@ static void print_relationship_graph_summary(
 
     wprintf(L"\nRelationship graph summary\n");
     wprintf(
-        L"Nodes: processes=%llu threads=%llu activities=%llu calls=%llu objects=%llu clsids=%llu iids=%llu ipids=%llu\n",
+        L"Nodes: processes=%llu threads=%llu activities=%llu calls=%llu objects=%llu instrumented_objects=%llu clsids=%llu iids=%llu ipids=%llu\n",
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_PROCESS),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_THREAD),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_ACTIVITY),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_CALL),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_COM_OBJECT),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_CLSID),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IID),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_IPID)
     );
     wprintf(
-        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu call_uses_object=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu\n",
+        L"Edges: process_calls_process=%llu thread_initiates_call=%llu call_targets_thread=%llu call_uses_object=%llu related_activity=%llu object_ipid=%llu ipid_iid=%llu lifetime_objects_owned=%llu\n",
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID),
-        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID)
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT)
     );
 
     for (index = 0U; index < graph->node_count; ++index) {
@@ -2221,7 +2555,8 @@ static int event_matches_filters(
             event_record->EventHeader.EventDescriptor.Opcode,
             &operation,
             &phase
-        )) {
+        ) &&
+        !is_com_lifetime_event_record(event_record)) {
         return 0;
     }
 
@@ -2278,6 +2613,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     add_com_timeline_event(context, event_record);
     add_ole_timeline_event(context, event_record);
     add_relationship_graph_event(context, event_record);
+    add_com_lifetime_analysis_event(context, event_record);
 
     if (context->sampled_events >= context->sample_limit) {
         return;
@@ -2336,6 +2672,7 @@ static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
     comtrace_relationship_graph_destroy(&context->relationship_graph);
     comtrace_ole_timeline_destroy(&context->ole_timeline);
     comtrace_timeline_destroy(&context->timeline);
+    comtrace_lifetime_analysis_destroy(&context->lifetime_analysis);
     comtrace_event_catalog_destroy(&context->event_catalog);
 }
 
@@ -2372,6 +2709,8 @@ static int inspect_etl_internal(
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
     comtrace_process_lifecycle_catalog_init(&context.process_lifecycle);
+    comtrace_lifetime_analysis_init(&context.lifetime_analysis);
+    context.lifetime_status = COMTRACE_LIFETIME_SUCCESS;
 
     if (filters != NULL) {
         context.has_filters = TRUE;
@@ -2448,8 +2787,10 @@ static int inspect_etl_internal(
     process_status = ProcessTrace(&trace_handle, 1U, NULL, NULL);
     close_status = CloseTrace(trace_handle);
 
+    add_lifetime_records_to_graph(&context);
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
+    print_com_lifetime_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
     print_process_lifecycle_summary(
         &context.process_lifecycle,
@@ -2560,6 +2901,12 @@ static int inspect_etl_internal(
 
     if (context.ole_timeline_status != COMTRACE_OLE_TIMELINE_SUCCESS) {
         fwprintf(stderr, L"OLE timeline processing failed.\n");
+        result = EXIT_FAILURE;
+    }
+
+    if (context.lifetime_status != COMTRACE_LIFETIME_SUCCESS) {
+        fwprintf(stderr, L"COM lifetime analysis failed with status %u.\n",
+            (unsigned int)context.lifetime_status);
         result = EXIT_FAILURE;
     }
 

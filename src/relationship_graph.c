@@ -101,6 +101,7 @@ static int same_node(
     case COMTRACE_GRAPH_NODE_CALL:
         return left->value == value;
     case COMTRACE_GRAPH_NODE_COM_OBJECT:
+    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
         return left->process_id == process_id &&
                left->value == value &&
                left->has_process_generation == has_process_generation &&
@@ -907,6 +908,122 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
 )
 {
     return add_event_internal(graph, identity, activity_ids, NULL);
+}
+
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    const COMTRACE_LIFETIME_RECORD *record
+)
+{
+    size_t process_index;
+    size_t object_index;
+    size_t class_index = (size_t)-1;
+    size_t interface_index = (size_t)-1;
+    COMTRACE_GRAPH_STATUS status;
+
+    if (graph == NULL ||
+        record == NULL ||
+        record->process_id == 0U ||
+        record->object_instance_id == 0ULL) {
+        return COMTRACE_GRAPH_INVALID_ARGUMENT;
+    }
+
+    status = add_process_with_generation(
+        graph,
+        record->process_id,
+        record->process_generation,
+        record->has_process_generation,
+        &process_index
+    );
+    if (status != COMTRACE_GRAPH_SUCCESS) {
+        return status;
+    }
+
+    status = add_node_with_generation(
+        graph,
+        COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT,
+        record->process_id,
+        0U,
+        NULL,
+        record->object_instance_id,
+        record->process_generation,
+        record->has_process_generation,
+        &object_index
+    );
+    if (status != COMTRACE_GRAPH_SUCCESS) {
+        return status;
+    }
+
+    graph->nodes[object_index].observation_count = record->observation_count;
+    graph->nodes[object_index].first_seen_timestamp =
+        (LONGLONG)record->first_seen_timestamp;
+    graph->nodes[object_index].last_seen_timestamp =
+        (LONGLONG)record->last_seen_timestamp;
+    graph->nodes[object_index].has_observed_timestamp =
+        record->observation_count != 0ULL;
+
+    status = add_edge(
+        graph,
+        COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT,
+        process_index,
+        object_index
+    );
+    if (status != COMTRACE_GRAPH_SUCCESS) {
+        return status;
+    }
+
+    if (record->has_class_id) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_CLSID,
+            0U,
+            0U,
+            &record->class_id,
+            0ULL,
+            &class_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+
+        status = add_edge(
+            graph,
+            COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_CLSID,
+            object_index,
+            class_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+    }
+
+    if (record->has_interface_id) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_IID,
+            0U,
+            0U,
+            &record->interface_id,
+            0ULL,
+            &interface_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+
+        status = add_edge(
+            graph,
+            COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID,
+            object_index,
+            interface_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+    }
+
+    return COMTRACE_GRAPH_SUCCESS;
 }
 
 size_t comtrace_relationship_graph_node_count(

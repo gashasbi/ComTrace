@@ -63,4 +63,18 @@ foreach(expected_value
     endif()
 endforeach()
 
+foreach(expected_text
+    "COM object lifetime timeline summary"
+    "Objects tracked: 1"
+    "Objects created: 1"
+    "Objects with explicit destruction: 1"
+    "instrumented_objects=1"
+    "process_owns_lifetime_object"
+)
+    string(FIND "${inspect_output}" "${expected_text}" text_position)
+    if(text_position LESS 0)
+        message(FATAL_ERROR "Missing COM lifetime analysis output ${expected_text}: ${inspect_output}")
+    endif()
+endforeach()
+
 message(STATUS "COM lifetime ETW instrumentation and inspection passed.")

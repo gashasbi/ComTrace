@@ -17,6 +17,7 @@ add_executable(ComTrace
     src/etl_decoder.c
     src/etl_value.c
     src/com_event.c
+    src/com_lifetime_analysis.c
     src/ole_event.c
     src/event_record.c
     src/event_catalog.c
@@ -112,6 +113,21 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+
+    add_executable(ComTraceComLifetimeAnalysisTests
+        tests/test_com_lifetime_analysis.c
+        src/com_lifetime_analysis.c
+    )
+    target_include_directories(ComTraceComLifetimeAnalysisTests PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(ComTraceComLifetimeAnalysisTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceComLifetimeAnalysisTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_com_lifetime_analysis COMMAND ComTraceComLifetimeAnalysisTests)
+
 
     add_test(
         NAME comtrace_com_lifetime_capture

@@ -930,6 +930,96 @@ static int test_object_owner_uses_target_process_generation(void)
     return 1;
 }
 
+
+static int test_instrumented_lifetime_object_graph(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_LIFETIME_RECORD record;
+    const COMTRACE_GRAPH_NODE *node;
+    size_t index;
+    size_t lifetime_node_index = (size_t)-1;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&record, sizeof(record));
+
+    record.process_id = 400U;
+    record.process_generation = 2ULL;
+    record.has_process_generation = TRUE;
+    record.object_instance_id = 0x1234ULL;
+    record.has_created = TRUE;
+    record.created_timestamp = 100ULL;
+    record.has_destroyed = TRUE;
+    record.destroyed_timestamp = 250ULL;
+    record.has_class_id = TRUE;
+    record.class_id = class_id;
+    record.has_interface_id = TRUE;
+    record.interface_id = interface_id;
+    record.observation_count = 4ULL;
+    record.first_seen_timestamp = 100ULL;
+    record.last_seen_timestamp = 250ULL;
+
+    if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(
+            &graph,
+            COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT
+        ) != 1U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT
+        ) != 1U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_CLSID
+        ) != 1U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID
+        ) != 1U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        node = comtrace_relationship_graph_get_node(&graph, index);
+        if (node != NULL &&
+            node->type == COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT) {
+            lifetime_node_index = index;
+            break;
+        }
+    }
+
+    node = comtrace_relationship_graph_get_node(&graph, lifetime_node_index);
+    if (node == NULL ||
+        node->process_id != 400U ||
+        node->value != 0x1234ULL ||
+        !node->has_process_generation ||
+        node->process_generation != 2ULL ||
+        node->observation_count != 4ULL ||
+        !node->has_observed_timestamp ||
+        node->first_seen_timestamp != 100LL ||
+        node->last_seen_timestamp != 250LL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    record.process_generation = 3ULL;
+    if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(
+            &graph,
+            COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT
+        ) != 2U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_client_server_graph() ||
@@ -945,7 +1035,8 @@ int main(void)
         !test_observations_without_timestamps_are_counted() ||
         !test_process_generations_separate_graph_objects() ||
         !test_object_owner_uses_target_process_generation() ||
-        !test_missing_relationship_fields()) {
+        !test_missing_relationship_fields() ||
+        !test_instrumented_lifetime_object_graph()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
     }
