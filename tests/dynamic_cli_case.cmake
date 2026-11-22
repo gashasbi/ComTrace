@@ -40,7 +40,21 @@ endfunction()
 assert_property_search(Text equals Hello 1 "Unicode equality")
 assert_property_search(Text contains ell 1 "Unicode contains")
 assert_property_search(Count equals 3 1 "Numeric equality")
+assert_property_search(Count equals 4 0 "Numeric no-match")
+assert_property_search(Values equals 11 0 "Array property")
 assert_property_search(Text equals Goodbye 0 "Property no-match")
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property Text
+    RESULT_VARIABLE missing_operator_status
+    OUTPUT_VARIABLE missing_operator_output
+    ERROR_VARIABLE missing_operator_error
+)
+if(missing_operator_status EQUAL 0 OR
+   NOT missing_operator_output MATCHES "Use --property with either --equals or --contains")
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "A property filter without an operator was accepted.")
+endif()
 
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
 if(NOT cleanup_status EQUAL 0)
