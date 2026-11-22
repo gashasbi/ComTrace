@@ -257,6 +257,21 @@ int comtrace_classify_rpc_event(
         *phase = L"stop";
         return 1;
     }
+    if (event_id == 14U && opcode == 1U) {
+        *event_name = L"FunctionTrace";
+        *phase = L"start";
+        return 1;
+    }
+    if (event_id == 15U && opcode == 2U) {
+        *event_name = L"FunctionTrace";
+        *phase = L"stop";
+        return 1;
+    }
+    if (event_id == 16U && opcode == 1U) {
+        *event_name = L"FunctionTraceStart16";
+        *phase = L"start";
+        return 1;
+    }
 
     return 0;
 }
