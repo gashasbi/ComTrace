@@ -54,7 +54,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--property <name> (--equals <value> | --contains <text>)] [--com | --ole] [--max-events <n>]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--property <name> (--equals <value> | --contains <text> | --greater-than <number> | --greater-or-equal <number> | --less-than <number> | --less-or-equal <number>)] [--com | --ole] [--max-events <n>]]\n",
         program_name
     );
 }
@@ -428,6 +428,10 @@ static int run_etl_search(int argc, wchar_t **argv)
                    wcscmp(option, L"--property") == 0 ||
                    wcscmp(option, L"--equals") == 0 ||
                    wcscmp(option, L"--contains") == 0 ||
+                   wcscmp(option, L"--greater-than") == 0 ||
+                   wcscmp(option, L"--greater-or-equal") == 0 ||
+                   wcscmp(option, L"--less-than") == 0 ||
+                   wcscmp(option, L"--less-or-equal") == 0 ||
                    wcscmp(option, L"--max-events") == 0) {
             const wchar_t *argument;
 
@@ -505,7 +509,11 @@ static int run_etl_search(int argc, wchar_t **argv)
                 }
                 filters.has_property_name = TRUE;
             } else if (wcscmp(option, L"--equals") == 0 ||
-                       wcscmp(option, L"--contains") == 0) {
+                       wcscmp(option, L"--contains") == 0 ||
+                       wcscmp(option, L"--greater-than") == 0 ||
+                       wcscmp(option, L"--greater-or-equal") == 0 ||
+                       wcscmp(option, L"--less-than") == 0 ||
+                       wcscmp(option, L"--less-or-equal") == 0) {
                 if (filters.has_property_value ||
                     argument[0] == L'\0' ||
                     wcslen(argument) >= _countof(filters.property_value) ||
@@ -514,7 +522,19 @@ static int run_etl_search(int argc, wchar_t **argv)
                     return EXIT_FAILURE;
                 }
                 filters.has_property_value = TRUE;
-                filters.property_contains = wcscmp(option, L"--contains") == 0;
+                if (wcscmp(option, L"--contains") == 0) {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_CONTAINS;
+                } else if (wcscmp(option, L"--greater-than") == 0) {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_GREATER_THAN;
+                } else if (wcscmp(option, L"--greater-or-equal") == 0) {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_GREATER_OR_EQUAL;
+                } else if (wcscmp(option, L"--less-than") == 0) {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_LESS_THAN;
+                } else if (wcscmp(option, L"--less-or-equal") == 0) {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_LESS_OR_EQUAL;
+                } else {
+                    filters.property_match_mode = COMTRACE_PROPERTY_MATCH_EQUALS;
+                }
             } else {
                 if (!parse_decimal_value(argument, 10000UL, &filters.sample_limit) ||
                     filters.sample_limit == 0U) {
@@ -529,7 +549,7 @@ static int run_etl_search(int argc, wchar_t **argv)
     }
 
     if (filters.has_property_name != filters.has_property_value) {
-        fwprintf(stderr, L"Use --property with either --equals or --contains.\n");
+        fwprintf(stderr, L"Use --property with exactly one comparison operator.\n");
         return EXIT_FAILURE;
     }
 

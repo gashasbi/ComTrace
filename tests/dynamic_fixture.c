@@ -38,6 +38,7 @@ int wmain(int argc, wchar_t **argv)
     SID_IDENTIFIER_AUTHORITY sid_authority = SECURITY_NT_AUTHORITY;
     PSID test_sid = NULL;
     int registered = 0;
+    unsigned long long wide_value = 9007199254740993ULL;
     int result = 1;
 
     if (argc != 2) {
@@ -112,7 +113,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;

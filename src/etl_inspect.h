@@ -4,6 +4,15 @@
 #include <windows.h>
 #include <wchar.h>
 
+typedef enum {
+    COMTRACE_PROPERTY_MATCH_EQUALS = 0,
+    COMTRACE_PROPERTY_MATCH_CONTAINS,
+    COMTRACE_PROPERTY_MATCH_GREATER_THAN,
+    COMTRACE_PROPERTY_MATCH_GREATER_OR_EQUAL,
+    COMTRACE_PROPERTY_MATCH_LESS_THAN,
+    COMTRACE_PROPERTY_MATCH_LESS_OR_EQUAL
+} COMTRACE_PROPERTY_MATCH_MODE;
+
 typedef struct {
     BOOL has_provider_id;
     GUID provider_id;
@@ -27,7 +36,7 @@ typedef struct {
     GUID activity_id;
     BOOL has_property_name;
     BOOL has_property_value;
-    BOOL property_contains;
+    COMTRACE_PROPERTY_MATCH_MODE property_match_mode;
     wchar_t property_name[128];
     wchar_t property_value[256];
     ULONG sample_limit;

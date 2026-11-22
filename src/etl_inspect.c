@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <wchar.h>
 #include <sddl.h>
 #include "etl_inspect.h"
@@ -2729,20 +2730,159 @@ static void print_process_lifecycle_summary(
     }
 }
 
+static int compare_search_numbers(
+    USHORT in_type,
+    const wchar_t *actual,
+    const wchar_t *expected,
+    int *comparison
+)
+{
+    wchar_t *actual_end = NULL;
+    wchar_t *expected_end = NULL;
+
+    if (actual == NULL || expected == NULL || comparison == NULL ||
+        actual[0] == L'\0' || expected[0] == L'\0') {
+        return 0;
+    }
+
+    switch (in_type) {
+    case TDH_INTYPE_INT8:
+    case TDH_INTYPE_INT16:
+    case TDH_INTYPE_INT32:
+    case TDH_INTYPE_INT64: {
+        long long actual_value;
+        long long expected_value;
+
+        errno = 0;
+        actual_value = wcstoll(actual, &actual_end, 10);
+        if (errno == ERANGE || actual_end == actual ||
+            actual_end == NULL || *actual_end != L'\0') {
+            return 0;
+        }
+
+        errno = 0;
+        expected_value = wcstoll(expected, &expected_end, 10);
+        if (errno == ERANGE || expected_end == expected ||
+            expected_end == NULL || *expected_end != L'\0') {
+            return 0;
+        }
+
+        *comparison = actual_value < expected_value ? -1 :
+            (actual_value > expected_value ? 1 : 0);
+        return 1;
+    }
+    case TDH_INTYPE_UINT8:
+    case TDH_INTYPE_UINT16:
+    case TDH_INTYPE_UINT32:
+    case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_FILETIME:
+    case TDH_INTYPE_HEXINT32:
+    case TDH_INTYPE_HEXINT64:
+    case TDH_INTYPE_POINTER:
+    case TDH_INTYPE_SIZET: {
+        unsigned long long actual_value;
+        unsigned long long expected_value;
+        int base = in_type == TDH_INTYPE_HEXINT32 ||
+            in_type == TDH_INTYPE_HEXINT64 ||
+            in_type == TDH_INTYPE_POINTER ||
+            in_type == TDH_INTYPE_SIZET ? 16 : 10;
+
+        if (expected[0] == L'-' || expected[0] == L'+') {
+            return 0;
+        }
+
+        errno = 0;
+        actual_value = wcstoull(actual, &actual_end, base);
+        if (errno == ERANGE || actual_end == actual ||
+            actual_end == NULL || *actual_end != L'\0') {
+            return 0;
+        }
+
+        errno = 0;
+        expected_value = wcstoull(expected, &expected_end, base);
+        if (errno == ERANGE || expected_end == expected ||
+            expected_end == NULL || *expected_end != L'\0') {
+            return 0;
+        }
+
+        *comparison = actual_value < expected_value ? -1 :
+            (actual_value > expected_value ? 1 : 0);
+        return 1;
+    }
+    case TDH_INTYPE_FLOAT:
+    case TDH_INTYPE_DOUBLE: {
+        double actual_value;
+        double expected_value;
+
+        errno = 0;
+        actual_value = wcstod(actual, &actual_end);
+        if (errno == ERANGE || actual_end == actual ||
+            actual_end == NULL || *actual_end != L'\0' ||
+            !isfinite(actual_value)) {
+            return 0;
+        }
+
+        errno = 0;
+        expected_value = wcstod(expected, &expected_end);
+        if (errno == ERANGE || expected_end == expected ||
+            expected_end == NULL || *expected_end != L'\0' ||
+            !isfinite(expected_value)) {
+            return 0;
+        }
+
+        *comparison = actual_value < expected_value ? -1 :
+            (actual_value > expected_value ? 1 : 0);
+        return 1;
+    }
+    default:
+        return 0;
+    }
+}
+
 static int search_property_text_matches(
+    USHORT in_type,
     const wchar_t *actual,
     const COMTRACE_ETL_FILTERS *filters
 )
 {
+    int comparison;
+
     if (actual == NULL || filters == NULL) {
         return 0;
     }
 
-    if (filters->property_contains) {
+    if (filters->property_match_mode == COMTRACE_PROPERTY_MATCH_CONTAINS) {
+        if (in_type != TDH_INTYPE_ANSISTRING &&
+            in_type != TDH_INTYPE_UNICODESTRING) {
+            return 0;
+        }
         return wcsstr(actual, filters->property_value) != NULL;
     }
 
-    return wcscmp(actual, filters->property_value) == 0;
+    if (filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
+        return wcscmp(actual, filters->property_value) == 0;
+    }
+
+    if (!compare_search_numbers(
+            in_type,
+            actual,
+            filters->property_value,
+            &comparison)) {
+        return 0;
+    }
+
+    switch (filters->property_match_mode) {
+    case COMTRACE_PROPERTY_MATCH_GREATER_THAN:
+        return comparison > 0;
+    case COMTRACE_PROPERTY_MATCH_GREATER_OR_EQUAL:
+        return comparison >= 0;
+    case COMTRACE_PROPERTY_MATCH_LESS_THAN:
+        return comparison < 0;
+    case COMTRACE_PROPERTY_MATCH_LESS_OR_EQUAL:
+        return comparison <= 0;
+    default:
+        return 0;
+    }
 }
 
 static int format_search_property_value(
@@ -3130,7 +3270,7 @@ static int event_property_matches_filter(
                 actual,
                 _countof(actual)
             )) {
-            matched = search_property_text_matches(actual, filters);
+            matched = search_property_text_matches(in_type, actual, filters);
         }
 
         comtrace_etl_property_value_destroy(&property_value);
