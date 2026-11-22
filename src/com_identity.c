@@ -1,6 +1,7 @@
 #include "com_identity.h"
 #include "etl_decoder.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <wchar.h>
 
@@ -230,7 +231,8 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
         property_name == NULL ||
         property_name[0] == L'\\0' ||
         value == NULL ||
-        value_capacity == 0U) {
+        value_capacity == 0U ||
+        value_capacity > (size_t)INT_MAX) {
         return COMTRACE_IDENTITY_INVALID_ARGUMENT;
     }
 
