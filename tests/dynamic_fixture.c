@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <evntrace.h>
+#include <evntprov.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,6 +92,7 @@ int wmain(int argc, wchar_t **argv)
     SYSTEMTIME systemtime_value = { 2024U, 1U, 2U, 2U, 3U, 4U, 5U, 6U };
     PVOID pointer_value = (PVOID)(ULONG_PTR)0x12345678UL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
+    EVENT_DATA_DESCRIPTOR extended_descriptors[10];
     int result = 1;
 
     if (argc != 2) {
@@ -165,9 +167,31 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value, port_value, win32_error_value, mapped_status_value, mapped_flags_value, signed_count, signed_values, signed_byte_value, signed_wide_value, float_value, double_value, boolean_value, guid_value, filetime_value, systemtime_value, pointer_value, pkcs7_payload);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value, port_value, win32_error_value, mapped_status_value, mapped_flags_value, signed_count, signed_values);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    EventDataDescCreate(&extended_descriptors[0], &signed_byte_value, sizeof(signed_byte_value));
+    EventDataDescCreate(&extended_descriptors[1], &signed_wide_value, sizeof(signed_wide_value));
+    EventDataDescCreate(&extended_descriptors[2], &float_value, sizeof(float_value));
+    EventDataDescCreate(&extended_descriptors[3], &double_value, sizeof(double_value));
+    EventDataDescCreate(&extended_descriptors[4], &boolean_value, sizeof(boolean_value));
+    EventDataDescCreate(&extended_descriptors[5], &guid_value, sizeof(guid_value));
+    EventDataDescCreate(&extended_descriptors[6], &filetime_value, sizeof(filetime_value));
+    EventDataDescCreate(&extended_descriptors[7], &systemtime_value, sizeof(systemtime_value));
+    EventDataDescCreate(&extended_descriptors[8], &pointer_value, sizeof(pointer_value));
+    EventDataDescCreate(&extended_descriptors[9], pkcs7_payload, sizeof(pkcs7_payload));
+
+    status = EventWrite(
+        registration_handle,
+        &ExtendedTypesEvent,
+        (ULONG)_countof(extended_descriptors),
+        extended_descriptors
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"EventWrite extended types failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
