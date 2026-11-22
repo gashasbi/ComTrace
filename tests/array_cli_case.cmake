@@ -14,6 +14,28 @@ if(NOT fixture_status EQUAL 0)
     message(FATAL_ERROR "Fixture failed: ${fixture_error}")
 endif()
 execute_process(COMMAND "${COMTRACE_EXE}" --inspect "${ETL_FILE}" RESULT_VARIABLE inspect_status OUTPUT_VARIABLE inspect_output ERROR_VARIABLE inspect_error)
+foreach(index_value expected_value IN ITEMS 0 11 1 22 2 33 3 44)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "Values[${index_value}]" --equals "${expected_value}" --max-events 10
+        RESULT_VARIABLE search_status
+        OUTPUT_VARIABLE search_output
+        ERROR_VARIABLE search_error
+    )
+    if(NOT search_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Fixed array property search failed: ${search_error}${search_output}")
+    endif()
+    if(index_value LESS 3)
+        set(expected_count 1)
+    else()
+        set(expected_count 0)
+    endif()
+    string(FIND "${search_output}" "Events matching filters: ${expected_count}" search_match)
+    if(search_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Fixed array index ${index_value} returned an unexpected result: ${search_output}")
+    endif()
+endforeach()
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
 if(NOT inspect_status EQUAL 0)
     message(FATAL_ERROR "Inspect failed: ${inspect_error}")
