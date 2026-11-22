@@ -52,6 +52,7 @@ foreach(expected_value
     "com_lifetime_object_instance_id=1"
     "com_lifetime_clsid={183A5C71-2F49-4D83-9106-274A5B6C7D8E}"
     "com_lifetime_iid={296B7D82-3A5C-4E94-A217-385B6C7D8E9F}"
+    "com_lifetime_initial_reference_count=1"
     "com_lifetime_reference_count_result=2"
     "com_lifetime_reference_count_result=1"
     "com_lifetime_reference_count_result=0"
