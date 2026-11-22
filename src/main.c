@@ -500,13 +500,65 @@ static int run_etl_search(int argc, wchar_t **argv)
                 }
                 filters.has_lifetime_object_id = TRUE;
             } else if (wcscmp(option, L"--property") == 0) {
-                if (filters.has_property_name ||
-                    argument[0] == L'\0' ||
-                    wcslen(argument) >= _countof(filters.property_name) ||
-                    wcscpy_s(filters.property_name, _countof(filters.property_name), argument) != 0) {
+                const wchar_t *open_bracket;
+                const wchar_t *close_bracket;
+
+                if (filters.has_property_name || argument[0] == L'\0') {
                     fwprintf(stderr, L"Invalid or repeated property name.\n");
                     return EXIT_FAILURE;
                 }
+
+                open_bracket = wcschr(argument, L'[');
+                if (open_bracket != NULL) {
+                    wchar_t index_text[16];
+                    size_t name_length = (size_t)(open_bracket - argument);
+                    size_t index_length;
+
+                    close_bracket = wcschr(open_bracket + 1, L']');
+                    if (name_length == 0U ||
+                        name_length >= _countof(filters.property_name) ||
+                        close_bracket == NULL ||
+                        close_bracket[1] != L'\0') {
+                        fwprintf(stderr, L"Invalid property array selector.\n");
+                        return EXIT_FAILURE;
+                    }
+
+                    index_length = (size_t)(close_bracket - open_bracket - 1);
+                    if (index_length == 0U ||
+                        index_length >= _countof(index_text)) {
+                        fwprintf(stderr, L"Invalid property array index.\n");
+                        return EXIT_FAILURE;
+                    }
+
+                    CopyMemory(index_text, open_bracket + 1,
+                        index_length * sizeof(wchar_t));
+                    index_text[index_length] = L'\0';
+
+                    if (wcscpy_s(
+                            filters.property_name,
+                            _countof(filters.property_name),
+                            argument) != 0) {
+                        fwprintf(stderr, L"Invalid property name.\n");
+                        return EXIT_FAILURE;
+                    }
+                    filters.property_name[name_length] = L'\0';
+
+                    if (!parse_decimal_value(index_text, 4095UL,
+                            &filters.property_index)) {
+                        fwprintf(stderr, L"Invalid property array index. Use 0 to 4095.\n");
+                        return EXIT_FAILURE;
+                    }
+                    filters.has_property_index = TRUE;
+                } else if (wcslen(argument) >= _countof(filters.property_name) ||
+                    wcscpy_s(
+                        filters.property_name,
+                        _countof(filters.property_name),
+                        argument
+                    ) != 0) {
+                    fwprintf(stderr, L"Invalid property name.\n");
+                    return EXIT_FAILURE;
+                }
+
                 filters.has_property_name = TRUE;
             } else if (wcscmp(option, L"--equals") == 0 ||
                        wcscmp(option, L"--contains") == 0 ||

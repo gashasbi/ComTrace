@@ -58,7 +58,15 @@ assert_property_search(WideValue greater-than 9007199254740993 0 "64-bit greater
 assert_property_search(WideValue less-than 9007199254740994 1 "64-bit less-than precision")
 assert_property_search(WideValue less-or-equal 9007199254740993 1 "64-bit less-or-equal precision")
 assert_property_search(Text greater-than 2 0 "Ordering rejects string properties")
-assert_property_search(Values equals 11 0 "Array property")
+assert_property_search(Values equals 11 0 "Array property requires an index")
+assert_property_search(Values[0] equals 11 1 "Dynamic array first element")
+assert_property_search(Values[1] equals 22 1 "Dynamic array middle element")
+assert_property_search(Values[2] equals 33 1 "Dynamic array last element")
+assert_property_search(Values[1] equals 11 0 "Dynamic array index mismatch")
+assert_property_search(Values[3] equals 44 0 "Dynamic array out-of-range")
+assert_property_search(Values[1] greater-than 21 1 "Dynamic array numeric comparison")
+assert_property_search(HexValues[1] equals 55 1 "UInt32-counted array element")
+assert_property_search(ByteValues[0] equals -7 1 "UInt8-counted array element")
 assert_property_search(Text equals Goodbye 0 "Property no-match")
 
 execute_process(

@@ -3314,11 +3314,20 @@ static int event_property_matches_filter(
 
         if ((property->Flags & (
                 PropertyStruct |
-                PropertyParamCount |
-                PropertyParamFixedCount |
                 PropertyWBEMXmlFragment |
                 PropertyHasCustomSchema
             )) != 0U) {
+            break;
+        }
+
+        if ((property->Flags & (
+                PropertyParamCount |
+                PropertyParamFixedCount
+            )) != 0U) {
+            if (!filters->has_property_index) {
+                break;
+            }
+        } else if (filters->has_property_index) {
             break;
         }
 
@@ -3331,7 +3340,9 @@ static int event_property_matches_filter(
             NULL,
             NULL,
             0U,
-            0xFFFFFFFFUL,
+            filters->has_property_index
+                ? filters->property_index
+                : 0xFFFFFFFFUL,
             &property_value
         );
         if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {

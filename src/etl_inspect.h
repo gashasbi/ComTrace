@@ -35,6 +35,8 @@ typedef struct {
     BOOL has_activity_id;
     GUID activity_id;
     BOOL has_property_name;
+    BOOL has_property_index;
+    ULONG property_index;
     BOOL has_property_value;
     COMTRACE_PROPERTY_MATCH_MODE property_match_mode;
     wchar_t property_name[128];

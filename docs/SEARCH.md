@@ -1,12 +1,14 @@
 # ETL event property search
 
-ComTrace can filter an ETL trace by the value of a top-level event property.
+ComTrace can filter an ETL trace by the value of a top-level event property or
+one indexed element of a top-level array property.
 
 ## Syntax
 
 ```cmd
 ComTrace.exe --search trace.etl --property Text --equals Hello
 ComTrace.exe --search trace.etl --property Text --contains ell
+ComTrace.exe --search trace.etl --property Values[1] --equals 22
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
 
@@ -20,7 +22,8 @@ Use exactly one comparison operator with `--property`:
 - `--less-or-equal <number>` matches numeric values less than or equal to the supplied number.
 
 Property names and string values are case-sensitive. The property name is limited to
-127 characters and the comparison value to 255 characters. String payloads
+127 characters and the comparison value to 255 characters. Array indices use
+zero-based notation from 0 through 4095, for example `Values[1]`. String payloads
 longer than 1023 characters are not matched. Numeric comparisons use the property's
 native signed, unsigned, or floating-point type; integer comparisons preserve
 64-bit precision. Hexadecimal, pointer, and SIZE_T values use `0x` notation. Property filters
@@ -29,7 +32,9 @@ lifetime ID, and Activity ID filters using AND semantics.
 
 ## Supported scalar values
 
-The property must be a top-level scalar that TDH can read from the event.
+The property must be a top-level scalar or an indexed element of a top-level
+array that TDH can read from the event. An array property without an index is
+not matched.
 Supported values include:
 
 - ANSI and Unicode strings and characters
