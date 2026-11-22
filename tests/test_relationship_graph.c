@@ -198,6 +198,148 @@ static int test_oid_without_known_process(void)
     return 1;
 }
 
+static int test_related_activity_without_activity(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_GRAPH_NODE *node;
+    size_t index;
+    int found = 0;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    identity.process_id = 300U;
+    identity.thread_id = 30U;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    activity_ids.has_related_activity_id = TRUE;
+    activity_ids.related_activity_id = related_activity_id;
+
+    if (comtrace_relationship_graph_add_event(
+            &graph,
+            &identity,
+            &activity_ids
+        ) != COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_ACTIVITY) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_HAS_ACTIVITY) != 0U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO) != 0U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        node = comtrace_relationship_graph_get_node(&graph, index);
+        if (node != NULL &&
+            node->type == COMTRACE_GRAPH_NODE_ACTIVITY &&
+            memcmp(&node->guid, &related_activity_id, sizeof(GUID)) == 0) {
+            found = 1;
+            break;
+        }
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return found;
+}
+
+static int test_duplicate_event_is_idempotent(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    size_t first_node_count;
+    size_t first_edge_count;
+    size_t index;
+    size_t other;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    identity.process_id = 301U;
+    identity.thread_id = 31U;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.target_process_id = 302U;
+    identity.target_thread_id = 32U;
+    identity.has_target_process_id = TRUE;
+    identity.has_target_thread_id = TRUE;
+    identity.call_trace_id = 0x123456789ABCDEF0ULL;
+    identity.has_call_trace_id = TRUE;
+    identity.oid = 0x1122334455667788ULL;
+    identity.has_oid = TRUE;
+    identity.clsid = class_id;
+    identity.has_clsid = TRUE;
+    identity.iid = interface_id;
+    identity.has_iid = TRUE;
+    identity.ipid = ipid;
+    identity.has_ipid = TRUE;
+
+    activity_ids.activity_id = activity_id;
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.related_activity_id = related_activity_id;
+    activity_ids.has_related_activity_id = TRUE;
+
+    if (comtrace_relationship_graph_add_event(
+            &graph,
+            &identity,
+            &activity_ids
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    first_node_count = graph.node_count;
+    first_edge_count = graph.edge_count;
+
+    if (comtrace_relationship_graph_add_event(
+            &graph,
+            &identity,
+            &activity_ids
+        ) != COMTRACE_GRAPH_SUCCESS ||
+        graph.node_count != first_node_count ||
+        graph.edge_count != first_edge_count) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.edge_count; ++index) {
+        const COMTRACE_GRAPH_EDGE *edge =
+            comtrace_relationship_graph_get_edge(&graph, index);
+
+        if (edge == NULL ||
+            comtrace_relationship_graph_get_node(&graph, edge->source_index) == NULL ||
+            comtrace_relationship_graph_get_node(&graph, edge->target_index) == NULL) {
+            comtrace_relationship_graph_destroy(&graph);
+            return 0;
+        }
+
+        for (other = index + 1U; other < graph.edge_count; ++other) {
+            const COMTRACE_GRAPH_EDGE *next =
+                comtrace_relationship_graph_get_edge(&graph, other);
+
+            if (next == NULL ||
+                (edge->type == next->type &&
+                 edge->source_index == next->source_index &&
+                 edge->target_index == next->target_index)) {
+                comtrace_relationship_graph_destroy(&graph);
+                return 0;
+            }
+        }
+    }
+
+    if (comtrace_relationship_graph_get_node(&graph, graph.node_count) != NULL ||
+        comtrace_relationship_graph_get_edge(&graph, graph.edge_count) != NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_missing_relationship_fields(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -232,6 +374,8 @@ int main(void)
     if (!test_client_server_graph() ||
         !test_interface_without_object_id() ||
         !test_oid_without_known_process() ||
+        !test_related_activity_without_activity() ||
+        !test_duplicate_event_is_idempotent() ||
         !test_missing_relationship_fields()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
