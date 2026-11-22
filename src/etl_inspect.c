@@ -1919,7 +1919,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     ++context->sampled_events;
 
     wprintf(
-        L"sample=%lu time_ticks="
+        L"sample=%lu time_ticks=",
         (unsigned long)context->sampled_events
     );
     print_timestamp(owned_event);
