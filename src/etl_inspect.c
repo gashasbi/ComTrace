@@ -3330,59 +3330,129 @@ static int format_search_property_value(
     }
 }
 
-static int search_binary_property_matches(
-    const BYTE *value,
-    ULONG value_size,
-    const wchar_t *expected
+static int hex_character_value(wchar_t character)
+{
+    if (character >= L'0' && character <= L'9') {
+        return (int)(character - L'0');
+    }
+    if (character >= L'a' && character <= L'f') {
+        return (int)(character - L'a') + 10;
+    }
+    if (character >= L'A' && character <= L'F') {
+        return (int)(character - L'A') + 10;
+    }
+    return -1;
+}
+
+static int read_hex_byte(
+    const wchar_t *text,
+    BYTE *value
+)
+{
+    int high;
+    int low;
+
+    if (text == NULL || value == NULL) {
+        return 0;
+    }
+
+    high = hex_character_value(text[0]);
+    low = hex_character_value(text[1]);
+    if (high < 0 || low < 0) {
+        return 0;
+    }
+
+    *value = (BYTE)((high << 4) | low);
+    return 1;
+}
+
+static int get_hex_pattern_size(
+    const wchar_t *expected,
+    size_t *pattern_size
 )
 {
     size_t expected_length;
-    size_t index;
 
-    if (value == NULL || expected == NULL ||
+    if (expected == NULL || pattern_size == NULL ||
         _wcsnicmp(expected, L"hex:", 4U) != 0) {
         return 0;
     }
 
     expected_length = wcslen(expected);
     if (expected_length < 4U ||
-        ((expected_length - 4U) % 2U) != 0U ||
-        (expected_length - 4U) / 2U != (size_t)value_size) {
+        ((expected_length - 4U) % 2U) != 0U) {
         return 0;
     }
 
-    for (index = 0U; index < (size_t)value_size; ++index) {
-        wchar_t high_character = expected[4U + index * 2U];
-        wchar_t low_character = expected[5U + index * 2U];
-        int high;
-        int low;
+    *pattern_size = (expected_length - 4U) / 2U;
+    return 1;
+}
 
-        if (high_character >= L'0' && high_character <= L'9') {
-            high = (int)(high_character - L'0');
-        } else if (high_character >= L'a' && high_character <= L'f') {
-            high = (int)(high_character - L'a') + 10;
-        } else if (high_character >= L'A' && high_character <= L'F') {
-            high = (int)(high_character - L'A') + 10;
-        } else {
-            return 0;
-        }
+static int search_binary_property_matches(
+    const BYTE *value,
+    ULONG value_size,
+    const wchar_t *expected
+)
+{
+    size_t pattern_size;
+    size_t index;
 
-        if (low_character >= L'0' && low_character <= L'9') {
-            low = (int)(low_character - L'0');
-        } else if (low_character >= L'a' && low_character <= L'f') {
-            low = (int)(low_character - L'a') + 10;
-        } else if (low_character >= L'A' && low_character <= L'F') {
-            low = (int)(low_character - L'A') + 10;
-        } else {
-            return 0;
-        }
+    if (value == NULL ||
+        !get_hex_pattern_size(expected, &pattern_size) ||
+        pattern_size != (size_t)value_size) {
+        return 0;
+    }
 
-        if (value[index] != (BYTE)((high << 4) | low)) {
+    for (index = 0U; index < pattern_size; ++index) {
+        BYTE expected_byte;
+
+        if (!read_hex_byte(expected + 4U + index * 2U, &expected_byte) ||
+            value[index] != expected_byte) {
             return 0;
         }
     }
 
     return 1;
+}
+
+static int search_binary_property_contains(
+    const BYTE *value,
+    ULONG value_size,
+    const wchar_t *expected
+)
+{
+    size_t pattern_size;
+    size_t offset;
+
+    if (value == NULL ||
+        !get_hex_pattern_size(expected, &pattern_size) ||
+        pattern_size == 0U ||
+        pattern_size > (size_t)value_size) {
+        return 0;
+    }
+
+    for (offset = 0U; offset <= (size_t)value_size - pattern_size; ++offset) {
+        size_t index;
+        int matches = 1;
+
+        for (index = 0U; index < pattern_size; ++index) {
+            BYTE expected_byte;
+
+            if (!read_hex_byte(
+                    expected + 4U + index * 2U,
+                    &expected_byte) ||
+                value[offset + index] != expected_byte) {
+                matches = 0;
+                break;
+            }
+        }
+
+        if (matches) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 static int get_event_property_name(
@@ -3492,6 +3562,14 @@ static int event_property_value_matches(
             out_type != TDH_OUTTYPE_IPV6 &&
             filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
             matched = search_binary_property_matches(
+                value,
+                value_size,
+                filters->property_value
+            );
+        } else if (in_type == TDH_INTYPE_BINARY &&
+                   out_type != TDH_OUTTYPE_IPV6 &&
+                   filters->property_match_mode == COMTRACE_PROPERTY_MATCH_CONTAINS) {
+            matched = search_binary_property_contains(
                 value,
                 value_size,
                 filters->property_value

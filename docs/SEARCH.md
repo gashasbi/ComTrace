@@ -16,7 +16,7 @@ ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {G
 Use exactly one comparison operator with `--property`:
 
 - `--equals <value>` matches the complete formatted value.
-- `--contains <text>` matches a substring in an ANSI or Unicode string.
+- `--contains <value>` matches a substring in an ANSI or Unicode string, or a byte sequence in a binary property when supplied as `hex:<bytes>`.
 - `--greater-than <number>` matches numeric values greater than the supplied number.
 - `--greater-or-equal <number>` matches numeric values greater than or equal to the supplied number.
 - `--less-than <number>` matches numeric values less than the supplied number.
@@ -54,20 +54,22 @@ Supported values include:
 - IPv6 binary values in canonical address notation when the schema declares `win:IPv6`
 - HRESULT, NTSTATUS, ErrorCode, and other hexadecimal output types in `0x` notation
 
-For `--contains`, only ANSI and Unicode strings are considered. ANSI strings
-are converted using the active Windows code page. Binary properties support exact
-`--equals hex:<bytes>` matching, where each byte is two hexadecimal digits and the
-complete payload must match. Numeric ordering operators
+For string `--contains`, ANSI strings are converted using the active Windows code page.
+Binary properties support exact `--equals hex:<bytes>` matching and byte-sequence
+`--contains hex:<bytes>` matching. Each byte is two hexadecimal digits; exact matching
+requires the complete payload, while contains matching succeeds when the sequence occurs
+anywhere in the payload. Numeric ordering operators
 support signed and unsigned integers, FILETIME, floating-point values, HEXINT,
 pointer, and SIZE_T properties. GUID, Boolean, character, and time-structure
 values support equality only.
 
 ## Unsupported property shapes
 
-Array properties, nested structure members, WBEM XML fragments, custom-schema
-properties, and values whose TDH metadata or payload cannot be read are not
-matched by this filter. Binary properties do not support substring or numeric
-ordering comparisons. A missing or unsupported property produces
+Array properties without an index, struct arrays, array members inside struct
+parents, WBEM XML fragments, unsupported custom schemas, and values whose TDH
+metadata or payload cannot be read are not matched by this filter. Binary properties
+do not support numeric ordering comparisons. Scalar custom-schema properties are
+matched when their input and output types have a supported scalar representation. A missing or unsupported property produces
 no match; it does not make the whole trace search fail.
 
 Property search does not change ETL payload decoding or CTRA storage. It is a
