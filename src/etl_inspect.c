@@ -172,6 +172,201 @@ static void print_binary_value(const BYTE *value, ULONG value_size)
     wprintf(L"\n");
 }
 
+
+static int print_mapped_property_value(
+    const EVENT_RECORD *event_record,
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
+    const EVENT_PROPERTY_INFO *property,
+    USHORT in_type,
+    USHORT out_type,
+    const BYTE *value,
+    ULONG value_size,
+    ULONG pointer_size
+)
+{
+    ULONG map_name_offset;
+    ULONG remaining;
+    ULONG name_length = 0U;
+    ULONG map_size = 0U;
+    ULONG allocated_map_size;
+    ULONG formatted_size = 0U;
+    ULONG allocated_formatted_size;
+    ULONG status;
+    ULONG available_entries;
+    ULONG character_count;
+    ULONG index;
+    USHORT property_length;
+    USHORT user_data_length;
+    USHORT consumed = 0U;
+    const wchar_t *map_name;
+    EVENT_MAP_INFO *map_info;
+    BYTE *map_buffer = NULL;
+    wchar_t *formatted = NULL;
+
+    if (event_record == NULL ||
+        metadata_buffer == NULL ||
+        property == NULL ||
+        value == NULL ||
+        value_size == 0U ||
+        value_size > USHRT_MAX ||
+        metadata_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray)) {
+        return 0;
+    }
+
+    map_name_offset = property->nonStructType.MapNameOffset;
+    if (map_name_offset == 0U ||
+        map_name_offset >= metadata_size ||
+        (map_name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        return 0;
+    }
+
+    map_name = (const wchar_t *)(metadata_buffer + map_name_offset);
+    remaining = (metadata_size - map_name_offset) / (ULONG)sizeof(wchar_t);
+    while (name_length < remaining && map_name[name_length] != L'\0') {
+        ++name_length;
+    }
+    if (name_length == 0U || name_length == remaining) {
+        return 0;
+    }
+
+    status = TdhGetEventMapInformation(
+        (PEVENT_RECORD)event_record,
+        (PWSTR)map_name,
+        NULL,
+        &map_size
+    );
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        map_size < offsetof(EVENT_MAP_INFO, MapEntryArray) ||
+        map_size > 1048576U) {
+        return 0;
+    }
+
+    allocated_map_size = map_size;
+    map_buffer = (BYTE *)malloc(map_size);
+    if (map_buffer == NULL) {
+        return 0;
+    }
+
+    status = TdhGetEventMapInformation(
+        (PEVENT_RECORD)event_record,
+        (PWSTR)map_name,
+        (PEVENT_MAP_INFO)map_buffer,
+        &map_size
+    );
+    if (status != ERROR_SUCCESS ||
+        map_size < offsetof(EVENT_MAP_INFO, MapEntryArray) ||
+        map_size > allocated_map_size) {
+        goto cleanup;
+    }
+
+    map_info = (EVENT_MAP_INFO *)map_buffer;
+    available_entries = (map_size -
+        (ULONG)offsetof(EVENT_MAP_INFO, MapEntryArray)) /
+        (ULONG)sizeof(EVENT_MAP_ENTRY);
+    if (map_info->EntryCount > available_entries) {
+        goto cleanup;
+    }
+
+    property_length = property->length;
+    if (property_length == 0U || property_length > value_size) {
+        property_length = (USHORT)value_size;
+    }
+    user_data_length = (USHORT)value_size;
+
+    status = TdhFormatProperty(
+        (PTRACE_EVENT_INFO)metadata_buffer,
+        map_info,
+        pointer_size,
+        in_type,
+        out_type,
+        property_length,
+        user_data_length,
+        (PBYTE)value,
+        &formatted_size,
+        NULL,
+        &consumed
+    );
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        formatted_size < sizeof(wchar_t) ||
+        formatted_size > 65536U) {
+        goto cleanup;
+    }
+
+    allocated_formatted_size = formatted_size;
+    formatted = (wchar_t *)malloc(formatted_size);
+    if (formatted == NULL) {
+        goto cleanup;
+    }
+
+    status = TdhFormatProperty(
+        (PTRACE_EVENT_INFO)metadata_buffer,
+        map_info,
+        pointer_size,
+        in_type,
+        out_type,
+        property_length,
+        user_data_length,
+        (PBYTE)value,
+        &formatted_size,
+        formatted,
+        &consumed
+    );
+    if (status != ERROR_SUCCESS ||
+        formatted_size > allocated_formatted_size) {
+        goto cleanup;
+    }
+
+    character_count = formatted_size / (ULONG)sizeof(wchar_t);
+    for (index = 0U; index < character_count; ++index) {
+        if (formatted[index] == L'\0') {
+            break;
+        }
+    }
+    while (index != 0U && formatted[index - 1U] == L' ') {
+        --index;
+    }
+
+    wprintf(L"value=\"");
+    for (character_count = 0U; character_count < index; ++character_count) {
+        wchar_t character = formatted[character_count];
+        switch (character) {
+        case L'\\':
+            wprintf(L"\\\\");
+            break;
+        case L'"':
+            wprintf(L"\\\"");
+            break;
+        case L'\n':
+            wprintf(L"\\n");
+            break;
+        case L'\r':
+            wprintf(L"\\r");
+            break;
+        case L'\t':
+            wprintf(L"\\t");
+            break;
+        default:
+            if ((unsigned int)character < 0x20U ||
+                (unsigned int)character == 0x7FU) {
+                wprintf(L"\\u%04x", (unsigned int)character);
+            } else {
+                wprintf(L"%lc", character);
+            }
+            break;
+        }
+    }
+    wprintf(L"\"\n");
+    free(formatted);
+    free(map_buffer);
+    return 1;
+
+cleanup:
+    free(formatted);
+    free(map_buffer);
+    return 0;
+}
+
 static int print_sid_value(const BYTE *value, ULONG value_size)
 {
     LPWSTR sid_text = NULL;
@@ -497,6 +692,8 @@ static void print_event_property_value_element(
     ULONG parent_count,
     ULONG index,
     ULONG array_index,
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
     ULONG pointer_size)
 {
     COMTRACE_ETL_PROPERTY_VALUE decoded_value;
@@ -593,6 +790,22 @@ static void print_event_property_value_element(
             (unsigned long)index,
             display_name
         );
+        goto cleanup;
+    }
+
+    if ((flags & PropertyHasCustomSchema) == 0U &&
+        property->nonStructType.MapNameOffset != 0U &&
+        print_mapped_property_value(
+            event_record,
+            metadata_buffer,
+            metadata_size,
+            property,
+            in_type,
+            out_type,
+            value,
+            value_size,
+            pointer_size
+        )) {
         goto cleanup;
     }
 
@@ -1143,7 +1356,7 @@ static void print_event_property_value(
         for (element_index = 0U; element_index < count; ++element_index) {
             print_event_property_value_element(
                 event_record, property, name, parent_names, parent_indices,
-                parent_count, index, element_index, pointer_size
+                parent_count, index, element_index, buffer, buffer_size, pointer_size
             );
         }
         return;
@@ -1153,7 +1366,7 @@ static void print_event_property_value(
         for (element_index = 0U; element_index < (ULONG)property->count; ++element_index) {
             print_event_property_value_element(
                 event_record, property, name, parent_names, parent_indices,
-                parent_count, index, element_index, pointer_size
+                parent_count, index, element_index, buffer, buffer_size, pointer_size
             );
         }
         return;
@@ -1161,7 +1374,7 @@ static void print_event_property_value(
 
     print_event_property_value_element(
         event_record, property, name, parent_names, parent_indices,
-        parent_count, index, 0xFFFFFFFFUL, pointer_size
+        parent_count, index, 0xFFFFFFFFUL, buffer, buffer_size, pointer_size
     );
 }
 
