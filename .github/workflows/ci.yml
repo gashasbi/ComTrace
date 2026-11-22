@@ -38,6 +38,15 @@ jobs:
           if (-not (Test-Path (Join-Path $outputDirectory 'ComTraceOleActivityFixture.exe'))) {
             throw "OLE validation fixture was not copied as a release asset."
           }
+          if (-not (Test-Path (Join-Path $configurationDir 'ComTraceLifetimeInstrumentation.lib'))) {
+            throw "COM lifetime instrumentation library was not built."
+          }
+          if (-not (Test-Path (Join-Path $configurationDir 'ComTraceComLifetimeFixture.exe'))) {
+            throw "COM lifetime fixture was not built."
+          }
+          if (-not (Test-Path (Join-Path $env:GITHUB_WORKSPACE 'include/comtrace_lifetime.h'))) {
+            throw "COM lifetime instrumentation header is missing."
+          }
           $checksums = Get-Content (Join-Path $outputDirectory 'SHA256SUMS.txt') -Raw
           if ($checksums -notmatch 'ComTraceOleActivityFixture\.exe') {
             throw "OLE validation fixture checksum is missing."
