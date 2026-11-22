@@ -96,8 +96,10 @@ int wmain(int argc, wchar_t **argv)
     wchar_t reduced_text[] = L"Reduced";
     ULONGLONG etw_time_value = 1234567890ULL;
     ULONG string_number_value = 12345UL;
+    ULONG process_id_value = 1234UL;
+    ULONG thread_id_value = 5678UL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
-    EVENT_DATA_DESCRIPTOR extended_descriptors[14];
+    EVENT_DATA_DESCRIPTOR extended_descriptors[16];
     int result = 1;
 
     if (argc != 2) {
@@ -202,7 +204,9 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&extended_descriptors[10], reduced_text, sizeof(reduced_text));
     EventDataDescCreate(&extended_descriptors[11], &etw_time_value, sizeof(etw_time_value));
     EventDataDescCreate(&extended_descriptors[12], &string_number_value, sizeof(string_number_value));
-    EventDataDescCreate(&extended_descriptors[13], pkcs7_payload, sizeof(pkcs7_payload));
+    EventDataDescCreate(&extended_descriptors[13], &process_id_value, sizeof(process_id_value));
+    EventDataDescCreate(&extended_descriptors[14], &thread_id_value, sizeof(thread_id_value));
+    EventDataDescCreate(&extended_descriptors[15], pkcs7_payload, sizeof(pkcs7_payload));
 
     status = EventWrite(
         extended_registration_handle,
