@@ -46,6 +46,10 @@ one property path are not currently supported. An array property without an
 index is not matched.
 Supported values include:
 
+Mapped integer and bit fields are displayed with their TDH map labels during
+inspection. Property search compares the underlying typed value, not the rendered
+map label, so use the numeric value with `--equals` or a numeric ordering operator.
+
 - ANSI and Unicode strings and characters
 - UTF-8 encoded ANSI strings when the schema declares `win:Utf8`, `win:Xml`, or `win:Json`; JSON and XML payloads are decoded as UTF-8; non-ASCII characters are rendered as `\\uXXXX` escapes so output is independent of the active console code page
 - Signed and unsigned 8-, 16-, 32-, and 64-bit integers
