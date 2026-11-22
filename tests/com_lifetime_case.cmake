@@ -105,4 +105,21 @@ if(clsid_search_position LESS 0)
     message(FATAL_ERROR "CLSID filter did not return the matching COM creation event.")
 endif()
 
-message(STATUS "COM lifetime ETW instrumentation, inspection, and identity search passed.")
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --compare "${etl_path}" "${etl_path}" --json
+    RESULT_VARIABLE compare_result
+    OUTPUT_VARIABLE compare_output
+    ERROR_VARIABLE compare_error
+)
+if(NOT compare_result EQUAL 0)
+    message(FATAL_ERROR "Lifetime trace comparison failed: ${compare_error}")
+endif()
+
+foreach(expected "lifetime_summary" "object_lifetimes" "object_lifetime_changes" "object_instance_id" "interface_ids")
+    string(FIND "${compare_output}" "${expected}" compare_position)
+    if(compare_position LESS 0)
+        message(FATAL_ERROR "Lifetime comparison JSON is missing ${expected}.")
+    endif()
+endforeach()
+
+message(STATUS "COM lifetime inspection, identity search, and comparison JSON passed.")

@@ -1811,6 +1811,165 @@ static void write_json_object_observations(
     wprintf(L"]");
 }
 
+static void write_json_lifetime_records(
+    const COMTRACE_TRACE_SUMMARY *summary
+)
+{
+    size_t index;
+
+    wprintf(L"[");
+    for (index = 0U; index < summary->lifetime_analysis.record_count; ++index) {
+        const COMTRACE_LIFETIME_RECORD *record =
+            &summary->lifetime_analysis.records[index];
+        size_t position;
+
+        wprintf(
+            L"%ls      {\"process_id\": %lu, \"process_generation\": ",
+            index == 0U ? L"\n" : L",\n",
+            (unsigned long)record->process_id
+        );
+        if (record->has_process_generation) {
+            wprintf(L"%llu", (unsigned long long)record->process_generation);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(
+            L", \"object_instance_id\": \"0x%llx\", \"created\": %ls, \"destroyed\": %ls, \"create_events\": %llu, \"add_ref_events\": %llu, \"release_events\": %llu, \"destroy_events\": %llu, \"release_zero_results\": %llu, \"first_seen_ticks\": \"%llu\", \"last_seen_ticks\": \"%llu\", \"created_ticks\": ",
+            (unsigned long long)record->object_instance_id,
+            record->has_created ? L"true" : L"false",
+            record->has_destroyed ? L"true" : L"false",
+            (unsigned long long)record->create_events,
+            (unsigned long long)record->add_ref_events,
+            (unsigned long long)record->release_events,
+            (unsigned long long)record->destroy_events,
+            (unsigned long long)record->release_zero_results,
+            (unsigned long long)record->first_seen_timestamp,
+            (unsigned long long)record->last_seen_timestamp
+        );
+        if (record->has_created) {
+            wprintf(L"\"%llu\"", (unsigned long long)record->created_timestamp);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(L", \"destroyed_ticks\": ");
+        if (record->has_destroyed) {
+            wprintf(L"\"%llu\"", (unsigned long long)record->destroyed_timestamp);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(L", \"class_id\": ");
+        if (record->has_class_id) {
+            putwchar(L'"');
+            print_guid_text(&record->class_id);
+            putwchar(L'"');
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(L", \"interface_ids\": [");
+        for (position = 0U; position < record->interface_id_count; ++position) {
+            if (position != 0U) {
+                putwchar(L',');
+            }
+            putwchar(L'"');
+            print_guid_text(&record->interface_ids[position].interface_id);
+            putwchar(L'"');
+        }
+        if (record->interface_id_count == 0U && record->has_interface_id) {
+            putwchar(L'"');
+            print_guid_text(&record->interface_id);
+            putwchar(L'"');
+        }
+        wprintf(L"], \"native_identities\": [");
+        for (position = 0U; position < record->native_identity_count; ++position) {
+            const COMTRACE_LIFETIME_NATIVE_IDENTITY *identity =
+                &record->native_identities[position];
+            wprintf(
+                L"%ls{\"native_object_id\": \"0x%llx\", \"ipid\": ",
+                position == 0U ? L"" : L", ",
+                (unsigned long long)identity->native_object_id
+            );
+            if (identity->has_native_ipid) {
+                putwchar(L'"');
+                print_guid_text(&identity->native_ipid);
+                putwchar(L'"');
+            } else {
+                wprintf(L"null");
+            }
+            wprintf(L", \"interface_id\": ");
+            if (identity->has_interface_id) {
+                putwchar(L'"');
+                print_guid_text(&identity->interface_id);
+                putwchar(L'"');
+            } else {
+                wprintf(L"null");
+            }
+            putwchar(L'}');
+        }
+        wprintf(L"]}");
+    }
+    if (summary->lifetime_analysis.record_count != 0U) {
+        wprintf(L"\n    ");
+    }
+    wprintf(L"]");
+}
+
+static void write_json_lifetime_object_diffs(
+    const COMTRACE_TRACE_COMPARISON *comparison
+)
+{
+    size_t index;
+
+    wprintf(L"[");
+    for (index = 0U; index < comparison->lifetime_object_diff_count; ++index) {
+        const COMTRACE_LIFETIME_OBJECT_DIFF *diff =
+            &comparison->lifetime_object_diffs[index];
+        wprintf(
+            L"%ls      {\"process_id\": %lu, \"process_generation\": ",
+            index == 0U ? L"\n" : L",\n",
+            (unsigned long)diff->process_id
+        );
+        if (diff->has_process_generation) {
+            wprintf(L"%llu", (unsigned long long)diff->process_generation);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(
+            L", \"object_instance_id\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
+            (unsigned long long)diff->object_instance_id,
+            diff->present_in_left ? L"true" : L"false",
+            diff->present_in_right ? L"true" : L"false",
+            (unsigned long)diff->changed_fields
+        );
+    }
+    if (comparison->lifetime_object_diff_count != 0U) {
+        wprintf(L"\n    ");
+    }
+    wprintf(L"]");
+}
+
+static void write_json_lifetime_summary(
+    const COMTRACE_TRACE_COMPARISON *comparison
+)
+{
+    wprintf(
+        L"{\"left_objects\": %llu, \"right_objects\": %llu, "
+        L"\"added\": %llu, \"removed\": %llu, \"changed\": %llu, "
+        L"\"left_events\": %llu, \"right_events\": %llu, "
+        L"\"left_native_identity_bind_events\": %llu, "
+        L"\"right_native_identity_bind_events\": %llu}",
+        (unsigned long long)comparison->left.lifetime_analysis.record_count,
+        (unsigned long long)comparison->right.lifetime_analysis.record_count,
+        (unsigned long long)comparison->added_lifetime_objects,
+        (unsigned long long)comparison->removed_lifetime_objects,
+        (unsigned long long)comparison->changed_lifetime_objects,
+        (unsigned long long)comparison->left.lifetime_analysis.events_seen,
+        (unsigned long long)comparison->right.lifetime_analysis.events_seen,
+        (unsigned long long)comparison->left.lifetime_analysis.native_identity_bind_events,
+        (unsigned long long)comparison->right.lifetime_analysis.native_identity_bind_events
+    );
+}
+
+
 void comtrace_trace_comparison_write_json(
     const COMTRACE_TRACE_COMPARISON *comparison,
     const wchar_t *left_path,
@@ -1987,6 +2146,15 @@ void comtrace_trace_comparison_write_json(
     write_json_process_lifecycle_summary(&comparison->right);
     wprintf(L"\n  },\n");
 
+    wprintf(L"  \"lifetime_summary\": ");
+    write_json_lifetime_summary(comparison);
+    wprintf(L",\n  \"object_lifetimes\": {\n    \"left\": ");
+    write_json_lifetime_records(&comparison->left);
+    wprintf(L",\n    \"right\": ");
+    write_json_lifetime_records(&comparison->right);
+    wprintf(L"\n  },\n  \"object_lifetime_changes\": ");
+    write_json_lifetime_object_diffs(comparison);
+    wprintf(L",\n");
     wprintf(L"  \"timeline\": {\n    \"left\": [");
     for (index = 0U; index < comparison->left.operation_timing_count; ++index) {
         const COMTRACE_OPERATION_TIMING *timing =

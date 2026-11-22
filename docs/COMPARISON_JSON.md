@@ -154,3 +154,26 @@ Duration calculations use the trace performance frequency. A trace without usabl
 - An added or removed event type reflects a difference in the captured inputs; it does not by itself indicate a system fault.
 - Timing and identity summaries depend on information present in the ETW event schemas and trace metadata.
 - The report is descriptive trace data. It does not determine whether an operation is malicious or vulnerable.
+
+
+## Application-instrumented COM object lifetimes
+
+The report includes a lifetime_summary, object_lifetimes.left,
+object_lifetimes.right, and object_lifetime_changes.
+
+Each lifetime record is keyed by process ID, process generation when available,
+and the application-level object instance ID. It records explicit creation and
+destruction observations, AddRef/Release event counts, zero-valued Release
+observations, raw ETW timestamps, CLSID, all observed interface IDs, and any
+native identity links explicitly supplied by the instrumented application.
+
+The lifetime diff matches records using the same process and application
+identity key. Its changed_fields mask uses 0x1 for CLSID, 0x2 for the set of
+interface IDs, 0x4 for creation/destruction state, 0x8 for lifecycle event
+counts, and 0x10 for explicit native identity bindings. Native OID/IPID values
+are not inferred from PID, timestamp proximity, or IID equality. Only mappings
+passed through the lifetime instrumentation API are included.
+
+Timestamps are emitted as raw ETW ticks. They are not compared across trace
+files because their clock origins may differ. A Release result of zero remains
+an observation; only an explicit destruction event marks an object destroyed.
