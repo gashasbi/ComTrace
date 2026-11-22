@@ -2,6 +2,8 @@
 
 #include <TraceLoggingProvider.h>
 
+#include <limits.h>
+
 TRACELOGGING_DEFINE_PROVIDER(
     g_comtrace_dde_provider,
     "ComTrace.DDE",
@@ -10,15 +12,45 @@ TRACELOGGING_DEFINE_PROVIDER(
 
 static volatile LONG64 g_next_conversation_id = 0;
 static volatile LONG64 g_next_transaction_id = 0;
+static SRWLOCK g_provider_lock = SRWLOCK_INIT;
+static LONG g_initialize_count = 0;
+static BOOL g_provider_registered = FALSE;
 
 ULONG comtrace_dde_initialize(void)
 {
-    return TraceLoggingRegister(g_comtrace_dde_provider);
+    ULONG status = ERROR_SUCCESS;
+
+    AcquireSRWLockExclusive(&g_provider_lock);
+    if (g_initialize_count == LONG_MAX) {
+        ReleaseSRWLockExclusive(&g_provider_lock);
+        return ERROR_ARITHMETIC_OVERFLOW;
+    }
+
+    if (g_initialize_count == 0) {
+        status = TraceLoggingRegister(g_comtrace_dde_provider);
+        if (status != ERROR_SUCCESS) {
+            ReleaseSRWLockExclusive(&g_provider_lock);
+            return status;
+        }
+        g_provider_registered = TRUE;
+    }
+
+    ++g_initialize_count;
+    ReleaseSRWLockExclusive(&g_provider_lock);
+    return ERROR_SUCCESS;
 }
 
 void comtrace_dde_shutdown(void)
 {
-    TraceLoggingUnregister(g_comtrace_dde_provider);
+    AcquireSRWLockExclusive(&g_provider_lock);
+    if (g_initialize_count > 0) {
+        --g_initialize_count;
+    }
+    if (g_initialize_count == 0 && g_provider_registered) {
+        TraceLoggingUnregister(g_comtrace_dde_provider);
+        g_provider_registered = FALSE;
+    }
+    ReleaseSRWLockExclusive(&g_provider_lock);
 }
 
 ULONGLONG comtrace_dde_conversation_opened(
@@ -31,8 +63,15 @@ ULONGLONG comtrace_dde_conversation_opened(
 {
     LONG64 conversation_id;
 
+    AcquireSRWLockShared(&g_provider_lock);
+    if (!g_provider_registered) {
+        ReleaseSRWLockShared(&g_provider_lock);
+        return 0ULL;
+    }
+
     conversation_id = InterlockedIncrement64(&g_next_conversation_id);
     if (conversation_id <= 0) {
+        ReleaseSRWLockShared(&g_provider_lock);
         return 0ULL;
     }
 
@@ -48,6 +87,7 @@ ULONGLONG comtrace_dde_conversation_opened(
         TraceLoggingWideString(service != NULL ? service : L"", "Service"),
         TraceLoggingWideString(topic != NULL ? topic : L"", "Topic")
     );
+    ReleaseSRWLockShared(&g_provider_lock);
 
     return (ULONGLONG)conversation_id;
 }
@@ -61,6 +101,12 @@ void comtrace_dde_conversation_closed(
         return;
     }
 
+    AcquireSRWLockShared(&g_provider_lock);
+    if (!g_provider_registered) {
+        ReleaseSRWLockShared(&g_provider_lock);
+        return;
+    }
+
     TraceLoggingWrite(
         g_comtrace_dde_provider,
         "DdeConversationClosed",
@@ -69,6 +115,7 @@ void comtrace_dde_conversation_closed(
         TraceLoggingUInt64(conversation_id, "ConversationId"),
         TraceLoggingUInt32(result, "Result")
     );
+    ReleaseSRWLockShared(&g_provider_lock);
 }
 
 ULONGLONG comtrace_dde_transaction_started(
@@ -89,8 +136,15 @@ ULONGLONG comtrace_dde_transaction_started(
         return 0ULL;
     }
 
+    AcquireSRWLockShared(&g_provider_lock);
+    if (!g_provider_registered) {
+        ReleaseSRWLockShared(&g_provider_lock);
+        return 0ULL;
+    }
+
     transaction_instance_id = InterlockedIncrement64(&g_next_transaction_id);
     if (transaction_instance_id <= 0) {
+        ReleaseSRWLockShared(&g_provider_lock);
         return 0ULL;
     }
 
@@ -110,6 +164,7 @@ ULONGLONG comtrace_dde_transaction_started(
         TraceLoggingBool(asynchronous, "Asynchronous"),
         TraceLoggingWideString(item != NULL ? item : L"", "Item")
     );
+    ReleaseSRWLockShared(&g_provider_lock);
 
     return (ULONGLONG)transaction_instance_id;
 }
@@ -130,6 +185,12 @@ void comtrace_dde_transaction_completed(
         return;
     }
 
+    AcquireSRWLockShared(&g_provider_lock);
+    if (!g_provider_registered) {
+        ReleaseSRWLockShared(&g_provider_lock);
+        return;
+    }
+
     TraceLoggingWrite(
         g_comtrace_dde_provider,
         "DdeTransactionCompleted",
@@ -145,6 +206,7 @@ void comtrace_dde_transaction_completed(
         TraceLoggingUInt32(data_size, "DataSize"),
         TraceLoggingBool(succeeded, "Succeeded")
     );
+    ReleaseSRWLockShared(&g_provider_lock);
 }
 
 void comtrace_dde_callback_received(
@@ -162,6 +224,12 @@ void comtrace_dde_callback_received(
         return;
     }
 
+    AcquireSRWLockShared(&g_provider_lock);
+    if (!g_provider_registered) {
+        ReleaseSRWLockShared(&g_provider_lock);
+        return;
+    }
+
     TraceLoggingWrite(
         g_comtrace_dde_provider,
         "DdeCallbackReceived",
@@ -176,4 +244,5 @@ void comtrace_dde_callback_received(
         TraceLoggingWideString(item != NULL ? item : L"", "Item"),
         TraceLoggingUInt32(data_size, "DataSize")
     );
+    ReleaseSRWLockShared(&g_provider_lock);
 }
