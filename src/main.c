@@ -54,7 +54,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--property <name> (--equals <value> | --contains <text> | --greater-than <number> | --greater-or-equal <number> | --less-than <number> | --less-or-equal <number>)] [--com | --ole] [--max-events <n>]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--property <name[index]> (--equals <value> | --contains <text> | --greater-than <number> | --greater-or-equal <number> | --less-than <number> | --less-or-equal <number>)] [--com | --ole] [--max-events <n>]]\n",
         program_name
     );
 }
@@ -534,13 +534,11 @@ static int run_etl_search(int argc, wchar_t **argv)
                         index_length * sizeof(wchar_t));
                     index_text[index_length] = L'\0';
 
-                    if (wcscpy_s(
-                            filters.property_name,
-                            _countof(filters.property_name),
-                            argument) != 0) {
-                        fwprintf(stderr, L"Invalid property name.\n");
-                        return EXIT_FAILURE;
-                    }
+                    CopyMemory(
+                        filters.property_name,
+                        argument,
+                        name_length * sizeof(wchar_t)
+                    );
                     filters.property_name[name_length] = L'\0';
 
                     if (!parse_decimal_value(index_text, 4095UL,

@@ -81,6 +81,18 @@ if(missing_operator_status EQUAL 0 OR
     message(FATAL_ERROR "A property filter without an operator was accepted.")
 endif()
 
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "Values[4096]" --equals 22
+    RESULT_VARIABLE invalid_index_status
+    OUTPUT_VARIABLE invalid_index_output
+    ERROR_VARIABLE invalid_index_error
+)
+if(invalid_index_status EQUAL 0 OR
+   NOT "${invalid_index_output}${invalid_index_error}" MATCHES "Invalid property array index")
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "An out-of-range property array index was accepted.")
+endif()
+
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
 if(NOT cleanup_status EQUAL 0)
     message(FATAL_ERROR "Manifest cleanup failed.")
