@@ -54,11 +54,14 @@ int wmain(int argc, wchar_t **argv)
     ULONG status;
     ULONG stop_status;
     EVENT_DESCRIPTOR descriptor;
-    EVENT_DATA_DESCRIPTOR data[9];
+    EVENT_DATA_DESCRIPTOR data[11];
+    EVENT_DATA_DESCRIPTOR class_id_alias_data;
     EVENT_DATA_DESCRIPTOR call_trace_data;
     ULONG call_trace_id_32 = 0x12345678UL;
     ULONG target_process_id = 0x12345678UL;
     ULONG target_thread_id = 0x87654321UL;
+    ULONG source_process_id = 0x76543210UL;
+    ULONG source_thread_id = 0x10203040UL;
     LONG hresult = (LONG)0x80004005UL;
     ULONG not_guid = 123U;
     int result = 1;
@@ -152,17 +155,31 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&data[6], (PVOID)&call_trace_id, (ULONG)sizeof(call_trace_id));
     EventDataDescCreate(&data[7], &hresult, (ULONG)sizeof(hresult));
     EventDataDescCreate(&data[8], &not_guid, (ULONG)sizeof(not_guid));
+    EventDataDescCreate(&data[9], &source_process_id, (ULONG)sizeof(source_process_id));
+    EventDataDescCreate(&data[10], &source_thread_id, (ULONG)sizeof(source_thread_id));
 
     status = EventWriteTransfer(
         provider,
         &descriptor,
         &activity_id,
         &related_activity_id,
-        9U,
+        11U,
         data
     );
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWrite failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    descriptor.Id = 2U;
+    EventDataDescCreate(
+        &class_id_alias_data,
+        (PVOID)&class_id,
+        (ULONG)sizeof(class_id)
+    );
+    status = EventWrite(provider, &descriptor, 1U, &class_id_alias_data);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"CLSID alias event write failed: %lu\\n", (unsigned long)status);
         goto cleanup;
     }
 
