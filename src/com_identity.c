@@ -179,6 +179,64 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
     return status;
 }
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    BOOL *value
+)
+{
+    BYTE byte_value;
+    ULONG dword_value;
+    COMTRACE_IDENTITY_STATUS status;
+
+    if (value == NULL) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    status = extract_property_value(
+        event_record,
+        property_name,
+        TDH_INTYPE_BOOLEAN,
+        &byte_value,
+        (ULONG)sizeof(byte_value)
+    );
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = byte_value != 0U;
+        return status;
+    }
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        return status;
+    }
+
+    status = extract_property_value(
+        event_record,
+        property_name,
+        TDH_INTYPE_UINT8,
+        &byte_value,
+        (ULONG)sizeof(byte_value)
+    );
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = byte_value != 0U;
+        return status;
+    }
+    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        return status;
+    }
+
+    status = extract_property_value(
+        event_record,
+        property_name,
+        TDH_INTYPE_UINT32,
+        (BYTE *)&dword_value,
+        (ULONG)sizeof(dword_value)
+    );
+    if (status == COMTRACE_IDENTITY_SUCCESS) {
+        *value = dword_value != 0U;
+    }
+
+    return status;
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_int32_property(
     const EVENT_RECORD *event_record,
     const wchar_t *property_name,
