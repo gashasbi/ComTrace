@@ -52,6 +52,7 @@ Supported values include:
 - SID values as standard SDDL strings such as `S-1-5-32-544`
 - IPv4 values in dotted-decimal notation
 - IPv6 binary values in canonical address notation when the schema declares `win:IPv6`
+- HRESULT, NTSTATUS, ErrorCode, and other hexadecimal output types in `0x` notation
 
 For `--contains`, only ANSI and Unicode strings are considered. ANSI strings
 are converted using the active Windows code page. Binary properties support exact

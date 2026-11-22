@@ -255,6 +255,18 @@ static int read_event_property_count(
     );
 }
 
+static int is_hex_output_type(USHORT out_type)
+{
+    return out_type == TDH_OUTTYPE_HEXINT8 ||
+        out_type == TDH_OUTTYPE_HEXINT16 ||
+        out_type == TDH_OUTTYPE_HEXINT32 ||
+        out_type == TDH_OUTTYPE_HEXINT64 ||
+        out_type == TDH_OUTTYPE_ERRORCODE ||
+        out_type == TDH_OUTTYPE_HRESULT ||
+        out_type == TDH_OUTTYPE_NTSTATUS ||
+        out_type == TDH_OUTTYPE_CODE_POINTER;
+}
+
 static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
@@ -537,7 +549,11 @@ static void print_event_property_value_element(
             goto cleanup;
         }
         CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%u\n", (unsigned int)number);
+        if (out_type == TDH_OUTTYPE_HEXINT8) {
+            wprintf(L"value=0x%02X\n", (unsigned int)number);
+        } else {
+            wprintf(L"value=%u\n", (unsigned int)number);
+        }
         goto cleanup;
     }
 
@@ -570,7 +586,11 @@ static void print_event_property_value_element(
             goto cleanup;
         }
         CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%u\n", (unsigned int)number);
+        if (out_type == TDH_OUTTYPE_HEXINT16) {
+            wprintf(L"value=0x%04X\n", (unsigned int)number);
+        } else {
+            wprintf(L"value=%u\n", (unsigned int)number);
+        }
         goto cleanup;
     }
 
@@ -599,6 +619,9 @@ static void print_event_property_value_element(
                 (unsigned int)value[2],
                 (unsigned int)value[3]
             );
+        } else if (is_hex_output_type(out_type)) {
+            CopyMemory(&number, value, sizeof(number));
+            wprintf(L"value=0x%08lX\n", number);
         } else {
             CopyMemory(&number, value, sizeof(number));
             wprintf(L"value=%lu\n", number);
@@ -624,7 +647,12 @@ static void print_event_property_value_element(
             goto cleanup;
         }
         CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%llu\n", number);
+        if (out_type == TDH_OUTTYPE_HEXINT64 ||
+            out_type == TDH_OUTTYPE_CODE_POINTER) {
+            wprintf(L"value=0x%016llX\n", number);
+        } else {
+            wprintf(L"value=%llu\n", number);
+        }
         goto cleanup;
     }
 
@@ -2762,6 +2790,7 @@ static void print_process_lifecycle_summary(
 
 static int compare_search_numbers(
     USHORT in_type,
+    USHORT out_type,
     const wchar_t *actual,
     const wchar_t *expected,
     int *comparison
@@ -2815,7 +2844,10 @@ static int compare_search_numbers(
         int base = in_type == TDH_INTYPE_HEXINT32 ||
             in_type == TDH_INTYPE_HEXINT64 ||
             in_type == TDH_INTYPE_POINTER ||
-            in_type == TDH_INTYPE_SIZET ? 16 : 10;
+            in_type == TDH_INTYPE_SIZET ||
+            (in_type != TDH_INTYPE_FILETIME && is_hex_output_type(out_type))
+                ? 16
+                : 10;
 
         if (expected[0] == L'-' || expected[0] == L'+') {
             return 0;
@@ -2871,6 +2903,7 @@ static int compare_search_numbers(
 
 static int search_property_text_matches(
     USHORT in_type,
+    USHORT out_type,
     const wchar_t *actual,
     const COMTRACE_ETL_FILTERS *filters
 )
@@ -2895,6 +2928,7 @@ static int search_property_text_matches(
 
     if (!compare_search_numbers(
             in_type,
+            out_type,
             actual,
             filters->property_value,
             &comparison)) {
@@ -3050,7 +3084,11 @@ static int format_search_property_value(
         uint8_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
-        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        if (out_type == TDH_OUTTYPE_HEXINT8) {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%02X", (unsigned int)number);
+        } else {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        }
         return 1;
     }
     case TDH_INTYPE_INT16: {
@@ -3064,7 +3102,11 @@ static int format_search_property_value(
         uint16_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
-        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        if (out_type == TDH_OUTTYPE_HEXINT16) {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%04X", (unsigned int)number);
+        } else {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        }
         return 1;
     }
     case TDH_INTYPE_INT32: {
@@ -3078,7 +3120,11 @@ static int format_search_property_value(
         uint32_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
-        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lu", (unsigned long)number);
+        if (is_hex_output_type(out_type)) {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%08lX", (unsigned long)number);
+        } else {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lu", (unsigned long)number);
+        }
         return 1;
     }
     case TDH_INTYPE_INT64: {
@@ -3093,7 +3139,13 @@ static int format_search_property_value(
         ULONGLONG number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
-        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%llu", (unsigned long long)number);
+        if (in_type == TDH_INTYPE_UINT64 &&
+            (out_type == TDH_OUTTYPE_HEXINT64 ||
+             out_type == TDH_OUTTYPE_CODE_POINTER)) {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%016llX", (unsigned long long)number);
+        } else {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%llu", (unsigned long long)number);
+        }
         return 1;
     }
     case TDH_INTYPE_FLOAT: {
@@ -3393,7 +3445,7 @@ static int event_property_value_matches(
                 actual,
                 _countof(actual)
             )) {
-            matched = search_property_text_matches(in_type, actual, filters);
+            matched = search_property_text_matches(in_type, out_type, actual, filters);
         }
     }
 
