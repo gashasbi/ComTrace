@@ -82,7 +82,7 @@ int wmain(int argc, wchar_t **argv)
     LONGLONG signed_wide_value = -9007199254740993LL;
     float float_value = 1.25f;
     double double_value = 1234.5;
-    ULONG boolean_value = 1U;
+    BOOL boolean_value = TRUE;
     GUID guid_value = {
         0x12345678UL, 0x9ABC, 0x4DEF,
         { 0x80, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }
