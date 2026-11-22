@@ -23,7 +23,7 @@ The four event operations are:
 
 `comtrace_lifetime_object_created` returns a process-local `ObjectInstanceId`. Store it in the object and pass it to every later instrumentation call for that same logical object. For aggregated objects or objects exposing multiple interfaces, use one instance ID for the controlling object and pass the IID corresponding to the interface method being observed.
 
-The API records the class ID, interface ID, and reference-count result supplied by the instrumented implementation. Reference-count return values are observations only. Microsoft documents the `IUnknown::AddRef` return value as intended for test purposes, so ComTrace does not treat a numeric value by itself as a definitive lifetime boundary. Emit `comtrace_lifetime_object_destroyed` only from the implementation's real destruction path; this explicit event is the destruction observation used by downstream analysis.
+The creation event records the initial reference count as `InitialReferenceCount`. AddRef and Release events record their method return values as `ReferenceCountResult`. These values are observations only. Microsoft documents the `IUnknown::AddRef` return value as intended for test purposes, so ComTrace does not treat a numeric value by itself as a definitive lifetime boundary. Emit `comtrace_lifetime_object_destroyed` only from the implementation's real destruction path; this explicit event is the destruction observation used by downstream analysis.
 
 ## Trace capture and inspection
 
