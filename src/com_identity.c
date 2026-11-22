@@ -153,6 +153,25 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
         );
     }
 
+    if (status == COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        LONG signed_candidate = 0;
+
+        status = extract_property_value(
+            event_record,
+            property_name,
+            TDH_INTYPE_INT32,
+            (BYTE *)&signed_candidate,
+            (ULONG)sizeof(signed_candidate)
+        );
+        if (status == COMTRACE_IDENTITY_SUCCESS) {
+            if (signed_candidate < 0) {
+                status = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
+            } else {
+                candidate = (ULONG)signed_candidate;
+            }
+        }
+    }
+
     if (status == COMTRACE_IDENTITY_SUCCESS) {
         *value = candidate;
     }
@@ -214,6 +233,26 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
             event_record,
             property_name,
             TDH_INTYPE_HEXINT64,
+            (BYTE *)&candidate,
+            (ULONG)sizeof(candidate)
+        );
+    }
+
+    if (status == COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        status = extract_property_value(
+            event_record,
+            property_name,
+            TDH_INTYPE_HEXINT32,
+            (BYTE *)&candidate,
+            (ULONG)sizeof(candidate)
+        );
+    }
+
+    if (status == COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        status = extract_property_value(
+            event_record,
+            property_name,
+            TDH_INTYPE_UINT32,
             (BYTE *)&candidate,
             (ULONG)sizeof(candidate)
         );
