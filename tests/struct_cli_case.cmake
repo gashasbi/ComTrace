@@ -40,7 +40,7 @@ execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE clean
 if(NOT inspect_status EQUAL 0)
     message(FATAL_ERROR "Inspect failed: ${inspect_error}")
 endif()
-foreach(expected "name=Values[0].Code value=287454020" "name=Values[0].Status value=21862" "name=Values[1].Code value=1432778632" "name=Values[1].Status value=39338" "name=FixedValues[0].Code value=2712847316" "name=FixedValues[0].Status value=4660" "name=FixedValues[1].Code value=270544960" "name=FixedValues[1].Status value=22136" "name=Outer.Code value=287454020" "name=Outer.Inner.NestedCode value=1432778632" "name=Outer.Inner.NestedStatus value=39338" "name=Outer.Numbers[0] value=31" "name=Outer.Numbers[1] value=47" "format=custom_schema custom_schema_protocol=0x1234 custom_schema_size=3 custom_schema_data=hex:112233 value=hex:aabbccdd" "name=TaggedValue tags=0x0000123 value=3405691582")
+foreach(expected "name=Values[0].Code value=287454020" "name=Values[0].Status value=21862" "name=Values[1].Code value=1432778632" "name=Values[1].Status value=39338" "name=FixedValues[0].Code value=2712847316" "name=FixedValues[0].Status value=4660" "name=FixedValues[1].Code value=270544960" "name=FixedValues[1].Status value=22136" "name=Outer.Code value=287454020" "name=Outer.Inner.NestedCode value=1432778632" "name=Outer.Inner.NestedStatus value=39338" "name=Outer.Numbers[0] value=31" "name=Outer.Numbers[1] value=47" "format=custom_schema custom_schema_protocol=0x0015 custom_schema_size=3 custom_schema_data=hex:112233 value=hex:aabbccdd" "name=TaggedValue tags=0x0000123 value=3405691582")
     string(FIND "${inspect_output}" "${expected}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "Missing expected struct value: ${expected}\\n${inspect_output}")
