@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include "com_identity.h"
+#include "process_lifecycle.h"
 
 typedef enum {
     COMTRACE_GRAPH_NODE_PROCESS = 1,
@@ -40,6 +41,8 @@ typedef struct {
     COMTRACE_GRAPH_NODE_TYPE type;
     DWORD process_id;
     DWORD thread_id;
+    ULONGLONG process_generation;
+    BOOL has_process_generation;
     GUID guid;
     ULONGLONG value;
     ULONGLONG observation_count;
@@ -70,6 +73,13 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     const COMTRACE_COM_OBJECT_IDENTITY *identity,
     const COMTRACE_ACTIVITY_IDS *activity_ids
+);
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event_with_lifecycle(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    const COMTRACE_COM_OBJECT_IDENTITY *identity,
+    const COMTRACE_ACTIVITY_IDS *activity_ids,
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle
 );
 
 size_t comtrace_relationship_graph_node_count(
