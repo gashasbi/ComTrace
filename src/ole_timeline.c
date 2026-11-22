@@ -112,25 +112,27 @@ static COMTRACE_OLE_TIMELINE_MATCH_TYPE get_match_type(
                               event->activity_ids->has_activity_id;
 
     if (wcscmp(record->operation, event->operation) != 0 ||
-        record->process_id != event->process_id ||
-        record->thread_id != event->thread_id ||
         record->has_activity_id != event_has_activity) {
         return COMTRACE_OLE_TIMELINE_MATCH_NONE;
     }
 
-    if (!record->has_activity_id) {
-        return COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD;
-    }
-
-    if (memcmp(
-            &record->activity_id,
-            &event->activity_ids->activity_id,
-            sizeof(GUID)
-        ) != 0) {
+    if (record->has_activity_id) {
+        if (memcmp(
+                &record->activity_id,
+                &event->activity_ids->activity_id,
+                sizeof(GUID)
+            ) == 0) {
+            return COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID;
+        }
         return COMTRACE_OLE_TIMELINE_MATCH_NONE;
     }
 
-    return COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID;
+    if (record->process_id == event->process_id &&
+        record->thread_id == event->thread_id) {
+        return COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD;
+    }
+
+    return COMTRACE_OLE_TIMELINE_MATCH_NONE;
 }
 
 void comtrace_ole_timeline_init(COMTRACE_OLE_TIMELINE *timeline)
@@ -210,6 +212,8 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
 
         record->match_type = match_type;
         record->has_stop = TRUE;
+        record->stop_process_id = event->process_id;
+        record->stop_thread_id = event->thread_id;
         record->stop_timestamp = event->timestamp;
 
         if (event->timestamp >= record->start_timestamp) {
@@ -255,6 +259,8 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
 
     record->process_id = event->process_id;
     record->thread_id = event->thread_id;
+    record->stop_process_id = event->process_id;
+    record->stop_thread_id = event->thread_id;
     record->stop_timestamp = event->timestamp;
     record->has_stop = TRUE;
     copy_activity_ids(record, event->activity_ids);
