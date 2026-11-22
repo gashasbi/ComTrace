@@ -276,6 +276,18 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_rpc_timeline COMMAND ComTraceRpcTimelineTests)
 
+    add_executable(ComTraceDdeTimelineTests
+        tests/test_dde_timeline.c
+        src/dde_timeline.c
+    )
+    target_include_directories(ComTraceDdeTimelineTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ComTraceDdeTimelineTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceDdeTimelineTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_dde_timeline COMMAND ComTraceDdeTimelineTests)
+
     add_executable(ComTraceProcessLifecycleTests
         tests/test_process_lifecycle.c
         src/process_lifecycle.c
