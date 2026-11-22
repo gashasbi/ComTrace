@@ -25,6 +25,7 @@ The top-level `schema_version` field is currently `1`. Consumers should check th
 | `timeline_summary` | object | COM and OLE timeline totals for both inputs |
 | `event_type_changes` | array | Event types added, removed, or with changed counts |
 | `object_changes` | array | COM objects added, removed, or with changed identity fields |
+| `object_observations` | object | All observed COM objects and their per-input observation counts and timestamp bounds |
 | `timeline` | object | Per-operation timing summaries for each input |
 
 Each input object contains:
@@ -82,6 +83,20 @@ The `changed_fields` bits are:
 | `0x4` | IPID set changed |
 
 Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. The standard capture does not enable kernel process start/exit events, and the currently mapped COM events do not provide a verified object-release signal. Consequently, a reused numeric PID or a reused OID within one process cannot yet be separated into distinct object generations; matching remains scoped to process ID and OID.
+
+## COM object observations
+
+The `object_observations` object contains `left` and `right` arrays. Each array lists every COM object node observed in that input, including objects whose identity fields did not change and therefore do not appear in `object_changes`.
+
+| Field | Type | Description |
+|---|---|---|
+| `process_id` | number | Process ID associated with the object |
+| `oid` | string | Object ID as a hexadecimal string with a `0x` prefix |
+| `observations` | number | Number of event records that exposed this process/OID identity |
+| `first_seen_ticks` | string or null | Minimum raw ETW timestamp observed for the object |
+| `last_seen_ticks` | string or null | Maximum raw ETW timestamp observed for the object |
+
+Timestamp values are strings to preserve their full 64-bit precision. They use the trace's clock units and are only observation bounds; they do not indicate object creation or release. Missing timestamp bounds are represented as `null`.
 
 ## Timeline summaries
 
