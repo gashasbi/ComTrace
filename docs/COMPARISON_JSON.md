@@ -85,7 +85,7 @@ The `changed_fields` bits are:
 | `0x2` | IID set changed |
 | `0x4` | IPID set changed |
 
-Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID, resolved Process generation, and OID. An unresolved generation is kept distinct from a resolved generation. Process generation values are one-based ordinals local to each trace, not globally stable process identifiers; comparing captures with different lifecycle coverage can therefore produce added/removed objects even when the underlying process is the same. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. Process generations are tracked separately when the trace contains actual Kernel Process Start and End events; the current object comparison key remains process ID and OID and does not yet use those generations. The currently mapped COM events still do not provide a verified object-release signal, so a reused OID within one process cannot yet be separated into distinct object generations.
+Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID, resolved Process generation, and OID. An unresolved generation is kept distinct from a resolved generation. Process generation values are one-based ordinals local to each trace, not globally stable process identifiers; comparing captures with different lifecycle coverage can therefore produce added/removed objects even when the underlying process is the same. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. The currently mapped COM events still do not provide a verified object-release signal, so a reused OID within one Process generation cannot yet be separated into distinct COM object generations.
 
 ## COM object observations
 
@@ -94,6 +94,7 @@ The `object_observations` object contains `left` and `right` arrays. Each array 
 | Field | Type | Description |
 |---|---|---|
 | `process_id` | number | Process ID associated with the object |
+| `process_generation` | number or null | Resolved one-based Process generation within this trace; null when no unique lifecycle interval matches |
 | `oid` | string | Object ID as a hexadecimal string with a `0x` prefix |
 | `observations` | number | Number of event records that exposed this process/OID identity |
 | `first_seen_ticks` | string or null | Minimum raw ETW timestamp observed for the object |
