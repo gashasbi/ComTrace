@@ -67,11 +67,19 @@ static const GUID com_lifetime_provider_guid = {
     {0x9d, 0x42, 0x81, 0x31, 0x6c, 0xe2, 0xa7, 0x50}
 };
 
+static const GUID dde_provider_guid = {
+    0x7b6d4a21,
+    0x9e35,
+    0x4c80,
+    {0xa1, 0x72, 0x53, 0x94, 0xb6, 0xd8, 0x0f, 0x21}
+};
+
 static const ULONGLONG ole_perf_keyword = 0x8000000000000000ULL;
 static const ULONGLONG com_rundown_keyword = 0x1ULL;
 static const ULONGLONG com_runtime_keyword = 0x8ULL;
 static const ULONGLONG rpcss_keyword = 0x600ULL;
 static const ULONGLONG com_lifetime_keyword = 0x1ULL;
+static const ULONGLONG dde_keyword = 0x1ULL;
 
 static HANDLE g_stop_event = NULL;
 
@@ -129,7 +137,8 @@ static ULONG stop_trace_session(
     BOOL com_runtime_provider_enabled,
     BOOL rpc_provider_enabled,
     BOOL rpcss_provider_enabled,
-    BOOL com_lifetime_provider_enabled
+    BOOL com_lifetime_provider_enabled,
+    BOOL dde_provider_enabled
 )
 {
     ULONG status;
@@ -271,6 +280,23 @@ static ULONG stop_trace_session(
         }
     }
 
+    if (dde_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &dde_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Warning: DDE provider disable returned status %lu.\n",
+                (unsigned long)status);
+        }
+    }
+
     return ControlTraceW(
         trace_handle,
         trace_session_name,
@@ -301,6 +327,7 @@ int comtrace_capture_com_perf(
     BOOL rpc_provider_enabled = FALSE;
     BOOL rpcss_provider_enabled = FALSE;
     BOOL com_lifetime_provider_enabled = FALSE;
+    BOOL dde_provider_enabled = FALSE;
     BOOL process_lifecycle_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
@@ -633,6 +660,24 @@ int comtrace_capture_com_perf(
             (unsigned long)status);
     }
 
+    status = EnableTraceEx2(
+        trace_handle,
+        &dde_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        dde_keyword,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        dde_provider_enabled = TRUE;
+    } else {
+        fwprintf(stderr, L"Warning: ComTrace DDE provider enable returned status %lu.\n",
+            (unsigned long)status);
+    }
+
     stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (stop_event == NULL) {
         fwprintf(
@@ -675,6 +720,9 @@ int comtrace_capture_com_perf(
     }
     if (com_lifetime_provider_enabled) {
         wprintf(L"Provider: ComTrace.COMLifetime (application instrumentation)\n");
+    }
+    if (dde_provider_enabled) {
+        wprintf(L"Provider: ComTrace.DDE (optional DDEML instrumentation)\n");
     }
     if (process_lifecycle_enabled) {
         wprintf(L"Provider: Kernel Process start/stop events\n");
@@ -725,7 +773,8 @@ cleanup:
             com_runtime_provider_enabled,
             rpc_provider_enabled,
             rpcss_provider_enabled,
-            com_lifetime_provider_enabled
+            com_lifetime_provider_enabled,
+            dde_provider_enabled
         );
 
         if (status != ERROR_SUCCESS) {
