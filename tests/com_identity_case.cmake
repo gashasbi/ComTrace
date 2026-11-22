@@ -74,7 +74,7 @@ if(search_match EQUAL -1)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 6
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 7
     RESULT_VARIABLE no_match_status
     OUTPUT_VARIABLE no_match_output
     ERROR_VARIABLE no_match_error
@@ -90,6 +90,26 @@ if(no_match EQUAL -1)
     execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
     message(FATAL_ERROR "Non-matching Event ID returned results: ${no_match_output}")
 endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 6
+    RESULT_VARIABLE rpc_identity_status
+    OUTPUT_VARIABLE rpc_identity_output
+    ERROR_VARIABLE rpc_identity_error
+)
+
+if(NOT rpc_identity_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "RPC identity event search failed: ${rpc_identity_error}${rpc_identity_output}")
+endif()
+
+foreach(expected "Events matching filters: 1" "name=InterfaceUuid" "name=InterfaceUUID" "name=ObjectUUID" "name=TypeMgrUuid")
+    string(FIND "${rpc_identity_output}" "${expected}" rpc_identity_match)
+    if(rpc_identity_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "RPC identity event is missing expected data: ${expected}\n${rpc_identity_output}")
+    endif()
+endforeach()
 
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 2
