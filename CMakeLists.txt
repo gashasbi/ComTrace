@@ -106,8 +106,12 @@ if(BUILD_TESTING)
     add_executable(ComTraceRelationshipGraphTests
         tests/test_relationship_graph.c
         src/relationship_graph.c
+        src/process_lifecycle.c
+        src/com_identity.c
+        src/etl_decoder.c
     )
     target_include_directories(ComTraceRelationshipGraphTests PRIVATE src)
+    target_link_libraries(ComTraceRelationshipGraphTests PRIVATE Tdh Advapi32)
 
     if(MSVC)
         target_compile_options(ComTraceRelationshipGraphTests PRIVATE /W4 /WX /wd5105 /utf-8)
@@ -121,8 +125,12 @@ if(BUILD_TESTING)
         tests/test_object_identity_compare.c
         src/object_identity_compare.c
         src/relationship_graph.c
+        src/process_lifecycle.c
+        src/com_identity.c
+        src/etl_decoder.c
     )
     target_include_directories(ComTraceObjectIdentityCompareTests PRIVATE src)
+    target_link_libraries(ComTraceObjectIdentityCompareTests PRIVATE Tdh Advapi32)
 
     if(MSVC)
         target_compile_options(ComTraceObjectIdentityCompareTests PRIVATE /W4 /WX /wd5105 /utf-8)
