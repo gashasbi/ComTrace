@@ -84,8 +84,8 @@ path, and values whose TDH metadata or payload cannot be read are not matched by
 this filter. Indexed arrays nested inside structures and scalar members of nested
 structures are supported when TDH exposes the required descriptor path. WBEM XML
 fragments can be searched when their input type is a string. Custom-schema payloads
-can be matched as raw binary when their input type is binary; the schema metadata
-does not imply a protocol-specific decoded representation. Binary properties do not
+are treated as opaque bytes and can be matched with `hex:` equality or contains
+filters; the schema metadata does not imply a protocol-specific decoded representation. Binary properties do not
 support numeric ordering comparisons. A missing or unsupported property produces
 no match; it does not make the whole trace search fail.
 
