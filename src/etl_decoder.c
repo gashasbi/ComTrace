@@ -29,11 +29,15 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
         NULL,
         &buffer_size
     );
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        buffer_size < property_offset ||
-        buffer_size > COMTRACE_ETL_MAX_METADATA_BYTES) {
+    if (status != ERROR_INSUFFICIENT_BUFFER) {
         event_info->tdh_status = status;
         return COMTRACE_ETL_EVENT_INFO_UNAVAILABLE;
+    }
+    if (buffer_size < property_offset) {
+        return COMTRACE_ETL_EVENT_INFO_INVALID_METADATA;
+    }
+    if (buffer_size > COMTRACE_ETL_MAX_METADATA_BYTES) {
+        return COMTRACE_ETL_EVENT_INFO_SIZE_LIMIT;
     }
 
     allocated_size = buffer_size;
