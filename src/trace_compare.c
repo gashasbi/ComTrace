@@ -47,7 +47,7 @@ static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
 }
 
 static int get_trace_event_name(
-    EVENT_RECORD *event_record,
+    const EVENT_RECORD *event_record,
     wchar_t *name,
     size_t name_capacity
 )
@@ -80,7 +80,7 @@ static int get_trace_event_name(
     }
 
     name[0] = L'\0';
-    status = TdhGetEventInformation(event_record, 0U, NULL, NULL, &required_size);
+    status = TdhGetEventInformation((PEVENT_RECORD)event_record, 0U, NULL, NULL, &required_size);
     if (status != ERROR_INSUFFICIENT_BUFFER ||
         required_size < sizeof(TRACE_EVENT_INFO)) {
         return 0;
@@ -92,7 +92,7 @@ static int get_trace_event_name(
     }
 
     status = TdhGetEventInformation(
-        event_record, 0U, NULL, event_info, &required_size
+        (PEVENT_RECORD)event_record, 0U, NULL, event_info, &required_size
     );
     if (status != ERROR_SUCCESS ||
         event_info->EventNameOffset == 0U ||
@@ -126,7 +126,7 @@ static int get_trace_event_name(
 
 static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     COMTRACE_TRACE_SUMMARY *summary,
-    EVENT_RECORD *event_record
+    const EVENT_RECORD *event_record
 )
 {
     wchar_t trace_event_name[128];
