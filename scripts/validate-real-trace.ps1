@@ -104,6 +104,7 @@ $archivePath = Join-Path $OutputDirectory "comtrace-$runId.ctra"
 $inspectPath = Join-Path $OutputDirectory "comtrace-$runId-inspect.txt"
 $searchPath = Join-Path $OutputDirectory "comtrace-$runId-com-search.txt"
 $oleSearchPath = Join-Path $OutputDirectory "comtrace-$runId-ole-search.txt"
+$rundownSearchPath = Join-Path $OutputDirectory "comtrace-$runId-com-rundown-search.txt"
 $oleFixturePath = Join-Path $OutputDirectory "comtrace-$runId-ole-fixture.txt"
 $archiveInspectPath = Join-Path $OutputDirectory "comtrace-$runId-archive-inspect.txt"
 $comparePath = Join-Path $OutputDirectory "comtrace-$runId-compare.json"
@@ -366,6 +367,27 @@ if ($oleMatchTotal -ne $oleTimelineMatched) {
     throw "OLE match-source counts do not add up to the total matched operations."
 }
 
+Write-Host "Checking for COM rundown instrumentation events."
+$rundownProviderGuid = "{2957313D-FCAA-5D4A-2F69-32CE5F0AC44E}"
+$rundownSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rundownProviderGuid, "--max-events", "10000") -Description "COM rundown event search"
+Set-Content -LiteralPath $rundownSearchPath -Value $rundownSearchOutput -Encoding UTF8
+
+$rundownEventMatch = [regex]::Match($rundownSearchOutput, "Events matching filters:\s*(\d+)")
+if (-not $rundownEventMatch.Success) {
+    throw "The COM rundown search output did not contain an event count. Review $rundownSearchPath"
+}
+
+$rundownEventCount = [UInt64]::Parse($rundownEventMatch.Groups[1].Value)
+$rundownIdentityValueCount = [regex]::Matches(
+    $rundownSearchOutput,
+    "(?im)^\s*com_rundown_(?:oid|iid|ipid)="
+).Count
+$rundownValidationStatus = "PASS"
+if ($rundownEventCount -eq 0) {
+    $rundownValidationStatus = "NOT_EMITTED"
+    Write-Warning "The COM-RundownInstrumentation provider emitted no events in this trace."
+}
+
 Write-Host "Converting ETL to CTRA."
 $archiveOutput = Invoke-NativeCommand -Executable $ComTraceArchiveExe -Arguments @($EtlPath, $archivePath) -Description "ETL to CTRA conversion"
 if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
@@ -448,6 +470,9 @@ $summary = [ordered]@{
     process_graph_known_generations = $processGraphKnownGenerations
     process_graph_unknown_generations = $processGraphUnknownGenerations
     com_events = $comEventCount
+    com_rundown_validation_status = $rundownValidationStatus
+    com_rundown_events = $rundownEventCount
+    com_rundown_identity_values_reported = $rundownIdentityValueCount
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
     ole_clipboard_operations = $oleClipboardOperations
@@ -471,6 +496,7 @@ $summary = [ordered]@{
     comparison_schema_version = $report.schema_version
     inspect_report = $inspectPath
     com_search_report = $searchPath
+    com_rundown_search_report = $rundownSearchPath
     ole_search_report = $oleSearchPath
     ole_fixture_report = $oleFixtureReport
     archive_inspect_report = $archiveInspectPath
@@ -488,6 +514,9 @@ Write-Host "Kernel Process End events: $processEndCount"
 Write-Host "Kernel Process decode failures: $processDecodeFailures"
 Write-Host "Graph Process generations: known=$processGraphKnownGenerations unknown=$processGraphUnknownGenerations"
 Write-Host "COM Performance events: $comEventCount"
+Write-Host "COM rundown validation status: $rundownValidationStatus"
+Write-Host "COM rundown events: $rundownEventCount"
+Write-Host "COM rundown identity values reported: $rundownIdentityValueCount"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
