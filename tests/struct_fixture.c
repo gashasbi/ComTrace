@@ -46,6 +46,7 @@ int wmain(int argc, wchar_t **argv)
     USHORT outer_numbers_count = 2U;
     ULONG outer_first_number = 31UL;
     ULONG outer_second_number = 47UL;
+    BYTE custom_value[4] = { 0xAAU, 0xBBU, 0xCCU, 0xDDU };
     int result = 1;
 
     if (argc != 2) {
@@ -160,7 +161,15 @@ int wmain(int argc, wchar_t **argv)
         TraceLoggingUInt32(0x11223344UL, "Code"),
         TraceLoggingStruct(2, "Inner"),
         TraceLoggingUInt32(0x55667788UL, "NestedCode"),
-        TraceLoggingUInt16(0x99AAU, "NestedStatus")
+        TraceLoggingUInt16(0x99AAU, "NestedStatus"),
+        TraceLoggingCustom(
+            custom_value,
+            sizeof(custom_value),
+            0x1234U,
+            (0x11U, 0x22U, 0x33U),
+            3U,
+            "CustomField"
+        )
     );
 
     result = 0;
