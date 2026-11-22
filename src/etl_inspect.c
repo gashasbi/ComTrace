@@ -20,6 +20,7 @@
 #include "com_timeline.h"
 #include "relationship_graph.h"
 #include "ole_timeline.h"
+#include "process_lifecycle.h"
 
 #define MAX_SAMPLE_EVENTS 10000UL
 
@@ -41,6 +42,8 @@ typedef struct {
     COMTRACE_OLE_TIMELINE_STATUS ole_timeline_status;
     COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
     COMTRACE_GRAPH_STATUS graph_status;
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG process_lifecycle;
+    ULONGLONG process_lifecycle_failures;
     ULONGLONG trace_frequency;
 } ETL_INSPECT_CONTEXT;
 
@@ -1600,6 +1603,31 @@ static void add_relationship_graph_event(
         return;
     }
 
+    if (comtrace_process_lifecycle_is_event(event_record)) {
+        COMTRACE_PROCESS_EVENT process_event;
+        COMTRACE_PROCESS_LIFECYCLE_STATUS process_status;
+
+        process_status = comtrace_process_lifecycle_extract(
+            event_record,
+            &process_event
+        );
+
+        if (process_status == COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+            process_status = comtrace_process_lifecycle_catalog_add(
+                &context->process_lifecycle,
+                &process_event
+            );
+
+            if (process_status != COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+                context->graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+            }
+        } else if (context->process_lifecycle_failures != ULLONG_MAX) {
+            ++context->process_lifecycle_failures;
+        }
+
+        return;
+    }
+
     is_com_event = comtrace_classify_com_event(
         &event_record->EventHeader.ProviderId,
         event_record->EventHeader.EventDescriptor.Id,
@@ -1707,6 +1735,80 @@ static void print_relationship_graph_summary(
         wprintf(
             L"  graph_display_limit=100 remaining=%llu\n",
             (unsigned long long)(graph->edge_count - displayed)
+        );
+    }
+}
+
+static void print_process_lifecycle_summary(
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog,
+    ULONGLONG decode_failures
+)
+{
+    size_t index;
+    size_t displayed;
+
+    if (catalog == NULL) {
+        return;
+    }
+
+    wprintf(L"\nProcess lifecycle summary\n");
+    wprintf(
+        L"Process lifecycle events: start=%llu end=%llu dc_start=%llu dc_end=%llu defunct=%llu decode_failures=%llu\n",
+        (unsigned long long)catalog->start_events,
+        (unsigned long long)catalog->end_events,
+        (unsigned long long)catalog->dc_start_events,
+        (unsigned long long)catalog->dc_end_events,
+        (unsigned long long)catalog->defunct_events,
+        (unsigned long long)decode_failures
+    );
+    wprintf(
+        L"Observed process generations: %llu\n",
+        (unsigned long long)catalog->count
+    );
+
+    displayed = catalog->count > 50U ? 50U : catalog->count;
+    for (index = 0U; index < displayed; ++index) {
+        const COMTRACE_PROCESS_LIFETIME *lifetime =
+            &catalog->items[index];
+
+        wprintf(
+            L"  process=%lu generation=%llu",
+            (unsigned long)lifetime->process_id,
+            (unsigned long long)lifetime->generation
+        );
+
+        if (lifetime->has_parent_process_id) {
+            wprintf(L" parent=%lu", (unsigned long)lifetime->parent_process_id);
+        }
+
+        if (lifetime->started_during_trace) {
+            wprintf(L" start_ticks=%lld", (long long)lifetime->first_seen_timestamp);
+        } else if (lifetime->has_first_seen_timestamp) {
+            wprintf(L" start_kind=rundown first_seen_ticks=%lld", (long long)lifetime->first_seen_timestamp);
+        } else {
+            wprintf(L" start_kind=unknown");
+        }
+
+        if (lifetime->has_end_timestamp) {
+            wprintf(L" end_ticks=%lld", (long long)lifetime->end_timestamp);
+        } else {
+            wprintf(L" end_ticks=unknown");
+        }
+
+        if (lifetime->has_trace_end_timestamp) {
+            wprintf(
+                L" running_at_trace_end=true trace_end_ticks=%lld",
+                (long long)lifetime->trace_end_timestamp
+            );
+        }
+
+        wprintf(L"\n");
+    }
+
+    if (catalog->count > displayed) {
+        wprintf(
+            L"  process_generation_display_limit=50 remaining=%llu\n",
+            (unsigned long long)(catalog->count - displayed)
         );
     }
 }
@@ -1864,6 +1966,7 @@ static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
         return;
     }
 
+    comtrace_process_lifecycle_catalog_destroy(&context->process_lifecycle);
     comtrace_relationship_graph_destroy(&context->relationship_graph);
     comtrace_ole_timeline_destroy(&context->ole_timeline);
     comtrace_timeline_destroy(&context->timeline);
@@ -1901,6 +2004,7 @@ static int inspect_etl_internal(
     context.ole_timeline_status = COMTRACE_OLE_TIMELINE_SUCCESS;
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
+    comtrace_process_lifecycle_catalog_init(&context.process_lifecycle);
 
     if (filters != NULL) {
         context.has_filters = TRUE;
@@ -1978,6 +2082,10 @@ static int inspect_etl_internal(
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
+    print_process_lifecycle_summary(
+        &context.process_lifecycle,
+        context.process_lifecycle_failures
+    );
 
     wprintf(L"\nEvent summary\n");
     wprintf(
