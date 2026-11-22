@@ -43,6 +43,11 @@ static const COMTRACE_PROVIDER known_providers[] = {
         L"Microsoft-Windows-RPCSS",
         L"Microsoft-Windows-RPCSS",
         L"{D8975F88-7DDB-4ED0-91BF-3ADF48C48E0C}"
+    },
+    {
+        L"ComTrace.COMLifetime",
+        L"ComTrace COM Lifetime Instrumentation",
+        L"{6F3B5E21-7C14-4A90-9D42-81316CE2A750}"
     }
 };
 
@@ -59,7 +64,7 @@ static int run_self_test(void)
     size_t count = ARRAY_COUNT(known_providers);
     size_t index;
 
-    if (count != (size_t)5) {
+    if (count != (size_t)6) {
         fwprintf(stderr, L"Provider catalog size check failed.\n");
         return EXIT_FAILURE;
     }
