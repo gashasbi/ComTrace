@@ -277,7 +277,7 @@ static int parse_uint64_filter(const wchar_t *text, ULONGLONG *value)
     unsigned long long parsed;
     int base = 10;
 
-    if (text == NULL || value == NULL || text[0] == L'\\0' ||
+    if (text == NULL || value == NULL || text[0] == L'\0' ||
         text[0] == L'-' || text[0] == L'+') {
         return 0;
     }
@@ -286,14 +286,14 @@ static int parse_uint64_filter(const wchar_t *text, ULONGLONG *value)
     if (text[0] == L'0' && (text[1] == L'x' || text[1] == L'X')) {
         digits += 2;
         base = 16;
-        if (digits[0] == L'\\0') {
+        if (digits[0] == L'\0') {
             return 0;
         }
     }
 
     errno = 0;
     parsed = wcstoull(digits, &end, base);
-    if (errno == ERANGE || end == digits || end == NULL || *end != L'\\0') {
+    if (errno == ERANGE || end == digits || end == NULL || *end != L'\0') {
         return 0;
     }
 
