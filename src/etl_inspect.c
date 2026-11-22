@@ -3132,6 +3132,35 @@ static int format_search_property_value(
         );
         return 1;
     }
+    case TDH_INTYPE_SID: {
+        PSID sid = (PSID)value;
+        LPWSTR sid_text = NULL;
+        size_t sid_size;
+        size_t sid_text_length;
+        int copied;
+
+        if (value_size < 8U) {
+            return 0;
+        }
+
+        sid_size = 8U + ((size_t)value[1] * sizeof(ULONG));
+        if (sid_size > (size_t)value_size ||
+            !IsValidSid(sid) ||
+            (size_t)GetLengthSid(sid) != sid_size ||
+            !ConvertSidToStringSidW(sid, &sid_text)) {
+            return 0;
+        }
+
+        sid_text_length = wcslen(sid_text);
+        if (sid_text_length >= text_capacity) {
+            LocalFree(sid_text);
+            return 0;
+        }
+
+        copied = wcscpy_s(text, text_capacity, sid_text);
+        LocalFree(sid_text);
+        return copied == 0;
+    }
     default:
         return 0;
     }

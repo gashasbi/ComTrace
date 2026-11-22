@@ -41,6 +41,7 @@ Supported values include:
 - Pointer and SIZE_T values in `0x` notation
 - FILETIME values as their raw 64-bit tick count
 - SYSTEMTIME values as `YYYY-MM-DDTHH:mm:ss.fff`
+- SID values as standard SDDL strings such as `S-1-5-32-544`
 
 For `--contains`, only ANSI and Unicode strings are considered. ANSI strings
 are converted using the active Windows code page. Binary properties support exact
