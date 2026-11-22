@@ -17,6 +17,11 @@ static const GUID ipid = {
     { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
 };
 
+static const GUID second_ipid = {
+    0x50516273, 0x8495, 0xa6b7,
+    { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
+};
+
 static const GUID activity_id = {
     0x20314253, 0x6475, 0x8697,
     { 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f }
@@ -470,6 +475,7 @@ static int test_object_and_ipid_observation_windows(void)
     size_t index;
     size_t object_count = 0U;
     size_t ipid_count = 0U;
+    const COMTRACE_GRAPH_NODE *second_ipid_node = NULL;
 
     comtrace_relationship_graph_init(&graph);
     ZeroMemory(&identity, sizeof(identity));
@@ -490,6 +496,7 @@ static int test_object_and_ipid_observation_windows(void)
     }
 
     identity.timestamp = 3000;
+    identity.ipid = second_ipid;
     if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
         COMTRACE_GRAPH_SUCCESS) {
         comtrace_relationship_graph_destroy(&graph);
@@ -506,6 +513,7 @@ static int test_object_and_ipid_observation_windows(void)
 
     identity.process_id = 400U;
     identity.oid = 0x8877665544332211ULL;
+    identity.ipid = ipid;
     identity.timestamp = 12000;
     if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
         COMTRACE_GRAPH_SUCCESS) {
@@ -532,22 +540,29 @@ static int test_object_and_ipid_observation_windows(void)
             ++ipid_count;
             if (memcmp(&node->guid, &ipid, sizeof(GUID)) == 0) {
                 ipid_node = node;
+            } else if (memcmp(&node->guid, &second_ipid, sizeof(GUID)) == 0) {
+                second_ipid_node = node;
             }
         }
     }
 
     if (object_count != 3U ||
-        ipid_count != 1U ||
+        ipid_count != 2U ||
         object_node == NULL ||
         object_node->observation_count != 2U ||
         !object_node->has_observed_timestamp ||
         object_node->first_seen_timestamp != 3000 ||
         object_node->last_seen_timestamp != 9000 ||
         ipid_node == NULL ||
-        ipid_node->observation_count != 4U ||
+        ipid_node->observation_count != 2U ||
         !ipid_node->has_observed_timestamp ||
-        ipid_node->first_seen_timestamp != 3000 ||
-        ipid_node->last_seen_timestamp != 12000) {
+        ipid_node->first_seen_timestamp != 9000 ||
+        ipid_node->last_seen_timestamp != 12000 ||
+        second_ipid_node == NULL ||
+        second_ipid_node->observation_count != 2U ||
+        !second_ipid_node->has_observed_timestamp ||
+        second_ipid_node->first_seen_timestamp != 3000 ||
+        second_ipid_node->last_seen_timestamp != 6000) {
         comtrace_relationship_graph_destroy(&graph);
         return 0;
     }
