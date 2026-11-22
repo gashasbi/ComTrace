@@ -4261,6 +4261,24 @@ static int event_property_value_matches(
 
     value = property_value.data;
     value_size = property_value.size;
+    if ((property->Flags & PropertyHasCustomSchema) != 0U) {
+        if (filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
+            matched = search_binary_property_matches(
+                value,
+                value_size,
+                filters->property_value
+            );
+        } else if (filters->property_match_mode == COMTRACE_PROPERTY_MATCH_CONTAINS) {
+            matched = search_binary_property_contains(
+                value,
+                value_size,
+                filters->property_value
+            );
+        }
+        comtrace_etl_property_value_destroy(&property_value);
+        return matched;
+    }
+
     if (normalize_property_payload(
             &in_type,
             &value,
