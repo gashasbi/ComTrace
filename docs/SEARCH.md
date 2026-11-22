@@ -1,8 +1,9 @@
 # ETL event property search
 
-ComTrace can filter an ETL trace by the value of a top-level event property,
-one indexed element of a top-level array property, or a scalar member of an
-indexed top-level struct array.
+ComTrace can filter an ETL trace by a top-level event property, an indexed
+array element, or a scalar member reached through one or more nested structures.
+Array indices can select either a scalar array element or a structure-array
+element within a property path.
 
 ## Syntax
 
@@ -13,6 +14,8 @@ ComTrace.exe --search trace.etl --property Values[1] --equals 22
 ComTrace.exe --search trace.etl --property Values[1].Code --equals 1432778632
 ComTrace.exe --search trace.etl --property Outer.Numbers[1] --equals 47
 ComTrace.exe --search trace.etl --property Outer.Inner.NestedCode --equals 1432778632
+ComTrace.exe --search trace.etl --property CustomField --equals hex:aabbccdd
+ComTrace.exe --search trace.etl --property CustomField --contains hex:bbcc
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
 
