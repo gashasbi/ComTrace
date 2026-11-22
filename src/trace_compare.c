@@ -987,6 +987,41 @@ static int lifetime_native_identity_sets_equal(
     return 1;
 }
 
+static int lifetime_activity_sets_equal(
+    const COMTRACE_LIFETIME_RECORD *left,
+    const COMTRACE_LIFETIME_RECORD *right
+)
+{
+    size_t index;
+    size_t other;
+
+    if (left->activity_id_count != right->activity_id_count) {
+        return 0;
+    }
+
+    for (index = 0U; index < left->activity_id_count; ++index) {
+        const COMTRACE_LIFETIME_ACTIVITY_ID *item =
+            &left->activity_ids[index];
+        for (other = 0U; other < right->activity_id_count; ++other) {
+            const COMTRACE_LIFETIME_ACTIVITY_ID *candidate =
+                &right->activity_ids[other];
+            if (item->has_activity_id == candidate->has_activity_id &&
+                item->has_related_activity_id == candidate->has_related_activity_id &&
+                (!item->has_activity_id ||
+                 memcmp(&item->activity_id, &candidate->activity_id, sizeof(GUID)) == 0) &&
+                (!item->has_related_activity_id ||
+                 memcmp(&item->related_activity_id, &candidate->related_activity_id, sizeof(GUID)) == 0)) {
+                break;
+            }
+        }
+        if (other == right->activity_id_count) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static ULONG compare_lifetime_record_fields(
     const COMTRACE_LIFETIME_RECORD *left,
     const COMTRACE_LIFETIME_RECORD *right
@@ -1007,6 +1042,7 @@ static ULONG compare_lifetime_record_fields(
         left->destroy_events != right->destroy_events ||
         left->release_zero_results != right->release_zero_results) changed_fields |= 0x8U;
     if (!lifetime_native_identity_sets_equal(left, right)) changed_fields |= 0x10U;
+    if (!lifetime_activity_sets_equal(left, right)) changed_fields |= 0x80U;
     if (left->has_initial_reference_count &&
         right->has_initial_reference_count &&
         left->initial_reference_count != right->initial_reference_count) {
@@ -1901,6 +1937,29 @@ static void write_json_lifetime_records(
             putwchar(L'"');
             print_guid_text(&record->interface_id);
             putwchar(L'"');
+        }
+        wprintf(L"], \"activity_ids\": [");
+        for (position = 0U; position < record->activity_id_count; ++position) {
+            const COMTRACE_LIFETIME_ACTIVITY_ID *activity =
+                &record->activity_ids[position];
+            wprintf(L"%ls{\\\"activity_id\\\": ",
+                position == 0U ? L"" : L", ");
+            if (activity->has_activity_id) {
+                putwchar(L'"');
+                print_guid_text(&activity->activity_id);
+                putwchar(L'"');
+            } else {
+                wprintf(L"null");
+            }
+            wprintf(L", \\"related_activity_id\\\": ");
+            if (activity->has_related_activity_id) {
+                putwchar(L'"');
+                print_guid_text(&activity->related_activity_id);
+                putwchar(L'"');
+            } else {
+                wprintf(L"null");
+            }
+            putwchar(L'}');
         }
         wprintf(L"], \"native_identities\": [");
         for (position = 0U; position < record->native_identity_count; ++position) {
