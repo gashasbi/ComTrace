@@ -12,7 +12,7 @@ The Windows build produces:
 
 Link the static library into one module in each process that implements the COM objects to be observed. Its object-instance counter is local to that linked module. If several DLLs in one process need instrumentation, route their calls through a shared wrapper in the module that owns this library; linking separate static copies can reuse the same instance IDs. Include `comtrace_lifetime.h`, call `comtrace_lifetime_initialize` once during application startup, and call `comtrace_lifetime_shutdown` after all tracked objects have finished emitting events.
 
-The four event operations are:
+The five event operations are:
 
 | API | Call site | TraceLogging event |
 |---|---|---|
@@ -70,7 +70,9 @@ Inspect the resulting trace with:
 ComTrace.exe --inspect trace.etl
 ```
 
-Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Explicit native bindings are displayed as `com_lifetime_native_object_id` and, when supplied, `com_lifetime_ipid`. Process ID and thread ID come from the ETW event header. Combine the process ID with the instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
+Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Explicit native bindings are displayed as `com_lifetime_native_object_id` and, when supplied, `com_lifetime_ipid`. Activity bindings are displayed as `activity_bindings`, `activity_id`, and `related_activity_id`. Process ID and thread ID come from the ETW event header. Combine the process ID with the instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
+
+The `--compare --json` output includes an `activity_ids` array on each lifetime record. A change in that set is reported in the lifetime object's `changed_fields` bit mask as `0x80`.
 
 The provider GUID is `{6F3B5E21-7C14-4A90-9D42-81316CE2A750}`. Its TraceLogging events carry their own metadata and are decoded by TDH without installing a separate event manifest.
 
@@ -87,6 +89,6 @@ The library does not infer lifetime from RPC call counts, RPCSS endpoint registr
 
 Inspect groups the four event types into an object instance keyed by process ID, process generation when resolvable, and `ObjectInstanceId`. Each record keeps the creation and explicit-destruction timestamps, AddRef and Release event counts, the initial and last observed reference-count values, and the observed CLSID/IID. Durations use the ETL trace clock and are shown in milliseconds when its frequency is available; otherwise raw ticks are shown.
 
-The relationship graph uses a distinct `COM_LIFETIME_OBJECT` node type. These nodes connect to their owning process generation, CLSID, and observed IID. They are deliberately separate from native OID-based COM object nodes because the application-generated instance ID is not an OID. When an explicit native identity binding is present, the graph adds a `lifetime_object_maps_to_native_object` edge and links any supplied IPID and IID. No such edge is created from heuristic CLSID/IID or timing matches.
+The relationship graph uses a distinct `COM_LIFETIME_OBJECT` node type. These nodes connect to their owning process generation, CLSID, observed IID, and any captured ETW ActivityId. They are deliberately separate from native OID-based COM object nodes because the application-generated instance ID is not an OID. When an explicit native identity binding is present, the graph adds a `lifetime_object_maps_to_native_object` edge and links any supplied IPID and IID. No such edge is created from heuristic CLSID/IID or timing matches.
 
 The timeline reports missing creation/destruction events, duplicate creation/destruction records, events after an explicit destruction, and Release-zero return observations without an explicit destruction event. A zero return value does not automatically mark an object destroyed. The explicit `ComObjectDestroyed` event remains the only lifetime end marker in this instrumentation model.
