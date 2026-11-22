@@ -48,6 +48,11 @@ static const COMTRACE_PROVIDER known_providers[] = {
         L"ComTrace.COMLifetime",
         L"ComTrace COM Lifetime Instrumentation",
         L"{6F3B5E21-7C14-4A90-9D42-81316CE2A750}"
+    },
+    {
+        L"ComTrace.DDE",
+        L"ComTrace DDE Instrumentation",
+        L"{7B6D4A21-9E35-4C80-A172-5394B6D80F21}"
     }
 };
 
@@ -64,7 +69,7 @@ static int run_self_test(void)
     size_t count = ARRAY_COUNT(known_providers);
     size_t index;
 
-    if (count != (size_t)6) {
+    if (count != (size_t)7) {
         fwprintf(stderr, L"Provider catalog size check failed.\n");
         return EXIT_FAILURE;
     }
@@ -227,7 +232,7 @@ static int list_providers(void)
     }
 
     wprintf(
-        L"\nFound %zu of %zu known COM/RPC ETW providers.\n",
+        L"\nFound %zu of %zu known COM/RPC/DDE ETW providers.\n",
         found_count,
         ARRAY_COUNT(known_providers)
     );
