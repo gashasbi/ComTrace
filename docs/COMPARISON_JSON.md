@@ -182,3 +182,9 @@ passed through the lifetime instrumentation API are included.
 Timestamps are emitted as raw ETW ticks. They are not compared across trace
 files because their clock origins may differ. A Release result of zero remains
 an observation; only an explicit destruction event marks an object destroyed.
+
+The lifetime_summary object also reports left and right totals for events_seen,
+native_identity_bind_events, events_without_creation, events_after_destruction,
+duplicate_creations, destructions_without_creation, and duplicate_destructions.
+These are observations from each trace and are not automatically interpreted
+as proof of a leak or invalid COM behavior.

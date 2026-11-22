@@ -1868,6 +1868,7 @@ static void write_json_lifetime_records(
         } else {
             wprintf(L"null");
         }
+        wprintf(L", \"created_ticks\": ");
         if (record->has_created) {
             wprintf(L"\"%llu\"", (unsigned long long)record->created_timestamp);
         } else {
