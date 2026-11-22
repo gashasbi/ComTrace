@@ -62,6 +62,21 @@ else()
     target_compile_options(ComTraceLifetimeInstrumentation PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+add_library(ComTraceDdeInstrumentation STATIC
+    src/dde_instrumentation.c
+)
+target_include_directories(ComTraceDdeInstrumentation PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(ComTraceDdeInstrumentation PUBLIC Advapi32)
+
+if(MSVC)
+    target_compile_options(ComTraceDdeInstrumentation PRIVATE /W4 /WX /wd5105 /utf-8)
+else()
+    target_compile_options(ComTraceDdeInstrumentation PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 add_executable(ComTraceComLifetimeFixture tests/com_lifetime_fixture.c)
 target_link_libraries(ComTraceComLifetimeFixture PRIVATE ComTraceLifetimeInstrumentation)
 
