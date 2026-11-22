@@ -48,6 +48,8 @@ static int expect_normalized_payload(
 static int test_payload_normalization(void)
 {
     BYTE counted_unicode[] = { 4U, 0U, 'T', 0U, 'e', 0U };
+    BYTE reversed_unicode[] = { 0U, 4U, 'O', 0U, 'K', 0U };
+    BYTE counted_ansi[] = { 3U, 0U, 'O', 'K', '!' };
     BYTE reversed_ansi[] = { 0U, 4U, 'T', 'e', 's', 't' };
     BYTE counted_binary[] = { 2U, 0U, 0xAAU, 0xBBU };
     BYTE hex_dump[] = { 4U, 0U, 0U, 0U, 0x11U, 0x22U, 0x33U, 0x44U };
@@ -59,6 +61,8 @@ static int test_payload_normalization(void)
         21U, 0U, 0U, 0U
     };
     static const BYTE expected_unicode[] = { 'T', 0U, 'e', 0U };
+    static const BYTE expected_reversed_unicode[] = { 'O', 0U, 'K', 0U };
+    static const BYTE expected_counted_ansi[] = { 'O', 'K', '!' };
     static const BYTE expected_ansi[] = { 'T', 'e', 's', 't' };
     static const BYTE expected_binary[] = { 0xAAU, 0xBBU };
     static const BYTE expected_hex[] = { 0x11U, 0x22U, 0x33U, 0x44U };
@@ -76,6 +80,26 @@ static int test_payload_normalization(void)
             2U,
             expected_unicode,
             (ULONG)sizeof(expected_unicode)
+        ) &&
+        expect_normalized_payload(
+            TDH_INTYPE_REVERSEDCOUNTEDSTRING,
+            reversed_unicode,
+            (ULONG)sizeof(reversed_unicode),
+            8U,
+            TDH_INTYPE_UNICODESTRING,
+            2U,
+            expected_reversed_unicode,
+            (ULONG)sizeof(expected_reversed_unicode)
+        ) &&
+        expect_normalized_payload(
+            TDH_INTYPE_COUNTEDANSISTRING,
+            counted_ansi,
+            (ULONG)sizeof(counted_ansi),
+            8U,
+            TDH_INTYPE_ANSISTRING,
+            2U,
+            expected_counted_ansi,
+            (ULONG)sizeof(expected_counted_ansi)
         ) &&
         expect_normalized_payload(
             TDH_INTYPE_REVERSEDCOUNTEDANSISTRING,
