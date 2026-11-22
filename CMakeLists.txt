@@ -21,6 +21,7 @@ add_executable(ComTrace
     src/event_record.c
     src/event_catalog.c
     src/com_identity.c
+    src/process_lifecycle.c
     src/com_timeline.c
     src/relationship_graph.c
     src/ole_timeline.c
@@ -144,6 +145,22 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_ole_timeline COMMAND ComTraceOleTimelineTests)
+
+    add_executable(ComTraceProcessLifecycleTests
+        tests/test_process_lifecycle.c
+        src/process_lifecycle.c
+        src/com_identity.c
+    )
+    target_include_directories(ComTraceProcessLifecycleTests PRIVATE src)
+    target_link_libraries(ComTraceProcessLifecycleTests PRIVATE Tdh Advapi32)
+
+    if(MSVC)
+        target_compile_options(ComTraceProcessLifecycleTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceProcessLifecycleTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(NAME comtrace_process_lifecycle COMMAND ComTraceProcessLifecycleTests)
 
     add_executable(ComTraceComIdentityTests
         tests/test_com_identity.c
