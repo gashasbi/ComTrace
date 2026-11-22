@@ -2784,6 +2784,20 @@ static int event_matches_filters(
 
     operation = NULL;
     phase = NULL;
+    if (context->filters.ole_only &&
+        !comtrace_classify_ole_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase
+        )) {
+        return 0;
+    }
+
+    operation = NULL;
+    phase = NULL;
     if (context->filters.has_class_id ||
         context->filters.has_interface_id ||
         context->filters.has_object_id) {
