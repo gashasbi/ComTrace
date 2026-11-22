@@ -71,7 +71,9 @@ static int same_node(
     DWORD process_id,
     DWORD thread_id,
     const GUID *guid,
-    ULONGLONG value
+    ULONGLONG value,
+    ULONGLONG process_generation,
+    BOOL has_process_generation
 )
 {
     if (left->type != type) {
@@ -80,10 +82,16 @@ static int same_node(
 
     switch (type) {
     case COMTRACE_GRAPH_NODE_PROCESS:
-        return left->process_id == process_id;
+        return left->process_id == process_id &&
+               left->has_process_generation == has_process_generation &&
+               (!has_process_generation ||
+                left->process_generation == process_generation);
     case COMTRACE_GRAPH_NODE_THREAD:
         return left->process_id == process_id &&
-               left->thread_id == thread_id;
+               left->thread_id == thread_id &&
+               left->has_process_generation == has_process_generation &&
+               (!has_process_generation ||
+                left->process_generation == process_generation);
     case COMTRACE_GRAPH_NODE_ACTIVITY:
     case COMTRACE_GRAPH_NODE_CLSID:
     case COMTRACE_GRAPH_NODE_IID:
@@ -94,19 +102,24 @@ static int same_node(
         return left->value == value;
     case COMTRACE_GRAPH_NODE_COM_OBJECT:
         return left->process_id == process_id &&
-               left->value == value;
+               left->value == value &&
+               left->has_process_generation == has_process_generation &&
+               (!has_process_generation ||
+                left->process_generation == process_generation);
     default:
         return 0;
     }
 }
 
-static COMTRACE_GRAPH_STATUS add_node(
+static COMTRACE_GRAPH_STATUS add_node_with_generation(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     COMTRACE_GRAPH_NODE_TYPE type,
     DWORD process_id,
     DWORD thread_id,
     const GUID *guid,
     ULONGLONG value,
+    ULONGLONG process_generation,
+    BOOL has_process_generation,
     size_t *index
 )
 {
@@ -120,7 +133,9 @@ static COMTRACE_GRAPH_STATUS add_node(
                 process_id,
                 thread_id,
                 guid,
-                value)) {
+                value,
+                process_generation,
+                has_process_generation)) {
             *index = current;
             return COMTRACE_GRAPH_SUCCESS;
         }
@@ -136,6 +151,8 @@ static COMTRACE_GRAPH_STATUS add_node(
     node->type = type;
     node->process_id = process_id;
     node->thread_id = thread_id;
+    node->process_generation = process_generation;
+    node->has_process_generation = has_process_generation;
     node->value = value;
 
     if (guid != NULL) {
@@ -145,6 +162,29 @@ static COMTRACE_GRAPH_STATUS add_node(
     ++graph->node_count;
     *index = current;
     return COMTRACE_GRAPH_SUCCESS;
+}
+
+static COMTRACE_GRAPH_STATUS add_node(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    COMTRACE_GRAPH_NODE_TYPE type,
+    DWORD process_id,
+    DWORD thread_id,
+    const GUID *guid,
+    ULONGLONG value,
+    size_t *index
+)
+{
+    return add_node_with_generation(
+        graph,
+        type,
+        process_id,
+        thread_id,
+        guid,
+        value,
+        0ULL,
+        FALSE,
+        index
+    );
 }
 
 static COMTRACE_GRAPH_STATUS add_edge(
@@ -236,6 +276,99 @@ static COMTRACE_GRAPH_STATUS add_thread(
     );
 }
 
+static COMTRACE_GRAPH_STATUS add_process_with_generation(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    DWORD process_id,
+    ULONGLONG process_generation,
+    BOOL has_process_generation,
+    size_t *index
+)
+{
+    return add_node_with_generation(
+        graph,
+        COMTRACE_GRAPH_NODE_PROCESS,
+        process_id,
+        0U,
+        NULL,
+        0ULL,
+        process_generation,
+        has_process_generation,
+        index
+    );
+}
+
+static COMTRACE_GRAPH_STATUS add_thread_with_generation(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    DWORD process_id,
+    DWORD thread_id,
+    ULONGLONG process_generation,
+    BOOL has_process_generation,
+    size_t *index
+)
+{
+    size_t process_index;
+    COMTRACE_GRAPH_STATUS status;
+
+    status = add_process_with_generation(
+        graph,
+        process_id,
+        process_generation,
+        has_process_generation,
+        &process_index
+    );
+    if (status != COMTRACE_GRAPH_SUCCESS) {
+        return status;
+    }
+
+    status = add_node_with_generation(
+        graph,
+        COMTRACE_GRAPH_NODE_THREAD,
+        process_id,
+        thread_id,
+        NULL,
+        0ULL,
+        process_generation,
+        has_process_generation,
+        index
+    );
+    if (status != COMTRACE_GRAPH_SUCCESS) {
+        return status;
+    }
+
+    return add_edge(
+        graph,
+        COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+        process_index,
+        *index
+    );
+}
+
+static void resolve_identity_process_generation(
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle,
+    const COMTRACE_COM_OBJECT_IDENTITY *identity,
+    DWORD process_id,
+    ULONGLONG *generation,
+    BOOL *has_generation
+)
+{
+    *generation = 0ULL;
+    *has_generation = FALSE;
+
+    if (process_lifecycle == NULL ||
+        identity == NULL ||
+        !identity->has_timestamp ||
+        process_id == 0U) {
+        return;
+    }
+
+    *has_generation = comtrace_process_lifecycle_resolve_generation(
+        process_lifecycle,
+        process_id,
+        identity->timestamp,
+        generation
+    );
+}
+
 static void record_identity_observation(
     COMTRACE_GRAPH_NODE *node,
     const COMTRACE_COM_OBJECT_IDENTITY *identity
@@ -271,7 +404,8 @@ static void record_identity_observation(
 
 static COMTRACE_GRAPH_STATUS add_call_relationship(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
-    const COMTRACE_COM_OBJECT_IDENTITY *identity
+    const COMTRACE_COM_OBJECT_IDENTITY *identity,
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle
 )
 {
     DWORD caller_process_id = 0U;
@@ -280,6 +414,10 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
     DWORD target_thread_id = 0U;
     DWORD event_process_id;
     DWORD event_thread_id;
+    ULONGLONG caller_generation = 0ULL;
+    ULONGLONG target_generation = 0ULL;
+    BOOL has_caller_generation = FALSE;
+    BOOL has_target_generation = FALSE;
     size_t call_index;
     size_t caller_process_index = (size_t)-1;
     size_t caller_thread_index = (size_t)-1;
@@ -331,6 +469,21 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
         caller_thread_id = event_thread_id;
     }
 
+    resolve_identity_process_generation(
+        process_lifecycle,
+        identity,
+        caller_process_id,
+        &caller_generation,
+        &has_caller_generation
+    );
+    resolve_identity_process_generation(
+        process_lifecycle,
+        identity,
+        target_process_id,
+        &target_generation,
+        &has_target_generation
+    );
+
     status = add_node(
         graph,
         COMTRACE_GRAPH_NODE_CALL,
@@ -345,16 +498,24 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
     }
 
     if (caller_process_id != 0U) {
-        status = add_process(graph, caller_process_id, &caller_process_index);
+        status = add_process_with_generation(
+            graph,
+            caller_process_id,
+            caller_generation,
+            has_caller_generation,
+            &caller_process_index
+        );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
 
         if (caller_thread_id != 0U) {
-            status = add_thread(
+            status = add_thread_with_generation(
                 graph,
                 caller_process_id,
                 caller_thread_id,
+                caller_generation,
+                has_caller_generation,
                 &caller_thread_index
             );
             if (status != COMTRACE_GRAPH_SUCCESS) {
@@ -364,16 +525,24 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
     }
 
     if (target_process_id != 0U) {
-        status = add_process(graph, target_process_id, &target_process_index);
+        status = add_process_with_generation(
+            graph,
+            target_process_id,
+            target_generation,
+            has_target_generation,
+            &target_process_index
+        );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
 
         if (target_thread_id != 0U) {
-            status = add_thread(
+            status = add_thread_with_generation(
                 graph,
                 target_process_id,
                 target_thread_id,
+                target_generation,
+                has_target_generation,
                 &target_thread_index
             );
             if (status != COMTRACE_GRAPH_SUCCESS) {
@@ -440,10 +609,11 @@ void comtrace_relationship_graph_destroy(COMTRACE_RELATIONSHIP_GRAPH *graph)
     ZeroMemory(graph, sizeof(*graph));
 }
 
-COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
+static COMTRACE_GRAPH_STATUS add_event_internal(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     const COMTRACE_COM_OBJECT_IDENTITY *identity,
-    const COMTRACE_ACTIVITY_IDS *activity_ids
+    const COMTRACE_ACTIVITY_IDS *activity_ids,
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle
 )
 {
     size_t current_process_index = (size_t)-1;
@@ -456,14 +626,32 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
     size_t iid_index;
     size_t ipid_index;
     DWORD object_process_id;
+    ULONGLONG current_process_generation = 0ULL;
+    ULONGLONG object_process_generation = 0ULL;
+    BOOL has_current_process_generation = FALSE;
+    BOOL has_object_process_generation = FALSE;
     COMTRACE_GRAPH_STATUS status;
 
     if (graph == NULL || identity == NULL) {
         return COMTRACE_GRAPH_INVALID_ARGUMENT;
     }
 
+    resolve_identity_process_generation(
+        process_lifecycle,
+        identity,
+        identity->has_process_id ? identity->process_id : 0U,
+        &current_process_generation,
+        &has_current_process_generation
+    );
+
     if (identity->has_process_id && identity->process_id != 0U) {
-        status = add_process(graph, identity->process_id, &current_process_index);
+        status = add_process_with_generation(
+            graph,
+            identity->process_id,
+            current_process_generation,
+            has_current_process_generation,
+            &current_process_index
+        );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
@@ -471,10 +659,12 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
 
     if (identity->has_process_id && identity->process_id != 0U &&
         identity->has_thread_id && identity->thread_id != 0U) {
-        status = add_thread(
+        status = add_thread_with_generation(
             graph,
             identity->process_id,
             identity->thread_id,
+            current_process_generation,
+            has_current_process_generation,
             &current_thread_index
         );
         if (status != COMTRACE_GRAPH_SUCCESS) {
@@ -569,7 +759,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
     }
 
     if (identity->has_call_trace_id) {
-        status = add_call_relationship(graph, identity);
+        status = add_call_relationship(graph, identity, process_lifecycle);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
@@ -645,21 +835,37 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             ? identity->process_id
             : 0U);
 
+    resolve_identity_process_generation(
+        process_lifecycle,
+        identity,
+        object_process_id,
+        &object_process_generation,
+        &has_object_process_generation
+    );
+
     if (identity->has_oid && object_process_id != 0U) {
         size_t owner_process_index;
 
-        status = add_process(graph, object_process_id, &owner_process_index);
+        status = add_process_with_generation(
+            graph,
+            object_process_id,
+            object_process_generation,
+            has_object_process_generation,
+            &owner_process_index
+        );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
 
-        status = add_node(
+        status = add_node_with_generation(
             graph,
             COMTRACE_GRAPH_NODE_COM_OBJECT,
             object_process_id,
             0U,
             NULL,
             identity->oid,
+            object_process_generation,
+            has_object_process_generation,
             &object_index
         );
         if (status != COMTRACE_GRAPH_SUCCESS) {
@@ -729,6 +935,31 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
     }
 
     return COMTRACE_GRAPH_SUCCESS;
+}
+
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event_with_lifecycle(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    const COMTRACE_COM_OBJECT_IDENTITY *identity,
+    const COMTRACE_ACTIVITY_IDS *activity_ids,
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle
+)
+{
+    return add_event_internal(
+        graph,
+        identity,
+        activity_ids,
+        process_lifecycle
+    );
+}
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    const COMTRACE_COM_OBJECT_IDENTITY *identity,
+    const COMTRACE_ACTIVITY_IDS *activity_ids
+)
+{
+    return add_event_internal(graph, identity, activity_ids, NULL);
 }
 
 size_t comtrace_relationship_graph_node_count(
