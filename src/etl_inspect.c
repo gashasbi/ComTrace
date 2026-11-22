@@ -99,28 +99,10 @@ static int parse_sample_limit(const wchar_t *text, ULONG *limit)
 
 static void print_timestamp(const EVENT_RECORD *event_record)
 {
-    FILETIME file_time;
-    SYSTEMTIME system_time;
-    ULONGLONG ticks;
-
-    ticks = (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
-    file_time.dwLowDateTime = (DWORD)(ticks & 0xffffffffULL);
-    file_time.dwHighDateTime = (DWORD)(ticks >> 32U);
-
-    if (FileTimeToSystemTime(&file_time, &system_time)) {
-        wprintf(
-            L"%04u-%02u-%02uT%02u:%02u:%02u.%03uZ",
-            (unsigned int)system_time.wYear,
-            (unsigned int)system_time.wMonth,
-            (unsigned int)system_time.wDay,
-            (unsigned int)system_time.wHour,
-            (unsigned int)system_time.wMinute,
-            (unsigned int)system_time.wSecond,
-            (unsigned int)system_time.wMilliseconds
-        );
-    } else {
-        wprintf(L"(timestamp unavailable)");
-    }
+    wprintf(
+        L"%lld",
+        (long long)event_record->EventHeader.TimeStamp.QuadPart
+    );
 }
 
 static int read_event_property_count(
@@ -1937,7 +1919,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     ++context->sampled_events;
 
     wprintf(
-        L"sample=%lu time=",
+        L"sample=%lu time_ticks="
         (unsigned long)context->sampled_events
     );
     print_timestamp(owned_event);
@@ -2046,7 +2028,9 @@ static int inspect_etl_internal(
     }
 
     logfile.LogFileName = (LPWSTR)etl_path;
-    logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
+    logfile.ProcessTraceMode =
+        PROCESS_TRACE_MODE_EVENT_RECORD |
+        PROCESS_TRACE_MODE_RAW_TIMESTAMP;
     logfile.EventRecordCallback = inspect_event_callback;
     logfile.Context = &context;
 
