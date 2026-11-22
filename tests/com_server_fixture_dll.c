@@ -20,25 +20,21 @@ static volatile LONG factory_refs;
 static volatile LONG object_count;
 static volatile LONG server_locks;
 
-static HRESULT provider_register(void)
+static HRESULT provider_register_locked(void)
 {
  ULONG status = ERROR_SUCCESS;
- AcquireSRWLockExclusive(&provider_lock);
  if (!provider_ready) {
   status = comtrace_lifetime_initialize();
   if (status == ERROR_SUCCESS) provider_ready = 1;
  }
- ReleaseSRWLockExclusive(&provider_lock);
  return status == ERROR_SUCCESS ? S_OK : HRESULT_FROM_WIN32(status);
 }
-static void provider_unregister_if_idle(void)
+static void provider_unregister_if_idle_locked(void)
 {
- AcquireSRWLockExclusive(&provider_lock);
  if (!object_count && !factory_refs && !server_locks && provider_ready) {
   provider_ready = 0;
   comtrace_lifetime_shutdown();
  }
- ReleaseSRWLockExclusive(&provider_lock);
 }
 static void object_destroy(FIXTURE_OBJECT *o)
 {
@@ -161,24 +157,40 @@ static IClassFactory class_factory = {&factory_vtable};
 
 static HRESULT STDMETHODCALLTYPE factory_query(IClassFactory *s, REFIID iid, void **r)
 {
+ HRESULT status;
  if (iid == NULL || r == NULL) return E_POINTER;
  *r = NULL;
  if (!IsEqualIID(iid, &IID_IUnknown) && !IsEqualIID(iid, &IID_IClassFactory)) return E_NOINTERFACE;
- *r = s;
- (void)factory_addref(s);
- return S_OK;
+ AcquireSRWLockExclusive(&provider_lock);
+ status = provider_register_locked();
+ if (SUCCEEDED(status)) {
+  (void)InterlockedIncrement(&factory_refs);
+  *r = s;
+ }
+ ReleaseSRWLockExclusive(&provider_lock);
+ return status;
 }
 static ULONG STDMETHODCALLTYPE factory_addref(IClassFactory *s)
 {
+ LONG count;
  (void)s;
- return (ULONG)InterlockedIncrement(&factory_refs);
+ AcquireSRWLockExclusive(&provider_lock);
+ count = InterlockedIncrement(&factory_refs);
+ ReleaseSRWLockExclusive(&provider_lock);
+ return (ULONG)count;
 }
 static ULONG STDMETHODCALLTYPE factory_release(IClassFactory *s)
 {
  LONG count;
  (void)s;
+ AcquireSRWLockExclusive(&provider_lock);
  count = InterlockedDecrement(&factory_refs);
- return count < 0 ? 0U : (ULONG)count;
+ if (count < 0) {
+  InterlockedExchange(&factory_refs, 0);
+  count = 0;
+ }
+ ReleaseSRWLockExclusive(&provider_lock);
+ return (ULONG)count;
 }
 static HRESULT STDMETHODCALLTYPE factory_create(IClassFactory *s, IUnknown *outer, REFIID iid, void **r)
 {
@@ -214,28 +226,34 @@ static HRESULT STDMETHODCALLTYPE factory_lock(IClassFactory *s, BOOL lock)
 {
  LONG count;
  (void)s;
+ AcquireSRWLockExclusive(&provider_lock);
  count = lock ? InterlockedIncrement(&server_locks) : InterlockedDecrement(&server_locks);
  if (count < 0) {
   InterlockedExchange(&server_locks, 0);
+  ReleaseSRWLockExclusive(&provider_lock);
   return E_UNEXPECTED;
  }
+ ReleaseSRWLockExclusive(&provider_lock);
  return S_OK;
 }
 HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID clsid, REFIID iid, void **r)
 {
- HRESULT status;
  if (clsid == NULL || iid == NULL || r == NULL) return E_POINTER;
  *r = NULL;
  if (!IsEqualCLSID(clsid, &COMTRACE_FIXTURE_CLSID)) return CLASS_E_CLASSNOTAVAILABLE;
- status = provider_register();
- if (FAILED(status)) return status;
  return factory_query(&class_factory, iid, r);
 }
 HRESULT STDAPICALLTYPE DllCanUnloadNow(void)
 {
+ HRESULT status = S_OK;
+ AcquireSRWLockExclusive(&provider_lock);
  if (InterlockedCompareExchange(&object_count,0,0) != 0 ||
      InterlockedCompareExchange(&factory_refs,0,0) != 0 ||
-     InterlockedCompareExchange(&server_locks,0,0) != 0) return S_FALSE;
- provider_unregister_if_idle();
- return S_OK;
+     InterlockedCompareExchange(&server_locks,0,0) != 0) {
+  status = S_FALSE;
+ } else {
+  provider_unregister_if_idle_locked();
+ }
+ ReleaseSRWLockExclusive(&provider_lock);
+ return status;
 }
