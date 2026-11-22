@@ -1574,7 +1574,7 @@ static void print_event_property_value(
         ULONG nested_property_indices[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
 
         if (parent_count >= COMTRACE_ETL_MAX_PROPERTY_DEPTH) {
-            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_depth_limit\n", (unsigned long)index, name);
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_depth_limit\n", (unsigned long)index, display_name);
             return;
         }
         if (member_start > property_count || member_count > property_count - member_start) {
