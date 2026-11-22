@@ -4426,63 +4426,27 @@ static int event_property_matches_filter(
     ULONG pointer_size
 )
 {
-    ULONG buffer_size = 0U;
-    ULONG allocated_size;
-    ULONG status;
-    ULONG available_count;
-    ULONG index;
-    BYTE *buffer = NULL;
+    COMTRACE_ETL_EVENT_INFO decoded_info;
+    COMTRACE_ETL_EVENT_INFO_STATUS info_status;
     TRACE_EVENT_INFO *event_info;
-    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+    const BYTE *buffer;
+    ULONG buffer_size;
+    ULONG index;
     const wchar_t *const no_parent_names[1] = { NULL };
     const ULONG no_parent_indices[1] = { 0xFFFFFFFFUL };
     const wchar_t *separator;
     size_t root_name_length;
     int matched = 0;
 
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        NULL,
-        &buffer_size
-    );
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        buffer_size < property_offset ||
-        buffer_size > 65536U) {
+    ZeroMemory(&decoded_info, sizeof(decoded_info));
+    info_status = comtrace_etl_event_info_open(event_record, &decoded_info);
+    if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
         return 0;
     }
 
-    allocated_size = buffer_size;
-    buffer = (BYTE *)malloc(buffer_size);
-    if (buffer == NULL) {
-        return 0;
-    }
-
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        (PTRACE_EVENT_INFO)buffer,
-        &buffer_size
-    );
-    if (status != ERROR_SUCCESS ||
-        buffer_size < property_offset ||
-        buffer_size > allocated_size) {
-        free(buffer);
-        return 0;
-    }
-
-    event_info = (TRACE_EVENT_INFO *)buffer;
-    available_count = (ULONG)(
-        (buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO)
-    );
-    if (event_info->PropertyCount > available_count ||
-        event_info->TopLevelPropertyCount > event_info->PropertyCount) {
-        free(buffer);
-        return 0;
-    }
-
+    event_info = decoded_info.info;
+    buffer = decoded_info.buffer;
+    buffer_size = decoded_info.size;
     separator = wcschr(filters->property_name, L'.');
     root_name_length = separator == NULL
         ? wcslen(filters->property_name)
@@ -4519,7 +4483,7 @@ static int event_property_matches_filter(
                     pointer_size
                 );
             }
-        } else if (separator[1] != L'\0') {
+        } else if (separator[1] != L'\\0') {
             matched = event_struct_property_matches(
                 event_record,
                 buffer,
@@ -4540,9 +4504,10 @@ static int event_property_matches_filter(
         break;
     }
 
-    free(buffer);
+    comtrace_etl_event_info_close(&decoded_info);
     return matched;
 }
+
 static int event_matches_filters(
     const ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
