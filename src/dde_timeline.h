@@ -27,6 +27,7 @@ typedef struct {
     COMTRACE_DDE_TIMELINE_EVENT_TYPE type;
     DWORD process_id;
     DWORD thread_id;
+    ULONG dde_instance_id;
     ULONGLONG timestamp;
     ULONGLONG conversation_id;
     ULONGLONG conversation_correlation_id;
@@ -48,6 +49,7 @@ typedef struct {
 typedef struct {
     DWORD process_id;
     DWORD thread_id;
+    ULONG dde_instance_id;
     ULONGLONG conversation_id;
     ULONGLONG conversation_correlation_id;
     ULONGLONG transaction_instance_id;
