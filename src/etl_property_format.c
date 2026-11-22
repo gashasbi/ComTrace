@@ -128,9 +128,15 @@ int comtrace_etl_print_tdh_formatted_property(
         return 0;
     }
 
-    property_length = property->length;
-    if (property_length == 0U || property_length > value_size) {
+    if ((property->Flags & PropertyParamLength) != 0U) {
         property_length = (USHORT)value_size;
+    } else if ((property->Flags & PropertyParamFixedLength) != 0U) {
+        property_length = property->length;
+    } else {
+        property_length = property->length;
+        if (property_length == 0U || property_length > value_size) {
+            property_length = (USHORT)value_size;
+        }
     }
     user_data_length = (USHORT)value_size;
 
