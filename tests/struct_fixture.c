@@ -33,7 +33,7 @@ int wmain(int argc, wchar_t **argv)
     REGHANDLE registration_handle = 0;
     GUID nested_provider_id;
     int tracelogging_registered = 0;
-    EVENT_DATA_DESCRIPTOR descriptors[9];
+    EVENT_DATA_DESCRIPTOR descriptors[13];
     USHORT values_count = 2U;
     ULONG first_code = 0x11223344UL;
     USHORT first_status = 0x5566U;
@@ -43,6 +43,10 @@ int wmain(int argc, wchar_t **argv)
     USHORT fixed_first_status = 0x1234U;
     ULONG fixed_second_code = 0x10203040UL;
     USHORT fixed_second_status = 0x5678U;
+    ULONG inner_first_code = 0xAABBCCDDUL;
+    ULONG inner_second_code = 0x1122AABBUL;
+    ULONG outer_first_number = 31UL;
+    ULONG outer_second_number = 47UL;
     int result = 1;
 
     if (argc != 2) {
@@ -118,7 +122,11 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&descriptors[6], &fixed_first_status, sizeof(fixed_first_status));
     EventDataDescCreate(&descriptors[7], &fixed_second_code, sizeof(fixed_second_code));
     EventDataDescCreate(&descriptors[8], &fixed_second_status, sizeof(fixed_second_status));
-    status = EventWrite(registration_handle, &StructEvent, 9U, descriptors);
+    EventDataDescCreate(&descriptors[9], &inner_first_code, sizeof(inner_first_code));
+    EventDataDescCreate(&descriptors[10], &inner_second_code, sizeof(inner_second_code));
+    EventDataDescCreate(&descriptors[11], &outer_first_number, sizeof(outer_first_number));
+    EventDataDescCreate(&descriptors[12], &outer_second_number, sizeof(outer_second_number));
+    status = EventWrite(registration_handle, &StructEvent, 13U, descriptors);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteStructEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;

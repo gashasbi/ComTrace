@@ -37,6 +37,7 @@ typedef struct {
     BOOL has_property_name;
     BOOL has_property_index;
     BOOL property_index_on_struct;
+    ULONG property_index_component;
     ULONG property_index;
     BOOL has_property_value;
     COMTRACE_PROPERTY_MATCH_MODE property_match_mode;

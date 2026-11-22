@@ -521,8 +521,8 @@ static int run_etl_search(int argc, wchar_t **argv)
                     dot = wcschr(argument, L'.');
                     suffix = close_bracket == NULL ? NULL : close_bracket + 1;
                     if (name_length == 0U ||
+                        open_bracket[-1] == L'.' ||
                         close_bracket == NULL ||
-                        (dot != NULL && dot < open_bracket) ||
                         wcschr(close_bracket + 1, L'[') != NULL ||
                         (suffix[0] != L'\0' && suffix[0] != L'.') ||
                         (suffix[0] == L'.' && suffix[1] == L'\0')) {
@@ -531,8 +531,17 @@ static int run_etl_search(int argc, wchar_t **argv)
                     }
 
                     if (suffix[0] == L'.') {
+                        const wchar_t *component;
+
                         suffix_length = wcslen(suffix);
                         filters.property_index_on_struct = TRUE;
+                        for (component = argument;
+                             component < open_bracket;
+                             ++component) {
+                            if (*component == L'.') {
+                                ++filters.property_index_component;
+                            }
+                        }
                     }
 
                     if (name_length + suffix_length >= _countof(filters.property_name)) {

@@ -11,6 +11,7 @@ ComTrace.exe --search trace.etl --property Text --equals Hello
 ComTrace.exe --search trace.etl --property Text --contains ell
 ComTrace.exe --search trace.etl --property Values[1] --equals 22
 ComTrace.exe --search trace.etl --property Values[1].Code --equals 1432778632
+ComTrace.exe --search trace.etl --property Outer.Inner[1].NestedCode --equals 287484603
 ComTrace.exe --search trace.etl --property Outer.Inner.NestedCode --equals 1432778632
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
@@ -37,9 +38,10 @@ lifetime ID, and Activity ID filters using AND semantics.
 
 The property can be a top-level scalar, an indexed element of a top-level
 array, or a scalar member reached through dot notation in a non-array struct.
-For example, `Outer.Inner.Code` selects a nested member. Indexed members of top-level struct arrays are supported, for example
-`Values[1].Code`. Arrays of nested structs and arrays inside struct parents are
-not currently supported. An array property
+For example, `Outer.Inner.Code` selects a nested member. One array index can be used at any level of a property path, including nested
+struct arrays and arrays inside struct parents. Examples include
+`Values[1].Code` and `Outer.Inner[1].NestedCode`. Multiple array indices in one
+property path are not currently supported. An array property
 without an index is not matched.
 Supported values include:
 

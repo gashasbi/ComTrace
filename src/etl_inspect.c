@@ -3874,10 +3874,12 @@ static int event_struct_property_matches(
     }
 
     if ((property->Flags & (PropertyParamCount | PropertyParamFixedCount)) != 0U) {
-        if (parent_count != 0U || !filters->property_index_on_struct) {
+        if (!filters->property_index_on_struct ||
+            parent_count != filters->property_index_component) {
             return 0;
         }
-    } else if (parent_count == 0U && filters->property_index_on_struct) {
+    } else if (filters->property_index_on_struct &&
+               parent_count == filters->property_index_component) {
         return 0;
     }
 
@@ -3894,7 +3896,8 @@ static int event_struct_property_matches(
     }
     nested_names[parent_count] = name;
     nested_indices[parent_count] =
-        parent_count == 0U && filters->property_index_on_struct
+        filters->property_index_on_struct &&
+        parent_count == filters->property_index_component
             ? filters->property_index
             : 0xFFFFFFFFUL;
 
