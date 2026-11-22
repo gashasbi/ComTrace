@@ -1,6 +1,7 @@
 #include "dde_timeline.h"
 
 #include <stdio.h>
+#include <wchar.h>
 
 static int test_conversation_and_transaction_lifecycle(void)
 {
