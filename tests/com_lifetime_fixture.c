@@ -317,9 +317,20 @@ int wmain(int argc, wchar_t **argv)
         (void)HeapFree(GetProcessHeap(), 0U, properties);
         properties = NULL;
 
+        comtrace_lifetime_shutdown();
+        provider_registered = FALSE;
+
         if (!start_trace_session(second_etl_path, &trace_handle, &properties)) {
             goto cleanup;
         }
+
+        status = comtrace_lifetime_initialize();
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"TraceLogging re-registration failed: %lu\\n",
+                (unsigned long)status);
+            goto cleanup;
+        }
+        provider_registered = TRUE;
     }
 
     if (alternate) {
