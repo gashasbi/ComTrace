@@ -601,7 +601,13 @@ static void print_event_property_value_element(
             goto cleanup;
         }
         CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%ld\n", number);
+        if (is_hex_output_type(out_type)) {
+            ULONG bits;
+            CopyMemory(&bits, value, sizeof(bits));
+            wprintf(L"value=0x%08lX\n", bits);
+        } else {
+            wprintf(L"value=%ld\n", number);
+        }
         goto cleanup;
     }
 
@@ -2807,7 +2813,6 @@ static int compare_search_numbers(
     switch (in_type) {
     case TDH_INTYPE_INT8:
     case TDH_INTYPE_INT16:
-    case TDH_INTYPE_INT32:
     case TDH_INTYPE_INT64: {
         long long actual_value;
         long long expected_value;
@@ -2829,6 +2834,51 @@ static int compare_search_numbers(
         *comparison = actual_value < expected_value ? -1 :
             (actual_value > expected_value ? 1 : 0);
         return 1;
+    }
+    case TDH_INTYPE_INT32: {
+        if (is_hex_output_type(out_type)) {
+            unsigned long long actual_value;
+            unsigned long long expected_value;
+
+            errno = 0;
+            actual_value = wcstoull(actual, &actual_end, 16);
+            if (errno == ERANGE || actual_end == actual ||
+                actual_end == NULL || *actual_end != L'\0') {
+                return 0;
+            }
+
+            errno = 0;
+            expected_value = wcstoull(expected, &expected_end, 16);
+            if (errno == ERANGE || expected_end == expected ||
+                expected_end == NULL || *expected_end != L'\0') {
+                return 0;
+            }
+
+            *comparison = actual_value < expected_value ? -1 :
+                (actual_value > expected_value ? 1 : 0);
+            return 1;
+        } else {
+            long long actual_value;
+            long long expected_value;
+
+            errno = 0;
+            actual_value = wcstoll(actual, &actual_end, 10);
+            if (errno == ERANGE || actual_end == actual ||
+                actual_end == NULL || *actual_end != L'\0') {
+                return 0;
+            }
+
+            errno = 0;
+            expected_value = wcstoll(expected, &expected_end, 10);
+            if (errno == ERANGE || expected_end == expected ||
+                expected_end == NULL || *expected_end != L'\0') {
+                return 0;
+            }
+
+            *comparison = actual_value < expected_value ? -1 :
+                (actual_value > expected_value ? 1 : 0);
+            return 1;
+        }
     }
     case TDH_INTYPE_UINT8:
     case TDH_INTYPE_UINT16:
@@ -3113,7 +3163,13 @@ static int format_search_property_value(
         int32_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
-        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%ld", (long)number);
+        if (is_hex_output_type(out_type)) {
+            uint32_t bits;
+            CopyMemory(&bits, value, sizeof(bits));
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%08X", (unsigned int)bits);
+        } else {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%ld", (long)number);
+        }
         return 1;
     }
     case TDH_INTYPE_UINT32: {
