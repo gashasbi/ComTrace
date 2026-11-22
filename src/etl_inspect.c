@@ -13,6 +13,8 @@
 #include <wchar.h>
 #include <sddl.h>
 #include "etl_inspect.h"
+
+#define COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES 64U
 #include "etl_value.h"
 #include "com_event.h"
 #include "ole_event.h"
@@ -1012,10 +1014,14 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
                 (unsigned int)output_type
             );
         }
-        if (index < 16U) {
+        if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
             print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, 0U);
-        } else if (index == 16U) {
-            wprintf(L"  payload_value_limit=16 remaining=%lu\n" , (unsigned long)(top_level_property_count - 16U));
+        } else if (index == COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
+            wprintf(
+                L"  payload_value_limit=%lu remaining=%lu\n",
+                (unsigned long)COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES,
+                (unsigned long)(top_level_property_count - COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES)
+            );
         }
     }
 
