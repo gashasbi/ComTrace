@@ -920,6 +920,8 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
     size_t object_index;
     size_t class_index = (size_t)-1;
     size_t interface_index = (size_t)-1;
+    size_t activity_index = (size_t)-1;
+    size_t related_activity_index = (size_t)-1;
     COMTRACE_GRAPH_STATUS status;
 
     if (graph == NULL ||
@@ -1047,6 +1049,75 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
         );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
+        }
+    }
+
+    {
+        size_t position;
+
+        for (position = 0U; position < record->activity_id_count; ++position) {
+            const COMTRACE_LIFETIME_ACTIVITY_ID *activity =
+                &record->activity_ids[position];
+
+            activity_index = (size_t)-1;
+            related_activity_index = (size_t)-1;
+
+            if (activity->has_activity_id) {
+                status = add_node(
+                    graph,
+                    COMTRACE_GRAPH_NODE_ACTIVITY,
+                    0U,
+                    0U,
+                    &activity->activity_id,
+                    0ULL,
+                    &activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+
+                status = add_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_ACTIVITY,
+                    object_index,
+                    activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+            }
+
+            if (activity->has_related_activity_id) {
+                status = add_node(
+                    graph,
+                    COMTRACE_GRAPH_NODE_ACTIVITY,
+                    0U,
+                    0U,
+                    &activity->related_activity_id,
+                    0ULL,
+                    &related_activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+
+                if (activity->has_activity_id &&
+                    memcmp(
+                        &activity->activity_id,
+                        &activity->related_activity_id,
+                        sizeof(GUID)
+                    ) != 0) {
+                    status = add_edge(
+                        graph,
+                        COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO,
+                        activity_index,
+                        related_activity_index
+                    );
+                    if (status != COMTRACE_GRAPH_SUCCESS) {
+                        return status;
+                    }
+                }
+            }
         }
     }
 
