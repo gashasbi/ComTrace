@@ -426,8 +426,8 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
 {
     size_t current_process_index = (size_t)-1;
     size_t current_thread_index = (size_t)-1;
-    size_t activity_index;
-    size_t related_activity_index;
+    size_t activity_index = (size_t)-1;
+    size_t related_activity_index = (size_t)-1;
     size_t call_index;
     size_t object_index;
     size_t class_index;
