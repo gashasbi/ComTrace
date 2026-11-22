@@ -57,6 +57,8 @@ string(JSON change_count LENGTH "${compare_output}" object_lifetime_changes)
 string(JSON changed_fields GET "${compare_output}" object_lifetime_changes 0 changed_fields)
 string(JSON right_interface_count LENGTH "${compare_output}" object_lifetimes right 0 interface_ids)
 string(JSON right_native_count LENGTH "${compare_output}" object_lifetimes right 0 native_identities)
+string(JSON right_activity_count LENGTH "${compare_output}" object_lifetimes right 0 activity_ids)
+string(JSON right_activity_id GET "${compare_output}" object_lifetimes right 0 activity_ids 0 activity_id)
 string(JSON right_native_object_id GET "${compare_output}" object_lifetimes right 0 native_identities 0 native_object_id)
 string(JSON right_native_ipid GET "${compare_output}" object_lifetimes right 0 native_identities 0 ipid)
 string(JSON right_initial_reference_type TYPE "${compare_output}" object_lifetimes right 0 initial_reference_count)
@@ -70,7 +72,7 @@ if(NOT changed_objects EQUAL 1 OR
    NOT added_objects EQUAL 0 OR
    NOT removed_objects EQUAL 0 OR
    NOT change_count EQUAL 1 OR
-   NOT changed_fields STREQUAL "0x5e" OR
+   NOT changed_fields STREQUAL "0xde" OR
    NOT right_initial_reference_type STREQUAL "NULL" OR
    NOT right_last_reference_count EQUAL 0 OR
    NOT right_observation_count EQUAL 5 OR
@@ -80,9 +82,11 @@ if(NOT changed_objects EQUAL 1 OR
    NOT right_destructions_without_creation EQUAL 1 OR
    NOT right_interface_count EQUAL 2 OR
    NOT right_native_count EQUAL 1 OR
+   NOT right_activity_count EQUAL 1 OR
+   right_activity_id STREQUAL "null" OR
    NOT right_native_object_id STREQUAL "0xabcdef0123456789" OR
    NOT right_native_ipid STREQUAL "{4A8D9FA4-5C7E-40B6-C439-5A7D8E9FA0B1}")
     message(FATAL_ERROR "Lifetime object differences were not reported correctly: ${compare_output}")
 endif()
 
-message(STATUS "COM lifetime comparison detected interface, lifecycle-count, and native identity changes.")
+message(STATUS "COM lifetime comparison detected interface, lifecycle-count, native identity, and ActivityId changes.")
