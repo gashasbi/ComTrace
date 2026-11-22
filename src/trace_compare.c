@@ -140,10 +140,11 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
         activity_ids_ptr = &activity_ids;
     }
 
-    if (comtrace_relationship_graph_add_event(
+    if (comtrace_relationship_graph_add_event_with_lifecycle(
             &summary->relationship_graph,
             &identity,
-            activity_ids_ptr
+            activity_ids_ptr,
+            &summary->process_lifecycle
         ) != COMTRACE_GRAPH_SUCCESS) {
         return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
     }
