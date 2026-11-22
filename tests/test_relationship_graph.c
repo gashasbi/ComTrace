@@ -60,6 +60,47 @@ static int has_process_call_direction(
     return 0;
 }
 
+static int has_thread_call_direction(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph,
+    COMTRACE_GRAPH_EDGE_TYPE edge_type,
+    DWORD process_id,
+    DWORD thread_id,
+    ULONGLONG call_trace_id
+)
+{
+    size_t index;
+
+    for (index = 0U; index < graph->edge_count; ++index) {
+        const COMTRACE_GRAPH_EDGE *edge = &graph->edges[index];
+        const COMTRACE_GRAPH_NODE *thread;
+        const COMTRACE_GRAPH_NODE *call;
+
+        if (edge->type != edge_type) {
+            continue;
+        }
+
+        if (edge_type == COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL) {
+            thread = comtrace_relationship_graph_get_node(graph, edge->source_index);
+            call = comtrace_relationship_graph_get_node(graph, edge->target_index);
+        } else {
+            call = comtrace_relationship_graph_get_node(graph, edge->source_index);
+            thread = comtrace_relationship_graph_get_node(graph, edge->target_index);
+        }
+
+        if (thread != NULL &&
+            call != NULL &&
+            thread->type == COMTRACE_GRAPH_NODE_THREAD &&
+            thread->process_id == process_id &&
+            thread->thread_id == thread_id &&
+            call->type == COMTRACE_GRAPH_NODE_CALL &&
+            call->value == call_trace_id) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int test_client_server_graph(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -140,6 +181,59 @@ static int test_client_server_graph(void)
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_THREAD) != 2U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_CALL) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS) != 1U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
+static int test_explicit_source_and_target_processes(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+
+    identity.process_id = 999U;
+    identity.thread_id = 99U;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.source_process_id = 100U;
+    identity.source_thread_id = 10U;
+    identity.has_source_process_id = TRUE;
+    identity.has_source_thread_id = TRUE;
+    identity.target_process_id = 200U;
+    identity.target_thread_id = 20U;
+    identity.has_target_process_id = TRUE;
+    identity.has_target_thread_id = TRUE;
+    identity.call_trace_id = 0xAABBCCDDEEFF0011ULL;
+    identity.has_call_trace_id = TRUE;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_PROCESS) != 3U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_THREAD) != 3U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS) != 1U ||
+        !has_process_call_direction(&graph, 100U, 200U) ||
+        has_process_call_direction(&graph, 999U, 200U) ||
+        has_process_call_direction(&graph, 100U, 999U) ||
+        !has_thread_call_direction(
+            &graph,
+            COMTRACE_GRAPH_EDGE_THREAD_INITIATES_CALL,
+            100U,
+            10U,
+            identity.call_trace_id
+        ) ||
+        !has_thread_call_direction(
+            &graph,
+            COMTRACE_GRAPH_EDGE_CALL_TARGETS_THREAD,
+            200U,
+            20U,
+            identity.call_trace_id
+        )) {
         comtrace_relationship_graph_destroy(&graph);
         return 0;
     }
@@ -445,6 +539,7 @@ static int test_missing_relationship_fields(void)
 int main(void)
 {
     if (!test_client_server_graph() ||
+        !test_explicit_source_and_target_processes() ||
         !test_interface_without_object_id() ||
         !test_oid_without_known_process() ||
         !test_related_activity_without_activity() ||
