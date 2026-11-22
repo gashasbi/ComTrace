@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 
 const wchar_t *comtrace_etl_input_type_name(USHORT in_type)
