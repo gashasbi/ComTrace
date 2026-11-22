@@ -1,0 +1,44 @@
+# DDE Instrumentation
+
+ComTrace provides an opt-in DDE instrumentation provider through the **ComTraceDdeInstrumentation** static library and **include/comtrace_dde.h**.
+
+This is application instrumentation, not a system-wide DDEML hook. ComTrace does not automatically observe arbitrary calls to DdeConnect, DdeClientTransaction, or other DDEML functions. Applications that own the DDE client/server code call the instrumentation API at the corresponding lifecycle points.
+
+## Capture
+
+ComTrace.exe --capture enables the **ComTrace.DDE** provider. The provider is also listed by ComTrace.exe --providers when registered by an instrumented process.
+
+Link the static library and include comtrace_dde.h. Call comtrace_dde_initialize before emitting events and pair each successful initialization with comtrace_dde_shutdown. Initialization is reference-counted and event writes are synchronized with shutdown.
+
+## Identifiers
+
+The library generates process-local identifiers for conversations and transaction instances:
+
+- **ConversationId** identifies one local DDEML conversation.
+- **TransactionInstanceId** identifies one local transaction start and completion pair.
+- **DdeInstanceId** identifies the application's DDEML instance.
+- **ConversationCorrelationId** is supplied by the application and connects client and server conversation records.
+- **TransactionCorrelationId** is supplied by the application and connects a client transaction with the corresponding server callback.
+
+The generated identifiers are not shared across processes. For cross-process correlation, the application must propagate the same nonzero correlation identifiers to both sides. ComTrace does not guess a relationship from matching item names or timestamps.
+
+## Event lifecycle
+
+The API records conversation open and close events, transaction start and completion events, and server callback events. It records transaction type, format, item name, result, success state, and data size. It does not record the DDE data payload.
+
+Conversation close events are paired within the same process using ConversationId. Transaction completion events are paired within the same process using ConversationId, role, and TransactionInstanceId.
+
+Cross-process exchanges are correlated only when the client and server records have opposite roles and matching nonzero transaction correlation IDs. When supplied, conversation correlation IDs must also agree. Transaction type, format, and item name are checked as consistency fields; item-name matching is case-insensitive. Ambiguous matches are reported and are not guessed.
+
+## Example
+
+The ComTraceDdeInstrumentationFixture target emits a representative client conversation, server conversation, client transaction, server callback, completion, and close sequence. Its ETL is inspected by the comtrace_dde_instrumentation integration test.
+
+The fixture validates the provider and timeline pipeline. It is not a substitute for instrumenting a real application's DDEML call sites.
+
+## Limitations
+
+- Applications must explicitly instrument their DDE client and server paths.
+- Cross-process correlation requires the application to propagate correlation IDs.
+- The provider records metadata and data size, not DDE payload contents.
+- A trace without the custom provider enabled or without application instrumentation cannot provide a DDE timeline.
