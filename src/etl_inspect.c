@@ -1018,6 +1018,46 @@ static void print_com_event_classification(const EVENT_RECORD *event_record)
     }
 }
 
+static void print_com_rundown_event_classification(
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *event_name = NULL;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+
+    if (event_record == NULL ||
+        !comtrace_classify_com_rundown_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &event_name
+        )) {
+        return;
+    }
+
+    wprintf(L"  com_rundown_event=%ls\n", event_name);
+
+    if (comtrace_extract_com_object_identity(event_record, &identity) !=
+        COMTRACE_IDENTITY_SUCCESS) {
+        return;
+    }
+
+    if (identity.has_oid) {
+        wprintf(L"  com_rundown_oid=0x%llx\n", (unsigned long long)identity.oid);
+    }
+    if (identity.has_iid) {
+        wprintf(L"  com_rundown_iid=");
+        print_guid(&identity.iid);
+        wprintf(L"\n");
+    }
+    if (identity.has_ipid) {
+        wprintf(L"  com_rundown_ipid=");
+        print_guid(&identity.ipid);
+        wprintf(L"\n");
+    }
+}
+
 static void add_com_timeline_event(
     ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
@@ -1998,6 +2038,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     );
 
     print_com_event_classification(owned_event);
+    print_com_rundown_event_classification(owned_event);
     print_ole_event_classification(owned_event);
     print_event_properties(owned_event, context->pointer_size);
 
