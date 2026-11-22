@@ -1544,10 +1544,18 @@ static void print_relationship_graph_node(
         break;
     case COMTRACE_GRAPH_NODE_COM_OBJECT:
         wprintf(
-            L"com-object:%lu/0x%llx",
+            L"com-object:%lu/0x%llx observations=%llu",
             (unsigned long)node->process_id,
-            (unsigned long long)node->value
+            (unsigned long long)node->value,
+            (unsigned long long)node->observation_count
         );
+        if (node->has_observed_timestamp) {
+            wprintf(
+                L" observed_ticks=%lld..%lld",
+                (long long)node->first_seen_timestamp,
+                (long long)node->last_seen_timestamp
+            );
+        }
         break;
     case COMTRACE_GRAPH_NODE_CLSID:
         wprintf(L"clsid:");
@@ -1560,6 +1568,14 @@ static void print_relationship_graph_node(
     case COMTRACE_GRAPH_NODE_IPID:
         wprintf(L"ipid:");
         print_guid(&node->guid);
+        wprintf(L" observations=%llu", (unsigned long long)node->observation_count);
+        if (node->has_observed_timestamp) {
+            wprintf(
+                L" observed_ticks=%lld..%lld",
+                (long long)node->first_seen_timestamp,
+                (long long)node->last_seen_timestamp
+            );
+        }
         break;
     default:
         wprintf(L"unknown");
