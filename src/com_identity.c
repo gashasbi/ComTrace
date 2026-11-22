@@ -627,9 +627,23 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_com_object_identity(
     result.has_iid = status == COMTRACE_IDENTITY_SUCCESS;
 
     status = comtrace_extract_guid_property(event_record, L"IPID", &result.ipid);
+    if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        status = comtrace_extract_guid_property(
+            event_record,
+            L"InterfacePointerId",
+            &result.ipid
+        );
+    }
     result.has_ipid = status == COMTRACE_IDENTITY_SUCCESS;
 
     status = comtrace_extract_uint64_property(event_record, L"OID", &result.oid);
+    if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        status = comtrace_extract_uint64_property(
+            event_record,
+            L"ObjectId",
+            &result.oid
+        );
+    }
     result.has_oid = status == COMTRACE_IDENTITY_SUCCESS;
 
     status = comtrace_extract_call_trace_id(
