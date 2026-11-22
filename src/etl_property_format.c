@@ -59,7 +59,6 @@ int comtrace_etl_normalize_property_payload(
         break;
     case TDH_INTYPE_HEXDUMP:
         prefix_size = 4U;
-        *in_type = TDH_INTYPE_BINARY;
         break;
     case TDH_INTYPE_WBEMSID:
         if (!comtrace_decode_wbem_sid_payload(
