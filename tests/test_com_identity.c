@@ -137,7 +137,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
                 &expected_related_activity_id,
                 sizeof(GUID)
             ) != 0) {
-            fwprintf(stderr, L"Related-only ActivityId extraction failed: status=%u primary=%u related=%u\\n",
+            fwprintf(stderr, L"Related-only ActivityId extraction failed: status=%u primary=%u related=%u\n",
                 (unsigned int)status,
                 (unsigned int)activity_ids.has_activity_id,
                 (unsigned int)activity_ids.has_related_activity_id);
