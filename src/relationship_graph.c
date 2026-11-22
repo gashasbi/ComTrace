@@ -241,31 +241,61 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
     const COMTRACE_COM_OBJECT_IDENTITY *identity
 )
 {
-    size_t current_process_index;
-    size_t current_thread_index;
+    DWORD caller_process_id = 0U;
+    DWORD caller_thread_id = 0U;
+    DWORD target_process_id = 0U;
+    DWORD target_thread_id = 0U;
+    DWORD event_process_id;
+    DWORD event_thread_id;
     size_t call_index;
-    size_t remote_process_index;
-    size_t remote_thread_index;
-    DWORD remote_process_id = 0U;
-    DWORD remote_thread_id = 0U;
-    size_t caller_thread_index;
-    size_t target_thread_index;
+    size_t caller_process_index = (size_t)-1;
+    size_t caller_thread_index = (size_t)-1;
+    size_t target_process_index = (size_t)-1;
+    size_t target_thread_index = (size_t)-1;
     COMTRACE_GRAPH_STATUS status;
 
     if (!identity->has_call_trace_id) {
         return COMTRACE_GRAPH_SUCCESS;
     }
 
-    if (identity->has_target_process_id) {
-        remote_process_id = identity->target_process_id;
-        remote_thread_id = identity->has_target_thread_id
-            ? identity->target_thread_id
-            : 0U;
-    } else if (identity->has_source_process_id) {
-        remote_process_id = identity->source_process_id;
-        remote_thread_id = identity->has_source_thread_id
+    event_process_id = identity->has_process_id ? identity->process_id : 0U;
+    event_thread_id = identity->has_thread_id ? identity->thread_id : 0U;
+
+    if (identity->has_source_process_id && identity->source_process_id != 0U &&
+        identity->has_target_process_id && identity->target_process_id != 0U) {
+        caller_process_id = identity->source_process_id;
+        target_process_id = identity->target_process_id;
+        caller_thread_id = identity->has_source_thread_id
             ? identity->source_thread_id
             : 0U;
+        target_thread_id = identity->has_target_thread_id
+            ? identity->target_thread_id
+            : 0U;
+
+        if (caller_thread_id == 0U && event_process_id == caller_process_id) {
+            caller_thread_id = event_thread_id;
+        }
+
+        if (target_thread_id == 0U && event_process_id == target_process_id) {
+            target_thread_id = event_thread_id;
+        }
+    } else if (identity->has_target_process_id && identity->target_process_id != 0U) {
+        caller_process_id = event_process_id;
+        caller_thread_id = event_thread_id;
+        target_process_id = identity->target_process_id;
+        target_thread_id = identity->has_target_thread_id
+            ? identity->target_thread_id
+            : 0U;
+    } else if (identity->has_source_process_id && identity->source_process_id != 0U) {
+        caller_process_id = identity->source_process_id;
+        caller_thread_id = identity->has_source_thread_id
+            ? identity->source_thread_id
+            : 0U;
+        target_process_id = event_process_id;
+        target_thread_id = event_thread_id;
+    } else {
+        caller_process_id = event_process_id;
+        caller_thread_id = event_thread_id;
     }
 
     status = add_node(
@@ -281,96 +311,55 @@ static COMTRACE_GRAPH_STATUS add_call_relationship(
         return status;
     }
 
-    if (identity->has_process_id && identity->process_id != 0U &&
-        identity->has_thread_id && identity->thread_id != 0U) {
-        status = add_thread(
+    if (caller_process_id != 0U) {
+        status = add_process(graph, caller_process_id, &caller_process_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+
+        if (caller_thread_id != 0U) {
+            status = add_thread(
+                graph,
+                caller_process_id,
+                caller_thread_id,
+                &caller_thread_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+
+    if (target_process_id != 0U) {
+        status = add_process(graph, target_process_id, &target_process_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+
+        if (target_thread_id != 0U) {
+            status = add_thread(
+                graph,
+                target_process_id,
+                target_thread_id,
+                &target_thread_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+
+    if (caller_process_index != (size_t)-1 &&
+        target_process_index != (size_t)-1) {
+        status = add_edge(
             graph,
-            identity->process_id,
-            identity->thread_id,
-            &current_thread_index
+            COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS,
+            caller_process_index,
+            target_process_index
         );
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
-    } else {
-        current_thread_index = (size_t)-1;
-    }
-
-    if (remote_process_id != 0U) {
-        status = add_process(graph, remote_process_id, &remote_process_index);
-        if (status != COMTRACE_GRAPH_SUCCESS) {
-            return status;
-        }
-
-        if (remote_thread_id != 0U) {
-            status = add_thread(
-                graph,
-                remote_process_id,
-                remote_thread_id,
-                &remote_thread_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        } else {
-            remote_thread_index = (size_t)-1;
-        }
-    } else {
-        remote_process_index = (size_t)-1;
-        remote_thread_index = (size_t)-1;
-    }
-
-    if (identity->has_target_process_id) {
-        caller_thread_index = current_thread_index;
-        target_thread_index = remote_thread_index;
-        current_process_index = (size_t)-1;
-
-        if (identity->has_process_id && identity->process_id != 0U) {
-            status = add_process(graph, identity->process_id, &current_process_index);
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-
-        if (current_process_index != (size_t)-1 &&
-            remote_process_index != (size_t)-1) {
-            status = add_edge(
-                graph,
-                COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS,
-                current_process_index,
-                remote_process_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-    } else if (identity->has_source_process_id) {
-        caller_thread_index = remote_thread_index;
-        target_thread_index = current_thread_index;
-        current_process_index = (size_t)-1;
-
-        if (identity->has_process_id && identity->process_id != 0U) {
-            status = add_process(graph, identity->process_id, &current_process_index);
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-
-        if (remote_process_index != (size_t)-1 &&
-            current_process_index != (size_t)-1) {
-            status = add_edge(
-                graph,
-                COMTRACE_GRAPH_EDGE_PROCESS_CALLS_PROCESS,
-                remote_process_index,
-                current_process_index
-            );
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-        }
-    } else {
-        caller_thread_index = current_thread_index;
-        target_thread_index = (size_t)-1;
     }
 
     if (caller_thread_index != (size_t)-1) {
