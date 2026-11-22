@@ -379,6 +379,8 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         !object_identity.has_thread_id ||
         !object_identity.has_source_process_id ||
         !object_identity.has_source_thread_id ||
+        !object_identity.has_timestamp ||
+        object_identity.timestamp != event_record->EventHeader.TimeStamp.QuadPart ||
         object_identity.target_process_id != expected_target_process_id ||
         object_identity.target_thread_id != expected_target_thread_id ||
         object_identity.source_process_id != expected_source_process_id ||
