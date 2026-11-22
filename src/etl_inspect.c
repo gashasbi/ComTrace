@@ -348,7 +348,7 @@ static int print_utf8_property_value(
             break;
         default:
             if ((unsigned int)character < 0x20U ||
-                (unsigned int)character == 0x7FU) {
+                (unsigned int)character > 0x7EU) {
                 wprintf(L"\\u%04x", (unsigned int)character);
             } else {
                 wprintf(L"%lc", character);

@@ -39,7 +39,7 @@ endfunction()
 
 assert_property_search(Text equals Hello 1 "Unicode equality")
 assert_property_search(Text contains ell 1 "Unicode contains")
-assert_property_search(Utf8Text equals café 1 "UTF-8 string equality")
+assert_property_search(Utf8Text equals caf\\u00e9 1 "UTF-8 string equality")
 assert_property_search(Utf8Text contains fé 1 "UTF-8 string contains")
 assert_property_search(Utf8Text equals cafe 0 "UTF-8 string no-match")
 assert_property_search(Data equals hex:deadbeef 1 "Binary exact match")
