@@ -27,6 +27,7 @@
 #include "com_timeline.h"
 #include "relationship_graph.h"
 #include "ole_timeline.h"
+#include "rpc_timeline.h"
 #include "process_lifecycle.h"
 #include "com_lifetime_analysis.h"
 
@@ -48,6 +49,8 @@ typedef struct {
     COMTRACE_TIMELINE_STATUS timeline_status;
     COMTRACE_OLE_TIMELINE ole_timeline;
     COMTRACE_OLE_TIMELINE_STATUS ole_timeline_status;
+    COMTRACE_RPC_TIMELINE rpc_timeline;
+    COMTRACE_RPC_TIMELINE_STATUS rpc_timeline_status;
     COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
     COMTRACE_GRAPH_STATUS graph_status;
     COMTRACE_PROCESS_LIFECYCLE_CATALOG process_lifecycle;
@@ -2436,6 +2439,71 @@ static void add_com_timeline_event(
     }
 }
 
+static void add_rpc_timeline_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *operation = NULL;
+    const wchar_t *phase = NULL;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_RPC_TIMELINE_EVENT timeline_event;
+
+    if (context == NULL ||
+        event_record == NULL ||
+        !comtrace_classify_rpc_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &operation,
+            &phase)) {
+        return;
+    }
+
+    if (wcscmp(phase, L"start") != 0 &&
+        wcscmp(phase, L"stop") != 0) {
+        return;
+    }
+
+    ZeroMemory(&timeline_event, sizeof(timeline_event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    timeline_event.operation = operation;
+    timeline_event.phase = wcscmp(phase, L"start") == 0
+        ? COMTRACE_RPC_TIMELINE_PHASE_START
+        : COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    timeline_event.process_id = event_record->EventHeader.ProcessId;
+    timeline_event.thread_id = event_record->EventHeader.ThreadId;
+    timeline_event.timestamp =
+        (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.activity_ids = &activity_ids;
+    }
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceUuid",
+            &timeline_event.interface_uuid
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.has_interface_uuid = TRUE;
+    }
+    if (comtrace_extract_uint32_property(
+            event_record,
+            L"ProcNum",
+            &timeline_event.procedure_number
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.has_procedure_number = TRUE;
+    }
+
+    if (comtrace_rpc_timeline_add_event(
+            &context->rpc_timeline,
+            &timeline_event
+        ) != COMTRACE_RPC_TIMELINE_SUCCESS) {
+        context->rpc_timeline_status = COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
+    }
+}
+
 static const wchar_t *com_timeline_match_name(
     COMTRACE_TIMELINE_MATCH_TYPE match_type
 )
@@ -2449,6 +2517,116 @@ static const wchar_t *com_timeline_match_name(
         return L"process_thread_operation";
     default:
         return L"none";
+    }
+}
+
+static const wchar_t *rpc_timeline_match_name(
+    COMTRACE_RPC_TIMELINE_MATCH_TYPE match_type
+)
+{
+    switch (match_type) {
+    case COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID:
+        return L"ActivityId";
+    case COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD:
+        return L"process_thread_operation";
+    default:
+        return L"none";
+    }
+}
+
+static void print_rpc_timeline_summary(
+    const ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t count;
+    size_t index;
+    ULONGLONG matched = 0ULL;
+    ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_process_thread = 0ULL;
+    ULONGLONG incomplete_starts = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    wprintf(L"\\nRPC call timeline summary\\n");
+    if (context->rpc_timeline_status != COMTRACE_RPC_TIMELINE_SUCCESS) {
+        wprintf(L"  status=unavailable reason=allocation_failed\\n");
+        return;
+    }
+
+    count = comtrace_rpc_timeline_count(&context->rpc_timeline);
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_RPC_TIMELINE_RECORD *record =
+            comtrace_rpc_timeline_get(&context->rpc_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+        if (record->has_start && record->has_stop) {
+            ++matched;
+            if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID) {
+                ++matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
+                ++matched_by_process_thread;
+            }
+        } else if (record->has_start) {
+            ++incomplete_starts;
+        }
+    }
+
+    wprintf(L"  RPC timeline records: %llu\\n", (unsigned long long)count);
+    wprintf(L"  Matched RPC calls: %llu\\n", (unsigned long long)matched);
+    wprintf(L"  Matched by ActivityId: %llu\\n", (unsigned long long)matched_by_activity_id);
+    wprintf(L"  Matched by process/thread/operation: %llu\\n", (unsigned long long)matched_by_process_thread);
+    wprintf(L"  Incomplete RPC starts: %llu\\n", (unsigned long long)incomplete_starts);
+    wprintf(L"  Unmatched RPC stops: %llu\\n", (unsigned long long)context->rpc_timeline.unmatched_stops);
+    wprintf(L"  RPC events without ActivityId: %llu\\n", (unsigned long long)context->rpc_timeline.missing_activity_ids);
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_RPC_TIMELINE_RECORD *record =
+            comtrace_rpc_timeline_get(&context->rpc_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(
+            L"  rpc_timeline operation=%ls pid=%lu tid=%lu",
+            record->operation,
+            (unsigned long)record->process_id,
+            (unsigned long)record->thread_id
+        );
+        if (record->has_start) {
+            wprintf(L" start_ticks=%llu", (unsigned long long)record->start_timestamp);
+        }
+        if (record->has_stop) {
+            wprintf(L" stop_ticks=%llu", (unsigned long long)record->stop_timestamp);
+        }
+        if (record->has_duration) {
+            wprintf(L" duration_ticks=%llu", (unsigned long long)record->duration_ticks);
+        }
+        if (record->has_interface_uuid) {
+            wprintf(L" interface_uuid=");
+            print_guid(&record->interface_uuid);
+        }
+        if (record->has_procedure_number) {
+            wprintf(L" proc_num=%lu", (unsigned long)record->procedure_number);
+        }
+        if (record->has_activity_id) {
+            wprintf(L" activity_id=");
+            print_guid(&record->activity_id);
+        }
+        if (record->has_related_activity_id) {
+            wprintf(L" related_activity_id=");
+            print_guid(&record->related_activity_id);
+        }
+        wprintf(L" match=%ls\\n", rpc_timeline_match_name(record->match_type));
+    }
+
+    if (count > 100U) {
+        wprintf(L"  timeline_display_limit=100 remaining=%llu\\n",
+            (unsigned long long)(count - 100U));
     }
 }
 
@@ -4420,6 +4598,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     add_com_timeline_event(context, event_record);
     add_ole_timeline_event(context, event_record);
+    add_rpc_timeline_event(context, event_record);
     add_relationship_graph_event(context, event_record);
     add_com_lifetime_analysis_event(context, event_record);
 
@@ -4478,6 +4657,7 @@ static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
 
     comtrace_process_lifecycle_catalog_destroy(&context->process_lifecycle);
     comtrace_relationship_graph_destroy(&context->relationship_graph);
+    comtrace_rpc_timeline_destroy(&context->rpc_timeline);
     comtrace_ole_timeline_destroy(&context->ole_timeline);
     comtrace_timeline_destroy(&context->timeline);
     comtrace_lifetime_analysis_destroy(&context->lifetime_analysis);
@@ -4514,6 +4694,8 @@ static int inspect_etl_internal(
     context.timeline_status = COMTRACE_TIMELINE_SUCCESS;
     comtrace_ole_timeline_init(&context.ole_timeline);
     context.ole_timeline_status = COMTRACE_OLE_TIMELINE_SUCCESS;
+    comtrace_rpc_timeline_init(&context.rpc_timeline);
+    context.rpc_timeline_status = COMTRACE_RPC_TIMELINE_SUCCESS;
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
     comtrace_process_lifecycle_catalog_init(&context.process_lifecycle);
@@ -4598,6 +4780,7 @@ static int inspect_etl_internal(
     add_lifetime_records_to_graph(&context);
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
+    print_rpc_timeline_summary(&context);
     print_com_lifetime_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
     print_process_lifecycle_summary(
