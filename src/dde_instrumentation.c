@@ -148,8 +148,7 @@ void comtrace_dde_callback_received(
     ULONG data_size
 )
 {
-    if (conversation_id == 0ULL ||
-        InterlockedCompareExchange(&g_provider_registered, 0, 0) == 0) {
+    if (conversation_id == 0ULL) {
         return;
     }
 
