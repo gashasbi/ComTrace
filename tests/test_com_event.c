@@ -277,7 +277,10 @@ static int test_rpc_classification(void)
         {5U, 1U, L"RpcClientCall", L"start"},
         {6U, 1U, L"RpcServerCall", L"start"},
         {7U, 2U, L"RpcClientCall", L"stop"},
-        {8U, 2U, L"RpcServerCall", L"stop"}
+        {8U, 2U, L"RpcServerCall", L"stop"},
+        {14U, 1U, L"FunctionTrace", L"start"},
+        {15U, 2U, L"FunctionTrace", L"stop"},
+        {16U, 1U, L"FunctionTraceStart16", L"start"}
     };
     size_t index;
 
@@ -317,6 +320,18 @@ static int test_rpc_classification(void)
             phase != NULL ||
             comtrace_classify_rpc_event(
                 &com_perf_provider, 5U, 1U, 1U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &rpc_provider, 14U, 1U, 2U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &rpc_provider, 15U, 1U, 1U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &rpc_provider, 16U, 1U, 2U, &event_name, &phase) ||
             event_name != NULL ||
             phase != NULL ||
             comtrace_classify_rpc_event(
