@@ -3384,8 +3384,7 @@ static int event_property_value_matches(
         filters == NULL ||
         (property->Flags & (
             PropertyStruct |
-            PropertyWBEMXmlFragment |
-            PropertyHasCustomSchema
+            PropertyWBEMXmlFragment
         )) != 0U) {
         return 0;
     }
@@ -3401,8 +3400,13 @@ static int event_property_value_matches(
         return 0;
     }
 
-    in_type = property->nonStructType.InType;
-    out_type = property->nonStructType.OutType;
+    if ((property->Flags & PropertyHasCustomSchema) != 0U) {
+        in_type = property->customSchemaType.InType;
+        out_type = property->customSchemaType.OutType;
+    } else {
+        in_type = property->nonStructType.InType;
+        out_type = property->nonStructType.OutType;
+    }
     ZeroMemory(&property_value, sizeof(property_value));
     read_status = comtrace_etl_read_property_value(
         event_record,
