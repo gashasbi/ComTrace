@@ -1702,6 +1702,7 @@ static void add_com_lifetime_analysis_event(
     const wchar_t *event_name = NULL;
     COMTRACE_LIFETIME_EVENT event;
     COMTRACE_LIFETIME_STATUS status;
+    COMTRACE_ACTIVITY_IDS activity_ids;
     ULONGLONG process_generation = 0ULL;
     ULONG reference_count = 0U;
 
@@ -1721,6 +1722,7 @@ static void add_com_lifetime_analysis_event(
     }
 
     ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
     if (wcscmp(event_name, L"ComObjectCreated") == 0) {
         event.type = COMTRACE_LIFETIME_EVENT_CREATED;
     } else if (wcscmp(event_name, L"ComAddRef") == 0) {
@@ -1739,6 +1741,14 @@ static void add_com_lifetime_analysis_event(
     event.thread_id = event_record->EventHeader.ThreadId;
     event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
+        event.has_activity_id = activity_ids.has_activity_id;
+        event.activity_id = activity_ids.activity_id;
+        event.has_related_activity_id = activity_ids.has_related_activity_id;
+        event.related_activity_id = activity_ids.related_activity_id;
+    }
 
     if (event.process_id == 0U ||
         comtrace_extract_uint64_property(
