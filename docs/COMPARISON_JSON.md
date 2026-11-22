@@ -188,3 +188,44 @@ native_identity_bind_events, events_without_creation, events_after_destruction,
 duplicate_creations, destructions_without_creation, and duplicate_destructions.
 These are observations from each trace and are not automatically interpreted
 as proof of a leak or invalid COM behavior.
+
+### Lifetime record fields
+
+| Field | Type | Description |
+|---|---|---|
+| `process_id` | number | Process ID that emitted the instrumentation events |
+| `process_generation` | number or null | Resolved process generation, when available |
+| `object_instance_id` | string | Application-level object ID in hexadecimal |
+| `created` / `destroyed` | boolean | Whether explicit creation/destruction events were observed in this trace |
+| `create_events`, `add_ref_events`, `release_events`, `destroy_events` | number | Count of each observed lifecycle event |
+| `release_zero_results` | number | Release calls whose recorded result was zero |
+| `observation_count` | number | Total lifetime events contributing to this record |
+| `initial_reference_count` | number or null | Initial count from a captured creation event |
+| `last_reference_count_result` | number or null | Most recent captured AddRef/Release result |
+| `first_seen_ticks`, `last_seen_ticks` | string | Minimum and maximum raw ETW timestamps for the record |
+| `created_ticks`, `destroyed_ticks` | string or null | Timestamp of explicit creation/destruction, when observed |
+| `class_id` | string or null | CLSID from the creation event, when captured |
+| `interface_ids` | array of strings | Distinct interface IDs observed for the object |
+| `native_identities` | array | Explicit native OID/IPID mappings supplied by the application |
+
+A trace can begin or end in the middle of an object's lifetime. In that case,
+creation metadata or the initial reference count may be unavailable, and
+lifecycle events can be counted as events_without_creation or
+destructions_without_creation. These counters describe the captured evidence;
+they do not establish that the application violated COM lifetime rules.
+
+### Lifetime summary fields
+
+The `lifetime_summary` object contains:
+
+| Field | Description |
+|---|---|
+| `left_objects`, `right_objects` | Number of distinct lifetime records in each input |
+| `added`, `removed`, `changed` | Lifetime object differences |
+| `left_events`, `right_events` | Number of lifetime events processed from each input |
+| `left_native_identity_bind_events`, `right_native_identity_bind_events` | Explicit native identity binding events per input |
+| `left_events_without_creation`, `right_events_without_creation` | Non-creation events observed before a creation event |
+| `left_events_after_destruction`, `right_events_after_destruction` | Events observed after explicit destruction |
+| `left_duplicate_creations`, `right_duplicate_creations` | Repeated creation events for an existing record |
+| `left_destructions_without_creation`, `right_destructions_without_creation` | Destruction events without a captured creation event |
+| `left_duplicate_destructions`, `right_duplicate_destructions` | Repeated explicit destruction events |
