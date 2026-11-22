@@ -398,6 +398,64 @@ static int test_rpcss_classification(void)
     return 1;
 }
 
+
+static int test_com_lifetime_classification(void)
+{
+    static const GUID lifetime_provider = {
+        0x6F3B5E21UL,
+        0x7C14U,
+        0x4A90U,
+        {0x9D, 0x42, 0x81, 0x31, 0x6C, 0xE2, 0xA7, 0x50}
+    };
+    static const wchar_t *const event_names[] = {
+        L"ComObjectCreated",
+        L"ComAddRef",
+        L"ComRelease",
+        L"ComObjectDestroyed"
+    };
+    size_t index;
+
+    for (index = 0U; index < sizeof(event_names) / sizeof(event_names[0]); ++index) {
+        const wchar_t *classified_name = NULL;
+
+        if (!comtrace_classify_com_lifetime_event(
+                &lifetime_provider,
+                event_names[index],
+                &classified_name
+            ) ||
+            classified_name == NULL ||
+            wcscmp(classified_name, event_names[index]) != 0) {
+            fwprintf(stderr, L"COM lifetime event %ls classification failed\n",
+                event_names[index]);
+            return 0;
+        }
+    }
+
+    {
+        const wchar_t *classified_name = L"unchanged";
+
+        if (comtrace_classify_com_lifetime_event(
+                &rpc_provider,
+                L"ComObjectCreated",
+                &classified_name) ||
+            classified_name != NULL ||
+            comtrace_classify_com_lifetime_event(
+                &lifetime_provider,
+                L"UnknownLifetimeEvent",
+                &classified_name) ||
+            classified_name != NULL ||
+            comtrace_classify_com_lifetime_event(
+                &lifetime_provider,
+                L"ComRelease",
+                NULL)) {
+            fputs("COM lifetime classification rejection cases failed\n", stderr);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -479,7 +537,8 @@ int main(void)
     if (!test_com_rundown_classification() ||
         !test_com_runtime_classification() ||
         !test_rpc_classification() ||
-        !test_rpcss_classification()) {
+        !test_rpcss_classification() ||
+        !test_com_lifetime_classification()) {
         return 1;
     }
 
