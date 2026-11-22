@@ -478,7 +478,11 @@ static int print_mapped_property_value(
             break;
         }
     }
-    wprintf(L"\"\n");
+    wprintf(L"\" raw=hex:");
+    for (index = 0U; index < value_size; ++index) {
+        wprintf(L"%02x", (unsigned int)value[index]);
+    }
+    wprintf(L"\n");
     free(formatted);
     free(map_buffer);
     return 1;
