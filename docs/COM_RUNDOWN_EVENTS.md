@@ -48,6 +48,14 @@ Recognized records are labeled com_rundown_event and their available OID, IID, a
 
 These records are kept separate from COM Performance activation/call timelines and the relationship graph. The manifest establishes payload structure, but does not establish that any particular event means an object was created, released, or destroyed. In particular, a rundown record, a disconnection-related field, or an event timestamp is not treated as an object-lifetime boundary. ComTrace therefore does not yet split reuse of the same OID within one Process generation into separate object generations.
 
+## Current real-trace evidence
+
+In the Windows Server 2022 CI ETL captured for this change, COM Performance event 39 (COM_ClientSyncCall start) and event 43 (COM_ServerSyncCall start) exposed OID, IPID, TargetInterface, and CallTraceId. Their stop counterparts (events 40 and 44) exposed CallTraceId and result fields, but not OID/IPID. The same trace contained COM_CreateInstance start/stop events (IDs 5 and 6), but the runtime schema did not expose object identity fields for those records.
+
+The COM-RundownInstrumentation provider was successfully enabled in that capture, as shown by the Capture output, but emitted zero events in the resulting ETL. The real-trace validator records this as NOT_EMITTED rather than treating provider enablement as event production.
+
+These are observations from one Windows Server 2022 runner and do not guarantee that another Windows build exposes the same fields. They provide no verified create/release boundary. OID and IPID values seen on call events remain observations of objects participating in those calls.
+
 ## Manifest reference and decoding
 
 The event layouts above were cross-checked against the Win10 17134 manifest snapshot in repnz/etw-providers-docs (https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-COM-RundownInstrumentation.xml). This is a community-maintained manifest collection, not a Microsoft contract. On the target Windows machine, the installed provider schema and TDH metadata are the runtime decoding source. See Microsoft's documentation for event metadata (https://learn.microsoft.com/en-us/windows/win32/etw/event-metadata-overview), retrieving event data with TDH (https://learn.microsoft.com/en-us/windows/win32/etw/retrieving-event-data-using-tdh), and EVENT_DESCRIPTOR provider/ID/version identity rules (https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor).
