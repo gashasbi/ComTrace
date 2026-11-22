@@ -10,6 +10,8 @@ The Windows build produces:
 - `include/comtrace_lifetime.h`
 - `ComTraceComLifetimeFixture.exe`, an end-to-end demonstration
 
+The COM server activation fixture also builds `ComTraceComServerFixture.dll` and `ComTraceComServerClient.exe`. It exercises a real in-process `IClassFactory`, two interfaces with independent `QueryInterface` paths, `AddRef`/`Release`, `LockServer`, and COM aggregation through a controlling outer `IUnknown`.
+
 Link the static library into one module in each process that implements the COM objects to be observed. Its object-instance counter is local to that linked module. If several DLLs in one process need instrumentation, route their calls through a shared wrapper in the module that owns this library; linking separate static copies can reuse the same instance IDs. Include `comtrace_lifetime.h`, call `comtrace_lifetime_initialize` once during application startup, and call `comtrace_lifetime_shutdown` after all tracked objects have finished emitting events.
 
 The five event operations are:
