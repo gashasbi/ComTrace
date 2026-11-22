@@ -4,6 +4,87 @@
 #include <stdlib.h>
 #include <string.h>
 
+COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
+    const EVENT_RECORD *event_record,
+    COMTRACE_ETL_EVENT_INFO *event_info
+)
+{
+    ULONG buffer_size = 0U;
+    ULONG allocated_size;
+    ULONG status;
+    ULONG available_count;
+    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+
+    if (event_info != NULL) {
+        ZeroMemory(event_info, sizeof(*event_info));
+    }
+    if (event_record == NULL || event_info == NULL) {
+        return COMTRACE_ETL_EVENT_INFO_INVALID_ARGUMENT;
+    }
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        NULL,
+        &buffer_size
+    );
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        buffer_size < property_offset ||
+        buffer_size > 65536U) {
+        event_info->tdh_status = status;
+        return COMTRACE_ETL_EVENT_INFO_UNAVAILABLE;
+    }
+
+    allocated_size = buffer_size;
+    event_info->buffer = (BYTE *)malloc(buffer_size);
+    if (event_info->buffer == NULL) {
+        return COMTRACE_ETL_EVENT_INFO_ALLOCATION_FAILED;
+    }
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        (PTRACE_EVENT_INFO)event_info->buffer,
+        &buffer_size
+    );
+    if (status != ERROR_SUCCESS ||
+        buffer_size < property_offset ||
+        buffer_size > allocated_size) {
+        event_info->tdh_status = status;
+        comtrace_etl_event_info_close(event_info);
+        return COMTRACE_ETL_EVENT_INFO_UNAVAILABLE;
+    }
+
+    event_info->size = buffer_size;
+    event_info->info = (TRACE_EVENT_INFO *)event_info->buffer;
+    available_count = (ULONG)(
+        (buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO)
+    );
+    if (event_info->info->PropertyCount > available_count ||
+        event_info->info->TopLevelPropertyCount > event_info->info->PropertyCount) {
+        comtrace_etl_event_info_close(event_info);
+        return COMTRACE_ETL_EVENT_INFO_INVALID_METADATA;
+    }
+
+    event_info->property_count = event_info->info->PropertyCount;
+    event_info->top_level_property_count = event_info->info->TopLevelPropertyCount;
+    return COMTRACE_ETL_EVENT_INFO_SUCCESS;
+}
+
+void comtrace_etl_event_info_close(
+    COMTRACE_ETL_EVENT_INFO *event_info
+)
+{
+    if (event_info == NULL) {
+        return;
+    }
+
+    free(event_info->buffer);
+    ZeroMemory(event_info, sizeof(*event_info));
+}
+
 COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
