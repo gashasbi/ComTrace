@@ -145,8 +145,12 @@ static int records_can_correlate(
         return 0;
     }
 
+    if ((left->conversation_correlation_id == 0ULL) !=
+        (right->conversation_correlation_id == 0ULL)) {
+        return 0;
+    }
+
     if (left->conversation_correlation_id != 0ULL &&
-        right->conversation_correlation_id != 0ULL &&
         left->conversation_correlation_id != right->conversation_correlation_id) {
         return 0;
     }
