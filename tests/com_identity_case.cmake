@@ -74,7 +74,7 @@ if(search_match EQUAL -1)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 4
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 5
     RESULT_VARIABLE no_match_status
     OUTPUT_VARIABLE no_match_output
     ERROR_VARIABLE no_match_error
@@ -107,6 +107,24 @@ string(FIND "${clsid_alias_output}" "Events matching filters: 1" clsid_alias_mat
 if(clsid_alias_match EQUAL -1)
     execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
     message(FATAL_ERROR "CLSID alias event was not emitted: ${clsid_alias_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 4
+    RESULT_VARIABLE related_only_status
+    OUTPUT_VARIABLE related_only_output
+    ERROR_VARIABLE related_only_error
+)
+
+if(NOT related_only_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Related-only ActivityId event search failed: ${related_only_error}${related_only_output}")
+endif()
+
+string(FIND "${related_only_output}" "Events matching filters: 1" related_only_match)
+if(related_only_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Related-only ActivityId event was not emitted: ${related_only_output}")
 endif()
 
 execute_process(
