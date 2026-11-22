@@ -51,7 +51,7 @@ Properties marked with `PropertyHasCustomSchema` expose the custom protocol iden
 
 ## Fixture coverage
 
-The ETW fixtures cover dynamic and fixed arrays, signed count fields, nested dynamic arrays inside structures, nested TraceLogging structures, TraceLogging custom-schema payloads, field tags, value maps, bitmap maps, common scalar input types, date/time and pointer values, string output formats, reduced strings, ETW time, no-print fields, and PKCS7-with-type-info fallback to raw bytes.
+The ETW fixtures cover dynamic and fixed arrays, signed count fields, nested dynamic arrays inside structures, counted and reversed strings, non-null-terminated strings, WBEM SID and hexadecimal-dump normalization, nested TraceLogging structures, TraceLogging custom-schema payloads, field tags, value maps, bitmap maps, common scalar input types, date/time and pointer values, string output formats, reduced strings, ETW time, no-print fields, and PKCS7-with-type-info fallback to raw bytes.
 
 The Windows manifest compiler rejects nested `<struct>` declarations, so nested TraceLogging structures are used for that fixture shape. WBEM-only encodings and provider-specific custom protocols still require real provider schemas for full end-to-end validation.
 
