@@ -1372,6 +1372,8 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             wprintf(L"  payload_schema=unavailable reason=allocation_failed\n");
         } else if (info_status == COMTRACE_ETL_EVENT_INFO_INVALID_METADATA) {
             wprintf(L"  payload_schema=unavailable reason=invalid_metadata\n");
+        } else if (info_status == COMTRACE_ETL_EVENT_INFO_SIZE_LIMIT) {
+            wprintf(L"  payload_schema=unavailable reason=metadata_size_limit maximum=%lu\n", (unsigned long)COMTRACE_ETL_MAX_METADATA_BYTES);
         } else {
             wprintf(L"  payload_schema=unavailable status=%lu\n", (unsigned long)decoded_info.tdh_status);
         }
