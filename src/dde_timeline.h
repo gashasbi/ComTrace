@@ -16,7 +16,9 @@ typedef enum {
 } COMTRACE_DDE_ROLE;
 
 typedef enum {
-    COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED = 1,
+    COMTRACE_DDE_TIMELINE_CONVERSATION_OPENED = 1,
+    COMTRACE_DDE_TIMELINE_CONVERSATION_CLOSED,
+    COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED,
     COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED,
     COMTRACE_DDE_TIMELINE_CALLBACK_RECEIVED
 } COMTRACE_DDE_TIMELINE_EVENT_TYPE;
@@ -39,6 +41,8 @@ typedef struct {
     ULONG result;
     ULONG data_size;
     BOOL succeeded;
+    const wchar_t *service;
+    const wchar_t *topic;
 } COMTRACE_DDE_TIMELINE_EVENT;
 
 typedef struct {
@@ -65,6 +69,13 @@ typedef struct {
     ULONG result;
     ULONG data_size;
     BOOL succeeded;
+    wchar_t service[256];
+    wchar_t topic[256];
+    ULONGLONG opened_timestamp;
+    ULONGLONG closed_timestamp;
+    ULONG close_result;
+    BOOL has_opened;
+    BOOL has_closed;
 } COMTRACE_DDE_TIMELINE_RECORD;
 
 typedef struct {
