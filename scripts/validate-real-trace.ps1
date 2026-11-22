@@ -259,6 +259,20 @@ if ($processStartTypeCount -eq 0 -or $processEndTypeCount -eq 0 -or
     throw "Kernel Process start/stop payloads were not both decoded. Provider Start=$processStartTypeCount End=$processEndTypeCount; decoded Start=$processStartCount End=$processEndCount. Review $inspectPath"
 }
 
+$processGraphMatch = [regex]::Match(
+    $inspectOutput,
+    "Process node generations:\s*known=(\d+)\s+unknown=(\d+)"
+)
+if (-not $processGraphMatch.Success) {
+    throw "The relationship graph did not report Process generation coverage. Review $inspectPath"
+}
+
+$processGraphKnownGenerations = [UInt64]::Parse($processGraphMatch.Groups[1].Value)
+$processGraphUnknownGenerations = [UInt64]::Parse($processGraphMatch.Groups[2].Value)
+if ($processGraphKnownGenerations -eq 0) {
+    throw "No relationship graph Process node was matched to a lifecycle generation. Review $inspectPath"
+}
+
 Write-Host "Checking for COM Performance events."
 $searchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--com", "--max-events", "10000") -Description "COM event search"
 Set-Content -LiteralPath $searchPath -Value $searchOutput -Encoding UTF8
@@ -431,6 +445,8 @@ $summary = [ordered]@{
     process_start_events = $processStartCount
     process_end_events = $processEndCount
     process_decode_failures = $processDecodeFailures
+    process_graph_known_generations = $processGraphKnownGenerations
+    process_graph_unknown_generations = $processGraphUnknownGenerations
     com_events = $comEventCount
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
@@ -470,6 +486,7 @@ Write-Host "Distinct event types: $($report.left.event_types)"
 Write-Host "Kernel Process Start events: $processStartCount"
 Write-Host "Kernel Process End events: $processEndCount"
 Write-Host "Kernel Process decode failures: $processDecodeFailures"
+Write-Host "Graph Process generations: known=$processGraphKnownGenerations unknown=$processGraphUnknownGenerations"
 Write-Host "COM Performance events: $comEventCount"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
