@@ -370,7 +370,7 @@ static int test_identical_activity_ids_do_not_create_self_edge(void)
     return 1;
 }
 
-static int test_duplicate_event_is_idempotent(void)
+static int test_duplicate_event_does_not_duplicate_nodes_or_edges(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
     COMTRACE_COM_OBJECT_IDENTITY identity;
@@ -726,7 +726,7 @@ int main(void)
         !test_oid_without_known_process() ||
         !test_related_activity_without_activity() ||
         !test_identical_activity_ids_do_not_create_self_edge() ||
-        !test_duplicate_event_is_idempotent() ||
+        !test_duplicate_event_does_not_duplicate_nodes_or_edges() ||
         !test_zero_process_ids_are_ignored() ||
         !test_zero_target_process_uses_local_process() ||
         !test_object_and_ipid_observation_windows() ||
