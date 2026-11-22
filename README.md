@@ -125,7 +125,7 @@ The capture command enables the `ComTrace.DDE` TraceLogging provider. ETL inspec
 
 This is explicit application instrumentation, not a system-wide DDEML hook. Events are available only from processes that link and call the instrumentation API. Payload contents are not copied into ETW; the provider records metadata and data sizes so that application data is not silently exposed.
 - The COM Performance manifest inspected on the Windows Server 2022 CI runner defines 55 events but no templates or data fields. ComTrace therefore relies on named TDH runtime properties when available; some identifiers, including CLSID, may remain unavailable in real traces. It does not infer them from undocumented payload offsets.
-- `--providers` reports six providers in the CLI inventory: COMRuntime, COM-Perf, COM-RundownInstrumentation, RPC, RPCSS, and the optional ComTrace.COMLifetime instrumentation provider. Capture also enables OLE-Perf, which is not part of that CLI inventory.
+- `--providers` reports seven providers in the CLI inventory: COMRuntime, COM-Perf, COM-RundownInstrumentation, RPC, RPCSS, and the optional ComTrace.COMLifetime instrumentation provider. Capture also enables OLE-Perf, which is not part of that CLI inventory.
 - A registered or enabled provider is not proof that it emitted events. Validate event production using an ETL captured on the target Windows system.
 - ETL processing uses Windows ETW and TDH APIs. Build and end-to-end trace validation must be performed on Windows.
 - ComTrace is a static trace analysis tool. Its output does not establish that an operation is malicious or vulnerable.
