@@ -127,6 +127,25 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         return;
     }
 
+    if (event_record->EventHeader.EventDescriptor.Id == 4U) {
+        status = comtrace_extract_activity_ids(event_record, &activity_ids);
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            activity_ids.has_activity_id ||
+            !activity_ids.has_related_activity_id ||
+            memcmp(
+                &activity_ids.related_activity_id,
+                &expected_related_activity_id,
+                sizeof(GUID)
+            ) != 0) {
+            fwprintf(stderr, L"Related-only ActivityId extraction failed: status=%u primary=%u related=%u\\n",
+                (unsigned int)status,
+                (unsigned int)activity_ids.has_activity_id,
+                (unsigned int)activity_ids.has_related_activity_id);
+            ++context->failures;
+        }
+        return;
+    }
+
     if (event_record->EventHeader.EventDescriptor.Id == 2U) {
         status = comtrace_extract_guid_property(event_record, L"ClassId", &value);
         if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
@@ -409,7 +428,7 @@ static int verify_event(const wchar_t *etl_path)
         return 0;
     }
 
-    if (context.events_seen != 3U || context.failures != 0U) {
+    if (context.events_seen != 4U || context.failures != 0U) {
         fwprintf(
             stderr,
             L"Identity validation failed. Events: %lu Failures: %lu\n",
