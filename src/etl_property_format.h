@@ -3,6 +3,10 @@
 
 #include "etl_decoder.h"
 
+const wchar_t *comtrace_etl_input_type_name(USHORT in_type);
+
+const wchar_t *comtrace_etl_output_type_name(USHORT out_type);
+
 int comtrace_etl_print_tdh_formatted_property(
     const BYTE *metadata_buffer,
     ULONG metadata_size,
