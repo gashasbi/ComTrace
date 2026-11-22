@@ -74,7 +74,7 @@ if(search_match EQUAL -1)
 endif()
 
 execute_process(
-    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 2
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 4
     RESULT_VARIABLE no_match_status
     OUTPUT_VARIABLE no_match_output
     ERROR_VARIABLE no_match_error
@@ -89,6 +89,24 @@ string(FIND "${no_match_output}" "Events matching filters: 0" no_match)
 if(no_match EQUAL -1)
     execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
     message(FATAL_ERROR "Non-matching Event ID returned results: ${no_match_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 2
+    RESULT_VARIABLE clsid_alias_status
+    OUTPUT_VARIABLE clsid_alias_output
+    ERROR_VARIABLE clsid_alias_error
+)
+
+if(NOT clsid_alias_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "CLSID alias event search failed: ${clsid_alias_error}${clsid_alias_output}")
+endif()
+
+string(FIND "${clsid_alias_output}" "Events matching filters: 1" clsid_alias_match)
+if(clsid_alias_match EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "CLSID alias event was not emitted: ${clsid_alias_output}")
 endif()
 
 execute_process(
