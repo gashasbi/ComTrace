@@ -439,6 +439,63 @@ static int test_process_thread_pairing_uses_lifo_order(void)
     return 1;
 }
 
+static int test_activity_id_matches_across_process_and_thread(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_OLE_TIMELINE_RECORD *record;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id = activity_one;
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 200U;
+    event.timestamp = 1000ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.process_id = 101U;
+    event.thread_id = 201U;
+    event.timestamp = 1600ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_ole_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_start ||
+        !record->has_stop ||
+        !record->has_duration ||
+        record->duration_ticks != 600ULL ||
+        record->match_type != COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID ||
+        record->process_id != 100U ||
+        record->thread_id != 200U ||
+        record->stop_process_id != 101U ||
+        record->stop_thread_id != 201U ||
+        comtrace_ole_timeline_pending_count(&timeline) != 0U) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_drag_drop_operation_pair() ||
@@ -447,7 +504,8 @@ int main(void)
         !test_one_sided_activity_id_does_not_pair() ||
         !test_nested_activity_pairing_uses_lifo_order() ||
         !test_process_thread_fallback_rejects_mismatched_keys() ||
-        !test_process_thread_pairing_uses_lifo_order()) {
+        !test_process_thread_pairing_uses_lifo_order() ||
+        !test_activity_id_matches_across_process_and_thread()) {
         fputs("OLE timeline tests failed.\n", stderr);
         return 1;
     }
