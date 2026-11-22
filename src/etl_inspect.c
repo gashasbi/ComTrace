@@ -2835,11 +2835,17 @@ static void add_dde_timeline_event(
     timeline_event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
-    (void)comtrace_extract_uint64_property(
-        event_record,
-        L"ConversationCorrelationId",
-        &timeline_event.conversation_correlation_id
-    );
+    if (comtrace_extract_uint64_property(
+            event_record,
+            L"ConversationCorrelationId",
+            &timeline_event.conversation_correlation_id
+        ) != COMTRACE_IDENTITY_SUCCESS) {
+        (void)comtrace_extract_uint64_property(
+            event_record,
+            L"CorrelationId",
+            &timeline_event.conversation_correlation_id
+        );
+    }
 
     switch (event_type) {
     case COMTRACE_DDE_EVENT_CONVERSATION_OPENED:
@@ -2899,11 +2905,12 @@ static void add_dde_timeline_event(
                 event_record,
                 L"IsClient",
                 &boolean_value
-            ) == COMTRACE_IDENTITY_SUCCESS) {
-            timeline_event.role = boolean_value
-                ? COMTRACE_DDE_ROLE_CLIENT
-                : COMTRACE_DDE_ROLE_SERVER;
+            ) != COMTRACE_IDENTITY_SUCCESS) {
+            return;
         }
+        timeline_event.role = boolean_value
+            ? COMTRACE_DDE_ROLE_CLIENT
+            : COMTRACE_DDE_ROLE_SERVER;
         (void)comtrace_extract_uint32_property(
             event_record,
             L"DdeTransactionId",
@@ -2990,11 +2997,12 @@ static void add_dde_timeline_event(
                 event_record,
                 L"IsServerCallback",
                 &boolean_value
-            ) == COMTRACE_IDENTITY_SUCCESS) {
-            timeline_event.role = boolean_value
-                ? COMTRACE_DDE_ROLE_SERVER
-                : COMTRACE_DDE_ROLE_CLIENT;
+            ) != COMTRACE_IDENTITY_SUCCESS) {
+            return;
         }
+        timeline_event.role = boolean_value
+            ? COMTRACE_DDE_ROLE_SERVER
+            : COMTRACE_DDE_ROLE_CLIENT;
         (void)comtrace_extract_uint32_property(
             event_record,
             L"TransactionType",
