@@ -41,7 +41,7 @@ without an index is not matched.
 Supported values include:
 
 - ANSI and Unicode strings and characters
-- UTF-8 encoded ANSI strings when the schema declares `win:UTF8`, `win:Xml`, or `win:Json`
+- UTF-8 encoded ANSI strings when the schema declares `win:Utf8`, `win:Xml`, or `win:Json`
 - Signed and unsigned 8-, 16-, 32-, and 64-bit integers
 - Float and double
 - Boolean values, formatted as `true` or `false`
