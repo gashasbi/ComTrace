@@ -1,4 +1,5 @@
 #include "etl_property_format.h"
+#include "etl_value.h"
 
 #include <limits.h>
 #include <stddef.h>
@@ -6,6 +7,94 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+
+
+int comtrace_etl_normalize_property_payload(
+    USHORT *in_type,
+    BYTE **value,
+    ULONG *value_size,
+    ULONG pointer_size
+)
+{
+    size_t payload_offset;
+    size_t payload_size;
+    int reverse_order = 0;
+    size_t prefix_size = 0U;
+
+    if (in_type == NULL || value == NULL || *value == NULL ||
+        value_size == NULL) {
+        return 0;
+    }
+
+    switch (*in_type) {
+    case TDH_INTYPE_MANIFEST_COUNTEDSTRING:
+    case TDH_INTYPE_COUNTEDSTRING:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_REVERSEDCOUNTEDSTRING:
+        prefix_size = 2U;
+        reverse_order = 1;
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_NONNULLTERMINATEDSTRING:
+        *in_type = TDH_INTYPE_UNICODESTRING;
+        break;
+    case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
+    case TDH_INTYPE_COUNTEDANSISTRING:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
+        prefix_size = 2U;
+        reverse_order = 1;
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
+        *in_type = TDH_INTYPE_ANSISTRING;
+        break;
+    case TDH_INTYPE_MANIFEST_COUNTEDBINARY:
+        prefix_size = 2U;
+        *in_type = TDH_INTYPE_BINARY;
+        break;
+    case TDH_INTYPE_HEXDUMP:
+        prefix_size = 4U;
+        *in_type = TDH_INTYPE_BINARY;
+        break;
+    case TDH_INTYPE_WBEMSID:
+        if (!comtrace_decode_wbem_sid_payload(
+                (size_t)*value_size,
+                (size_t)pointer_size,
+                &payload_offset,
+                &payload_size)) {
+            return 0;
+        }
+        *value += payload_offset;
+        *value_size = (ULONG)payload_size;
+        *in_type = TDH_INTYPE_SID;
+        return 1;
+    default:
+        return 1;
+    }
+
+    if (prefix_size == 0U) {
+        return 1;
+    }
+
+    if (!comtrace_decode_length_prefixed_payload(
+            *value,
+            (size_t)*value_size,
+            prefix_size,
+            reverse_order,
+            &payload_offset,
+            &payload_size)) {
+        return 0;
+    }
+
+    *value += payload_offset;
+    *value_size = (ULONG)payload_size;
+    return 1;
+}
 
 const wchar_t *comtrace_etl_input_type_name(USHORT in_type)
 {
