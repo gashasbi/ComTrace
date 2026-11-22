@@ -33,6 +33,26 @@ static const GUID expected_ipid = {
     { 0xc8, 0xd9, 0xea, 0xfb, 0x0c, 0x1d, 0x2e, 0x3f }
 };
 
+static const GUID expected_rpc_interface_uuid = {
+    0x50617283, 0x94a5, 0xb6c7,
+    { 0xd8, 0xe9, 0xfa, 0x0b, 0x1c, 0x2d, 0x3e, 0x4f }
+};
+
+static const GUID expected_rpcss_interface_uuid = {
+    0x60718293, 0xa4b5, 0xc6d7,
+    { 0xe8, 0xf9, 0x0a, 0x1b, 0x2c, 0x3d, 0x4e, 0x5f }
+};
+
+static const GUID expected_rpcss_object_uuid = {
+    0x708192a3, 0xb4c5, 0xd6e7,
+    { 0xf8, 0x09, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f }
+};
+
+static const GUID expected_type_manager_uuid = {
+    0x8091a2b3, 0xc4d5, 0xe6f7,
+    { 0x08, 0x19, 0x2a, 0x3b, 0x4c, 0x5d, 0x6e, 0x7f }
+};
+
 static const ULONGLONG expected_oid = 0x1122334455667788ULL;
 static const ULONGLONG expected_call_trace_id = 0x8877665544332211ULL;
 static const ULONGLONG expected_call_trace_id_32 = 0x12345678ULL;
@@ -124,6 +144,35 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
             ++context->failures;
         }
 
+        return;
+    }
+
+    if (event_record->EventHeader.EventDescriptor.Id == 6U) {
+        static const struct {
+            const wchar_t *name;
+            const GUID *expected;
+        } properties[] = {
+            {L"InterfaceUuid", &expected_rpc_interface_uuid},
+            {L"InterfaceUUID", &expected_rpcss_interface_uuid},
+            {L"ObjectUUID", &expected_rpcss_object_uuid},
+            {L"TypeMgrUuid", &expected_type_manager_uuid}
+        };
+        size_t index;
+
+        for (index = 0U; index < sizeof(properties) / sizeof(properties[0]); ++index) {
+            status = comtrace_extract_guid_property(
+                event_record,
+                properties[index].name,
+                &value
+            );
+            if (status != COMTRACE_IDENTITY_SUCCESS ||
+                memcmp(&value, properties[index].expected, sizeof(GUID)) != 0) {
+                fwprintf(stderr, L"%ls GUID extraction failed: status=%u\n",
+                    properties[index].name,
+                    (unsigned int)status);
+                ++context->failures;
+            }
+        }
         return;
     }
 
@@ -451,7 +500,7 @@ static int verify_event(const wchar_t *etl_path)
         return 0;
     }
 
-    if (context.events_seen != 5U || context.failures != 0U) {
+    if (context.events_seen != 6U || context.failures != 0U) {
         fwprintf(
             stderr,
             L"Identity validation failed. Events: %lu Failures: %lu\n",
