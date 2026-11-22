@@ -30,6 +30,12 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint32_property(
     ULONG *value
 );
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    BOOL *value
+);
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_int32_property(
     const EVENT_RECORD *event_record,
     const wchar_t *property_name,
