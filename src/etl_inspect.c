@@ -1764,15 +1764,14 @@ static BOOL get_tracelogging_event_name(
     size_t event_name_capacity
 )
 {
-    ULONG buffer_size = 0U;
-    ULONG allocated_size;
-    ULONG status;
+    COMTRACE_ETL_EVENT_INFO decoded_info;
+    COMTRACE_ETL_EVENT_INFO_STATUS info_status;
+    TRACE_EVENT_INFO *event_info;
     ULONG name_offset;
     ULONG remaining;
     ULONG name_length = 0U;
-    BYTE *buffer;
-    TRACE_EVENT_INFO *event_info;
     const wchar_t *name;
+    BOOL result = FALSE;
 
     if (event_record == NULL ||
         event_name == NULL ||
@@ -1780,71 +1779,36 @@ static BOOL get_tracelogging_event_name(
         return FALSE;
     }
 
-    event_name[0] = L'\0';
-
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        NULL,
-        &buffer_size
-    );
-
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        buffer_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) ||
-        buffer_size > 65536U) {
+    event_name[0] = L'\\0';
+    ZeroMemory(&decoded_info, sizeof(decoded_info));
+    info_status = comtrace_etl_event_info_open(event_record, &decoded_info);
+    if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
         return FALSE;
     }
 
-    allocated_size = buffer_size;
-    buffer = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_size);
-    if (buffer == NULL) {
-        return FALSE;
-    }
-
-    status = TdhGetEventInformation(
-        (PEVENT_RECORD)event_record,
-        0U,
-        NULL,
-        (PTRACE_EVENT_INFO)buffer,
-        &buffer_size
-    );
-
-    if (status != ERROR_SUCCESS ||
-        buffer_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) ||
-        buffer_size > allocated_size) {
-        (void)HeapFree(GetProcessHeap(), 0U, buffer);
-        return FALSE;
-    }
-
-    event_info = (TRACE_EVENT_INFO *)buffer;
+    event_info = decoded_info.info;
     name_offset = event_info->EventNameOffset;
+    if (event_info->DecodingSource == DecodingSourceTlg &&
+        name_offset != 0U &&
+        name_offset < decoded_info.size &&
+        (name_offset % (ULONG)sizeof(wchar_t)) == 0U) {
+        name = (const wchar_t *)(decoded_info.buffer + name_offset);
+        remaining = (decoded_info.size - name_offset) / (ULONG)sizeof(wchar_t);
 
-    if (event_info->DecodingSource != DecodingSourceTlg ||
-        name_offset == 0U ||
-        name_offset >= buffer_size ||
-        (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
-        (void)HeapFree(GetProcessHeap(), 0U, buffer);
-        return FALSE;
+        while (name_length < remaining && name[name_length] != L'\\0') {
+            ++name_length;
+        }
+
+        if (name_length != 0U &&
+            name_length < remaining &&
+            (size_t)name_length < event_name_capacity &&
+            wcsncpy_s(event_name, event_name_capacity, name, name_length) == 0) {
+            result = TRUE;
+        }
     }
 
-    name = (const wchar_t *)(buffer + name_offset);
-    remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-
-    while (name_length < remaining && name[name_length] != L'\0') {
-        ++name_length;
-    }
-
-    if (name_length == 0U ||
-        name_length == remaining ||
-        (size_t)name_length >= event_name_capacity ||
-        wcsncpy_s(event_name, event_name_capacity, name, name_length) != 0) {
-        (void)HeapFree(GetProcessHeap(), 0U, buffer);
-        return FALSE;
-    }
-
-    (void)HeapFree(GetProcessHeap(), 0U, buffer);
-    return TRUE;
+    comtrace_etl_event_info_close(&decoded_info);
+    return result;
 }
 
 static void print_com_lifetime_event_classification(
