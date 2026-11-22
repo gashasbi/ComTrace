@@ -5,6 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include <stddef.h>
 #include <windows.h>
 #include <evntcons.h>
 
@@ -39,6 +40,13 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     const EVENT_RECORD *event_record,
     const wchar_t *property_name,
     ULONGLONG *value
+);
+
+COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    wchar_t *value,
+    size_t value_capacity
 );
 
 COMTRACE_IDENTITY_STATUS comtrace_extract_call_trace_id(
