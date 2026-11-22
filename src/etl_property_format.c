@@ -5,6 +5,99 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+const wchar_t *comtrace_etl_input_type_name(USHORT in_type)
+{
+    switch (in_type) {
+    case TDH_INTYPE_NULL: return L"NULL";
+    case TDH_INTYPE_UNICODESTRING: return L"UNICODESTRING";
+    case TDH_INTYPE_ANSISTRING: return L"ANSISTRING";
+    case TDH_INTYPE_INT8: return L"INT8";
+    case TDH_INTYPE_UINT8: return L"UINT8";
+    case TDH_INTYPE_INT16: return L"INT16";
+    case TDH_INTYPE_UINT16: return L"UINT16";
+    case TDH_INTYPE_INT32: return L"INT32";
+    case TDH_INTYPE_UINT32: return L"UINT32";
+    case TDH_INTYPE_INT64: return L"INT64";
+    case TDH_INTYPE_UINT64: return L"UINT64";
+    case TDH_INTYPE_FLOAT: return L"FLOAT";
+    case TDH_INTYPE_DOUBLE: return L"DOUBLE";
+    case TDH_INTYPE_BOOLEAN: return L"BOOLEAN";
+    case TDH_INTYPE_BINARY: return L"BINARY";
+    case TDH_INTYPE_GUID: return L"GUID";
+    case TDH_INTYPE_POINTER: return L"POINTER";
+    case TDH_INTYPE_FILETIME: return L"FILETIME";
+    case TDH_INTYPE_SYSTEMTIME: return L"SYSTEMTIME";
+    case TDH_INTYPE_SID: return L"SID";
+    case TDH_INTYPE_HEXINT32: return L"HEXINT32";
+    case TDH_INTYPE_HEXINT64: return L"HEXINT64";
+    case TDH_INTYPE_MANIFEST_COUNTEDSTRING: return L"MANIFEST_COUNTEDSTRING";
+    case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING: return L"MANIFEST_COUNTEDANSISTRING";
+    case TDH_INTYPE_RESERVED24: return L"RESERVED24";
+    case TDH_INTYPE_MANIFEST_COUNTEDBINARY: return L"MANIFEST_COUNTEDBINARY";
+    case TDH_INTYPE_COUNTEDSTRING: return L"COUNTEDSTRING";
+    case TDH_INTYPE_COUNTEDANSISTRING: return L"COUNTEDANSISTRING";
+    case TDH_INTYPE_REVERSEDCOUNTEDSTRING: return L"REVERSEDCOUNTEDSTRING";
+    case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING: return L"REVERSEDCOUNTEDANSISTRING";
+    case TDH_INTYPE_NONNULLTERMINATEDSTRING: return L"NONNULLTERMINATEDSTRING";
+    case TDH_INTYPE_NONNULLTERMINATEDANSISTRING: return L"NONNULLTERMINATEDANSISTRING";
+    case TDH_INTYPE_UNICODECHAR: return L"UNICODECHAR";
+    case TDH_INTYPE_ANSICHAR: return L"ANSICHAR";
+    case TDH_INTYPE_SIZET: return L"SIZET";
+    case TDH_INTYPE_HEXDUMP: return L"HEXDUMP";
+    case TDH_INTYPE_WBEMSID: return L"WBEMSID";
+    default: return L"UNKNOWN";
+    }
+}
+
+const wchar_t *comtrace_etl_output_type_name(USHORT out_type)
+{
+    switch (out_type) {
+    case TDH_OUTTYPE_NULL: return L"NULL";
+    case TDH_OUTTYPE_STRING: return L"STRING";
+    case TDH_OUTTYPE_DATETIME: return L"DATETIME";
+    case TDH_OUTTYPE_BYTE: return L"BYTE";
+    case TDH_OUTTYPE_UNSIGNEDBYTE: return L"UNSIGNEDBYTE";
+    case TDH_OUTTYPE_SHORT: return L"SHORT";
+    case TDH_OUTTYPE_UNSIGNEDSHORT: return L"UNSIGNEDSHORT";
+    case TDH_OUTTYPE_INT: return L"INT";
+    case TDH_OUTTYPE_UNSIGNEDINT: return L"UNSIGNEDINT";
+    case TDH_OUTTYPE_LONG: return L"LONG";
+    case TDH_OUTTYPE_UNSIGNEDLONG: return L"UNSIGNEDLONG";
+    case TDH_OUTTYPE_FLOAT: return L"FLOAT";
+    case TDH_OUTTYPE_DOUBLE: return L"DOUBLE";
+    case TDH_OUTTYPE_BOOLEAN: return L"BOOLEAN";
+    case TDH_OUTTYPE_GUID: return L"GUID";
+    case TDH_OUTTYPE_HEXBINARY: return L"HEXBINARY";
+    case TDH_OUTTYPE_HEXINT8: return L"HEXINT8";
+    case TDH_OUTTYPE_HEXINT16: return L"HEXINT16";
+    case TDH_OUTTYPE_HEXINT32: return L"HEXINT32";
+    case TDH_OUTTYPE_HEXINT64: return L"HEXINT64";
+    case TDH_OUTTYPE_PID: return L"PID";
+    case TDH_OUTTYPE_TID: return L"TID";
+    case TDH_OUTTYPE_PORT: return L"PORT";
+    case TDH_OUTTYPE_IPV4: return L"IPV4";
+    case TDH_OUTTYPE_IPV6: return L"IPV6";
+    case TDH_OUTTYPE_SOCKETADDRESS: return L"SOCKETADDRESS";
+    case TDH_OUTTYPE_CIMDATETIME: return L"CIMDATETIME";
+    case TDH_OUTTYPE_ETWTIME: return L"ETWTIME";
+    case TDH_OUTTYPE_XML: return L"XML";
+    case TDH_OUTTYPE_ERRORCODE: return L"ERRORCODE";
+    case TDH_OUTTYPE_WIN32ERROR: return L"WIN32ERROR";
+    case TDH_OUTTYPE_NTSTATUS: return L"NTSTATUS";
+    case TDH_OUTTYPE_HRESULT: return L"HRESULT";
+    case TDH_OUTTYPE_CULTURE_INSENSITIVE_DATETIME: return L"CULTURE_INSENSITIVE_DATETIME";
+    case TDH_OUTTYPE_JSON: return L"JSON";
+    case TDH_OUTTYPE_UTF8: return L"UTF8";
+    case TDH_OUTTYPE_PKCS7_WITH_TYPE_INFO: return L"PKCS7_WITH_TYPE_INFO";
+    case TDH_OUTTYPE_CODE_POINTER: return L"CODE_POINTER";
+    case TDH_OUTTYPE_DATETIME_UTC: return L"DATETIME_UTC";
+    case TDH_OUTTYPE_REDUCEDSTRING: return L"REDUCEDSTRING";
+    case TDH_OUTTYPE_NOPRINT: return L"NOPRINT";
+    default: return L"UNKNOWN";
+    }
+}
+
 int comtrace_etl_print_tdh_formatted_property(
     const BYTE *metadata_buffer,
     ULONG metadata_size,
