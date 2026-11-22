@@ -212,6 +212,7 @@ if(BUILD_TESTING)
         src/com_identity.c
         src/etl_decoder.c
         src/etl_property_format.c
+        src/etl_value.c
     )
     target_include_directories(ComTraceRelationshipGraphTests PRIVATE src)
     target_link_libraries(ComTraceRelationshipGraphTests PRIVATE Tdh Advapi32)
@@ -232,6 +233,7 @@ if(BUILD_TESTING)
         src/com_identity.c
         src/etl_decoder.c
         src/etl_property_format.c
+        src/etl_value.c
     )
     target_include_directories(ComTraceObjectIdentityCompareTests PRIVATE src)
     target_link_libraries(ComTraceObjectIdentityCompareTests PRIVATE Tdh Advapi32)
@@ -278,6 +280,7 @@ if(BUILD_TESTING)
         src/com_identity.c
         src/etl_decoder.c
         src/etl_property_format.c
+        src/etl_value.c
     )
     target_include_directories(ComTraceProcessLifecycleTests PRIVATE src)
     target_link_libraries(ComTraceProcessLifecycleTests PRIVATE Tdh Advapi32)
@@ -295,6 +298,7 @@ if(BUILD_TESTING)
         src/com_identity.c
         src/etl_decoder.c
         src/etl_property_format.c
+        src/etl_value.c
     )
     target_include_directories(ComTraceComIdentityTests PRIVATE src)
     target_link_libraries(ComTraceComIdentityTests PRIVATE Tdh Advapi32)
@@ -338,6 +342,7 @@ if(BUILD_TESTING)
     add_executable(ComTraceEtlPropertyFormatTests
         tests/test_etl_property_format.c
         src/etl_property_format.c
+        src/etl_value.c
     )
     target_include_directories(ComTraceEtlPropertyFormatTests PRIVATE src)
     target_link_libraries(ComTraceEtlPropertyFormatTests PRIVATE Tdh Advapi32)
