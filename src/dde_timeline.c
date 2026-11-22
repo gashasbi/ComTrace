@@ -99,6 +99,7 @@ static int same_transaction(
 )
 {
     return same_conversation(record, event) &&
+        record->role == event->role &&
         record->transaction_instance_id != 0ULL &&
         record->transaction_instance_id == event->transaction_instance_id;
 }
@@ -140,7 +141,7 @@ static int records_can_correlate(
          left->conversation_id == right->conversation_id) ||
         left->transaction_type != right->transaction_type ||
         left->format != right->format ||
-        wcscmp(left->item, right->item) != 0) {
+        _wcsicmp(left->item, right->item) != 0) {
         return 0;
     }
 
@@ -180,6 +181,20 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
     COMTRACE_DDE_TIMELINE_RECORD *record;
 
     if (timeline == NULL || event == NULL || event->conversation_id == 0ULL) {
+        return COMTRACE_DDE_TIMELINE_INVALID_ARGUMENT;
+    }
+
+    if ((event->type == COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED ||
+         event->type == COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED ||
+         event->type == COMTRACE_DDE_TIMELINE_CALLBACK_RECEIVED) &&
+        event->role != COMTRACE_DDE_ROLE_CLIENT &&
+        event->role != COMTRACE_DDE_ROLE_SERVER) {
+        return COMTRACE_DDE_TIMELINE_INVALID_ARGUMENT;
+    }
+
+    if ((event->type == COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED ||
+         event->type == COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED) &&
+        event->transaction_instance_id == 0ULL) {
         return COMTRACE_DDE_TIMELINE_INVALID_ARGUMENT;
     }
 
@@ -224,6 +239,7 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
     ZeroMemory(record, sizeof(*record));
     record->process_id = event->process_id;
     record->thread_id = event->thread_id;
+    record->dde_instance_id = event->dde_instance_id;
     record->conversation_id = event->conversation_id;
     record->conversation_correlation_id = event->conversation_correlation_id;
     record->transaction_instance_id = event->transaction_instance_id;
