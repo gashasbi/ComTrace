@@ -236,8 +236,8 @@ $inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--i
 Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 
 $processProviderGuid = "{3D6FA8D0-FE05-11D0-9DDA-00C04FD7BA7C}"
-$processStartPattern = "(?im)^\\s*$([regex]::Escape($processProviderGuid))\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*1\\s*\\|"
-$processEndPattern = "(?im)^\\s*$([regex]::Escape($processProviderGuid))\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*\\d+\\s*\\|\\s*2\\s*\\|"
+$processStartPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*1\s*\|"
+$processEndPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*2\s*\|"
 $processStartCount = [regex]::Matches($inspectOutput, $processStartPattern).Count
 $processEndCount = [regex]::Matches($inspectOutput, $processEndPattern).Count
 
