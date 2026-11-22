@@ -2834,7 +2834,7 @@ static int format_search_property_value(
             ) != 1) {
             return 0;
         }
-        text[1] = L'\\0';
+        text[1] = L'\0';
         return 1;
     case TDH_INTYPE_UNICODECHAR:
         if (value_size != sizeof(wchar_t)) {
