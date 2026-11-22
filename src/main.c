@@ -497,7 +497,7 @@ static int run_etl_search(int argc, wchar_t **argv)
                 filters.has_lifetime_object_id = TRUE;
             } else if (wcscmp(option, L"--property") == 0) {
                 if (filters.has_property_name ||
-                    argument[0] == L'\\0' ||
+                    argument[0] == L'\0' ||
                     wcslen(argument) >= _countof(filters.property_name) ||
                     wcscpy_s(filters.property_name, _countof(filters.property_name), argument) != 0) {
                     fwprintf(stderr, L"Invalid or repeated property name.\n");
@@ -507,7 +507,7 @@ static int run_etl_search(int argc, wchar_t **argv)
             } else if (wcscmp(option, L"--equals") == 0 ||
                        wcscmp(option, L"--contains") == 0) {
                 if (filters.has_property_value ||
-                    argument[0] == L'\\0' ||
+                    argument[0] == L'\0' ||
                     wcslen(argument) >= _countof(filters.property_value) ||
                     wcscpy_s(filters.property_value, _countof(filters.property_value), argument) != 0) {
                     fwprintf(stderr, L"Invalid or repeated property comparison value.\n");

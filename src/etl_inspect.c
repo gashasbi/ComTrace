@@ -2824,14 +2824,18 @@ static int format_search_property_value(
         if (value_size != 1U) {
             return 0;
         }
-        return MultiByteToWideChar(
-            CP_ACP,
-            0U,
-            (LPCCH)value,
-            1,
-            text,
-            (int)text_capacity - 1
-        ) == 1;
+        if (MultiByteToWideChar(
+                CP_ACP,
+                0U,
+                (LPCCH)value,
+                1,
+                text,
+                (int)text_capacity - 1
+            ) != 1) {
+            return 0;
+        }
+        text[1] = L'\\0';
+        return 1;
     case TDH_INTYPE_UNICODECHAR:
         if (value_size != sizeof(wchar_t)) {
             return 0;
@@ -2840,49 +2844,49 @@ static int format_search_property_value(
         text[1] = L'\0';
         return 1;
     case TDH_INTYPE_INT8: {
-        INT8 number;
+        int8_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%d", (int)number);
         return 1;
     }
     case TDH_INTYPE_UINT8: {
-        UINT8 number;
+        Uint8_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
         return 1;
     }
     case TDH_INTYPE_INT16: {
-        INT16 number;
+        int16_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%d", (int)number);
         return 1;
     }
     case TDH_INTYPE_UINT16: {
-        UINT16 number;
+        Uint16_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
         return 1;
     }
     case TDH_INTYPE_INT32: {
-        INT32 number;
+        int32_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%ld", (long)number);
         return 1;
     }
     case TDH_INTYPE_UINT32: {
-        UINT32 number;
+        Uint32_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lu", (unsigned long)number);
         return 1;
     }
     case TDH_INTYPE_INT64: {
-        INT64 number;
+        int64_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lld", (long long)number);
