@@ -127,8 +127,6 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
         event->activity_ids->has_activity_id;
 
     if (wcscmp(record->operation, event->operation) != 0 ||
-        record->process_id != event->process_id ||
-        record->thread_id != event->thread_id ||
         record->has_activity_id != event_has_activity ||
         (record->has_interface_uuid && event->has_interface_uuid &&
          memcmp(&record->interface_uuid, &event->interface_uuid, sizeof(GUID)) != 0) ||
@@ -137,19 +135,23 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
         return COMTRACE_RPC_TIMELINE_MATCH_NONE;
     }
 
-    if (!record->has_activity_id) {
-        return COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD;
-    }
-
-    if (memcmp(
-            &record->activity_id,
-            &event->activity_ids->activity_id,
-            sizeof(GUID)
-        ) != 0) {
+    if (record->has_activity_id) {
+        if (memcmp(
+                &record->activity_id,
+                &event->activity_ids->activity_id,
+                sizeof(GUID)
+            ) == 0) {
+            return COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID;
+        }
         return COMTRACE_RPC_TIMELINE_MATCH_NONE;
     }
 
-    return COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID;
+    if (record->process_id == event->process_id &&
+        record->thread_id == event->thread_id) {
+        return COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD;
+    }
+
+    return COMTRACE_RPC_TIMELINE_MATCH_NONE;
 }
 
 void comtrace_rpc_timeline_init(COMTRACE_RPC_TIMELINE *timeline)
@@ -232,6 +234,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 
         record->match_type = match_type;
         record->has_stop = TRUE;
+        record->stop_process_id = event->process_id;
+        record->stop_thread_id = event->thread_id;
         record->stop_timestamp = event->timestamp;
         if (event->timestamp >= record->start_timestamp) {
             record->duration_ticks = event->timestamp - record->start_timestamp;
@@ -280,6 +284,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 
     record->process_id = event->process_id;
     record->thread_id = event->thread_id;
+    record->stop_process_id = event->process_id;
+    record->stop_thread_id = event->thread_id;
     record->stop_timestamp = event->timestamp;
     record->has_stop = TRUE;
     copy_event_metadata(record, event);
