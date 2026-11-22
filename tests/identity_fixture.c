@@ -60,6 +60,7 @@ int wmain(int argc, wchar_t **argv)
     EVENT_DATA_DESCRIPTOR class_id_alias_data;
     EVENT_DATA_DESCRIPTOR call_trace_data;
     EVENT_DATA_DESCRIPTOR related_data;
+    EVENT_DATA_DESCRIPTOR rundown_data[3];
     ULONG call_trace_id_32 = 0x12345678UL;
     ULONG related_marker = 456U;
     ULONG target_process_id = 0x12345678UL;
@@ -216,6 +217,16 @@ int wmain(int argc, wchar_t **argv)
     );
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"Related-only activity event write failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    descriptor.Id = 5U;
+    EventDataDescCreate(&rundown_data[0], (PVOID)&object_id, (ULONG)sizeof(object_id));
+    EventDataDescCreate(&rundown_data[1], (PVOID)&interface_id, (ULONG)sizeof(interface_id));
+    EventDataDescCreate(&rundown_data[2], (PVOID)&interface_pointer_id, (ULONG)sizeof(interface_pointer_id));
+    status = EventWrite(provider, &descriptor, 3U, rundown_data);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"Rundown identity event write failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
