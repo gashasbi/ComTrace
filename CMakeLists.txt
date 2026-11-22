@@ -288,6 +288,38 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME comtrace_dde_timeline COMMAND ComTraceDdeTimelineTests)
 
+    add_executable(ComTraceDdeEventTests
+        tests/test_dde_event.c
+        src/dde_event.c
+    )
+    target_include_directories(ComTraceDdeEventTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ComTraceDdeEventTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceDdeEventTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_dde_event COMMAND ComTraceDdeEventTests)
+
+    add_executable(ComTraceDdeInstrumentationFixture
+        tests/dde_instrumentation_fixture.c
+    )
+    target_link_libraries(ComTraceDdeInstrumentationFixture PRIVATE ComTraceDdeInstrumentation)
+    if(MSVC)
+        target_compile_options(ComTraceDdeInstrumentationFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceDdeInstrumentationFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+
+    add_test(
+        NAME comtrace_dde_instrumentation
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceDdeInstrumentationFixture>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/dde-instrumentation-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/dde_instrumentation_case.cmake"
+    )
+    set_tests_properties(comtrace_dde_instrumentation PROPERTIES RUN_SERIAL TRUE)
+
     add_executable(ComTraceProcessLifecycleTests
         tests/test_process_lifecycle.c
         src/process_lifecycle.c
