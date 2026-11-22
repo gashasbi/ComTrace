@@ -38,7 +38,7 @@ Use a trace that contains COM Performance and OLE Performance events, including 
 3. `ComTrace.exe --search <trace.etl> --ole` finds OLE Performance events and validates clipboard or drag-and-drop activity, OLE start/stop pairing, and missing ActivityId counts.
 4. `ComTrace.exe --search <trace.etl> --provider {2957313D-FCAA-5D4A-2F69-32CE5F0AC44E}` records COM-RundownInstrumentation events and available OID/IID/IPID fields. No events is reported as `NOT_EMITTED` and does not fail the validation.
 5. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
-5. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
+6. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
 7. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
 
 The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both COM events lack it, matching non-empty `ActivityId`, process ID, thread ID, and operation are used as the second level. When both events lack both identifiers, the same process ID, thread ID, and operation can be used as a weaker third level; the report keeps that count separate so it is not confused with identifier-based matching. Nested starts use last-in-first-out pairing. One-sided or mismatched identifiers are never treated as matches.
@@ -49,7 +49,7 @@ The OLE Performance provider manifest inspected on Windows Server 2022 defines e
 
 A successful run prints `Real ETL validation: PASS` and writes a JSON validation summary. The ETL, CTRA archive, and text/JSON reports are preserved in the output directory. By default this directory is `comtrace-validation` under the current directory; set `-OutputDirectory` to choose another location.
 
-The number of CLSID, IID, IPID, or OID values reported is included for review, but is not a pass/fail requirement. A specific provider event may not expose those fields in its installed TDH schema. ComTrace does not infer missing identities from arbitrary payload bytes.
+The number of CLSID, IID, IPID, or OID values reported is included for review, but is not a pass/fail requirement. COM-RundownInstrumentation event and identity counts are also recorded separately; absence of rundown events is not treated as a validation failure. A specific provider event may not expose those fields in its installed TDH schema. ComTrace does not infer missing identities from arbitrary payload bytes.
 
 ## Target application validation
 
