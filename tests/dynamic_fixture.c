@@ -92,8 +92,9 @@ int wmain(int argc, wchar_t **argv)
     FILETIME filetime_value = { 0x5849AAE0UL, 0x01DA3D28UL };
     SYSTEMTIME systemtime_value = { 2024U, 1U, 2U, 2U, 3U, 4U, 5U, 6U };
     PVOID pointer_value = (PVOID)(ULONG_PTR)0x12345678UL;
+    ULONG hidden_value = 0xDEADBEEFUL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
-    EVENT_DATA_DESCRIPTOR extended_descriptors[10];
+    EVENT_DATA_DESCRIPTOR extended_descriptors[11];
     int result = 1;
 
     if (argc != 2) {
@@ -194,7 +195,8 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&extended_descriptors[6], &filetime_value, sizeof(filetime_value));
     EventDataDescCreate(&extended_descriptors[7], &systemtime_value, sizeof(systemtime_value));
     EventDataDescCreate(&extended_descriptors[8], &pointer_value, sizeof(pointer_value));
-    EventDataDescCreate(&extended_descriptors[9], pkcs7_payload, sizeof(pkcs7_payload));
+    EventDataDescCreate(&extended_descriptors[9], &hidden_value, sizeof(hidden_value));
+    EventDataDescCreate(&extended_descriptors[10], pkcs7_payload, sizeof(pkcs7_payload));
 
     status = EventWrite(
         extended_registration_handle,
