@@ -127,6 +127,27 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         return;
     }
 
+    if (event_record->EventHeader.EventDescriptor.Id == 5U) {
+        status = comtrace_extract_com_object_identity(
+            event_record,
+            &object_identity
+        );
+        if (status != COMTRACE_IDENTITY_SUCCESS ||
+            !object_identity.has_oid ||
+            !object_identity.has_iid ||
+            !object_identity.has_ipid ||
+            object_identity.has_clsid ||
+            object_identity.has_call_trace_id ||
+            object_identity.oid != expected_oid ||
+            memcmp(&object_identity.iid, &expected_interface_id, sizeof(GUID)) != 0 ||
+            memcmp(&object_identity.ipid, &expected_ipid, sizeof(GUID)) != 0) {
+            fwprintf(stderr, L"COM rundown identity property extraction failed: status=%u\n",
+                (unsigned int)status);
+            ++context->failures;
+        }
+        return;
+    }
+
     if (event_record->EventHeader.EventDescriptor.Id == 4U) {
         status = comtrace_extract_activity_ids(event_record, &activity_ids);
         if (status != COMTRACE_IDENTITY_SUCCESS ||
@@ -430,7 +451,7 @@ static int verify_event(const wchar_t *etl_path)
         return 0;
     }
 
-    if (context.events_seen != 4U || context.failures != 0U) {
+    if (context.events_seen != 5U || context.failures != 0U) {
         fwprintf(
             stderr,
             L"Identity validation failed. Events: %lu Failures: %lu\n",
