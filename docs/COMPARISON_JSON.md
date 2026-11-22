@@ -26,6 +26,8 @@ The top-level `schema_version` field is currently `1`. Consumers should check th
 | `event_type_changes` | array | Event types added, removed, or with changed counts |
 | `object_changes` | array | COM objects added, removed, or with changed identity fields |
 | `object_observations` | object | All observed COM objects and their per-input observation counts and timestamp bounds |
+| `process_lifetimes` | object | Process generations and their observed lifecycle boundaries for each input |
+| `process_lifecycle_summary` | object | Process event counts and decode-failure counts for each input |
 | `timeline` | object | Per-operation timing summaries for each input |
 
 Each input object contains:
@@ -82,7 +84,7 @@ The `changed_fields` bits are:
 | `0x2` | IID set changed |
 | `0x4` | IPID set changed |
 
-Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. The standard capture does not enable kernel process start/exit events, and the currently mapped COM events do not provide a verified object-release signal. Consequently, a reused numeric PID or a reused OID within one process cannot yet be separated into distinct object generations; matching remains scoped to process ID and OID.
+Added or removed objects have one presence flag set to false and a zero changed-fields mask. Objects are matched by process ID and OID. Identity comparison reports only fields available from the trace schema; missing values are not guessed from arbitrary payload bytes. The inspect graph also records the number of observations and the minimum/maximum raw ETW clock timestamps for each observed COM object and IPID. These bounds are observation times, not object creation or release times. Process generations are tracked separately when the trace contains actual Kernel Process Start and End events; the current object comparison key remains process ID and OID and does not yet use those generations. The currently mapped COM events still do not provide a verified object-release signal, so a reused OID within one process cannot yet be separated into distinct object generations.
 
 ## COM object observations
 
@@ -97,6 +99,29 @@ The `object_observations` object contains `left` and `right` arrays. Each array 
 | `last_seen_ticks` | string or null | Maximum raw ETW timestamp observed for the object |
 
 Timestamp values are strings to preserve their full 64-bit precision. They use the trace's clock units and are only observation bounds; they do not indicate object creation or release. Missing timestamp bounds are represented as `null`.
+
+## Process lifetimes
+
+The `process_lifetimes` object contains `left` and `right` arrays. A generation is created from a Kernel Process `Start` event or a `DCStart` rundown observation. `End` closes the most recent open generation for the same PID whose first observation is not later than the end timestamp. An `End` without a matching start is retained as an incomplete generation rather than being assigned an invented start time.
+
+Each `process_lifetimes` entry contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `process_id` | number | PID read from the event payload's `ProcessId` field |
+| `generation` | number | One-based generation number for this PID within the trace |
+| `parent_process_id` | number or null | Parent PID from the start/rundown event, when available |
+| `start_kind` | string | `start`, `dcstart`, or `unknown` |
+| `first_seen_ticks` | string or null | Timestamp of the actual Start or DCStart observation |
+| `end_ticks` | string or null | Timestamp of an actual End event |
+| `running_at_trace_end` | boolean | Whether a DCEnd rundown observed this process at trace end |
+| `trace_end_observed_ticks` | string or null | Timestamp of that DCEnd observation |
+
+`start_kind=start` means an actual process Start event was captured. `dcstart` is only a snapshot of a process already running when the kernel session began; `first_seen_ticks` is not its creation time. `running_at_trace_end` is based on DCEnd, which is also a snapshot and does not mean an exit. Timestamp fields are strings to preserve 64-bit precision and use the trace clock's raw units.
+
+The `process_lifecycle_summary` object contains `left` and `right` event counters: `start_events`, `end_events`, `dc_start_events`, `dc_end_events`, `defunct_events`, and `decode_failures`. Decode failures count recognized Process events for which the payload's `ProcessId` could not be read. Process IDs are extracted from the named payload property, not `EVENT_HEADER.ProcessId`, because the latter can refer to the parent process for creation events. Parent PIDs are retained as event metadata but are not treated as durable process identities because Windows can reuse PIDs.
+
+Actual process generations can only be separated when the corresponding Start/End events are present in the ETL. Captures that fall back to COM/OLE-only mode, traces with lost events, and older ETLs may contain incomplete generations.
 
 ## Timeline summaries
 
