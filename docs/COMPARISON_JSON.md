@@ -117,7 +117,7 @@ Each `process_lifetimes` entry contains:
 | `running_at_trace_end` | boolean | Whether a DCEnd rundown observed this process at trace end |
 | `trace_end_observed_ticks` | string or null | Timestamp of that DCEnd observation |
 
-`start_kind=start` means an actual process Start event was captured. `dcstart` is only a snapshot of a process already running when the kernel session began; `first_seen_ticks` is not its creation time. `running_at_trace_end` is based on DCEnd, which is also a snapshot and does not mean an exit. Timestamp fields are strings to preserve 64-bit precision and use the trace clock's raw units.
+`start_kind=start` means an actual process Start event was captured. `dcstart` is only a snapshot of a process already running when the kernel session began; `first_seen_ticks` is not its creation time. `running_at_trace_end` is based on DCEnd, which is also a snapshot and does not mean an exit. Timestamp fields are strings to preserve 64-bit precision and use the trace clock's raw units. `--inspect` also reads raw ETW timestamps and labels event sample values as `time_ticks`.
 
 The `process_lifecycle_summary` object contains `left` and `right` event counters: `start_events`, `end_events`, `dc_start_events`, `dc_end_events`, `defunct_events`, and `decode_failures`. Decode failures count recognized Process events for which the payload's `ProcessId` could not be read. Process IDs are extracted from the named payload property, not `EVENT_HEADER.ProcessId`, because the latter can refer to the parent process for creation events. Parent PIDs are retained as event metadata but are not treated as durable process identities because Windows can reuse PIDs.
 
