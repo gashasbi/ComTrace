@@ -117,6 +117,8 @@ if(NOT removed_provider_id STREQUAL "{12345678-9ABC-DEF0-1234-56789ABCDEF0}" OR
 endif()
 
 string(JSON object_change_count LENGTH "${output}" object_changes)
+string(JSON left_object_observation_count LENGTH "${output}" object_observations left)
+string(JSON right_object_observation_count LENGTH "${output}" object_observations right)
 string(JSON left_timeline_count LENGTH "${output}" timeline left)
 string(JSON right_timeline_count LENGTH "${output}" timeline right)
 string(JSON left_com_matched GET "${output}" timeline_summary left_com matched)
@@ -140,6 +142,8 @@ string(JSON right_ole_activity_matches GET "${output}" timeline_summary right_ol
 string(JSON right_ole_fallback_matches GET "${output}" timeline_summary right_ole matched_by_process_thread)
 string(JSON right_ole_missing_activity GET "${output}" timeline_summary right_ole missing_activity_ids)
 if(NOT object_change_count EQUAL 0 OR
+   NOT left_object_observation_count EQUAL 0 OR
+   NOT right_object_observation_count EQUAL 0 OR
    NOT left_timeline_count EQUAL 0 OR
    NOT right_timeline_count EQUAL 0 OR
    NOT left_com_matched EQUAL 0 OR
