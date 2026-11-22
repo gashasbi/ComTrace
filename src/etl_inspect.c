@@ -376,7 +376,7 @@ static void print_custom_schema_metadata(
 )
 {
     ULONG offset;
-    ULONG schema_size;
+    USHORT schema_size;
     ULONG index;
     USHORT protocol_id;
 
