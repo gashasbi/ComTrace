@@ -989,6 +989,16 @@ static void print_event_property_value_element(
     if ((flags & PropertyHasTags) != 0U) {
         wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
     }
+    if ((flags & PropertyParamCount) != 0U) {
+        wprintf(L"count_property_index=%u ", (unsigned int)property->countPropertyIndex);
+    } else if ((flags & PropertyParamFixedCount) != 0U) {
+        wprintf(L"fixed_count=%u ", (unsigned int)property->count);
+    }
+    if ((flags & PropertyParamLength) != 0U) {
+        wprintf(L"length_property_index=%u ", (unsigned int)property->lengthPropertyIndex);
+    } else if ((flags & PropertyParamFixedLength) != 0U) {
+        wprintf(L"fixed_length=%u ", (unsigned int)property->length);
+    }
     if ((flags & PropertyHasCustomSchema) != 0U) {
         print_binary_value(value, value_size);
         goto cleanup;
@@ -1539,6 +1549,13 @@ static void print_event_property_value(
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_count_limit\n", (unsigned long)index, name);
             return;
         }
+        wprintf(
+            L"  property_value[%lu] name=%ls type=struct elements=%lu\\n",
+            (unsigned long)index,
+            name,
+            (unsigned long)struct_count
+        );
+
         for (element_index = 0U; element_index < parent_count; ++element_index) {
             nested_names[element_index] = parent_names[element_index];
             nested_indices[element_index] = parent_indices[element_index];
