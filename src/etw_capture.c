@@ -157,6 +157,7 @@ int comtrace_capture_com_perf(
     BOOL session_started = FALSE;
     BOOL com_provider_enabled = FALSE;
     BOOL ole_provider_enabled = FALSE;
+    BOOL process_lifecycle_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
     WCHAR *absolute_path = NULL;
@@ -273,7 +274,9 @@ int comtrace_capture_com_perf(
     properties->MinimumBuffers = 4U;
     properties->MaximumBuffers = 16U;
     properties->MaximumFileSize = 64U;
-    properties->LogFileMode = EVENT_TRACE_FILE_MODE_SEQUENTIAL;
+    properties->LogFileMode =
+        EVENT_TRACE_FILE_MODE_SEQUENTIAL | EVENT_TRACE_SYSTEM_LOGGER_MODE;
+    properties->EnableFlags = EVENT_TRACE_FLAG_PROCESS;
     properties->FlushTimer = 1U;
     properties->LoggerNameOffset = (ULONG)sizeof(EVENT_TRACE_PROPERTIES);
     properties->LogFileNameOffset = (ULONG)(
@@ -292,21 +295,41 @@ int comtrace_capture_com_perf(
         properties
     );
 
-    if (status != ERROR_SUCCESS) {
-        fwprintf(
-            stderr,
-            L"StartTraceW failed with status %lu.\n",
-            (unsigned long)status
+    if (status == ERROR_SUCCESS) {
+        process_lifecycle_enabled = TRUE;
+    } else {
+        ULONG system_logger_status = status;
+
+        properties->LogFileMode = EVENT_TRACE_FILE_MODE_SEQUENTIAL;
+        properties->EnableFlags = 0U;
+        status = StartTraceW(
+            &trace_handle,
+            trace_session_name,
+            properties
         );
 
-        if (status == ERROR_ACCESS_DENIED) {
+        if (status == ERROR_SUCCESS) {
             fwprintf(
                 stderr,
-                L"Retry from an elevated Developer PowerShell if appropriate.\n"
+                L"Warning: Process start/stop events are unavailable. System logger start returned status %lu.\n",
+                (unsigned long)system_logger_status
             );
-        }
+        } else {
+            fwprintf(
+                stderr,
+                L"StartTraceW failed with status %lu.\n",
+                (unsigned long)status
+            );
 
-        goto cleanup;
+            if (status == ERROR_ACCESS_DENIED) {
+                fwprintf(
+                    stderr,
+                    L"Retry from an elevated Developer PowerShell if appropriate.\n"
+                );
+            }
+
+            goto cleanup;
+        }
     }
 
     session_started = TRUE;
@@ -399,6 +422,9 @@ int comtrace_capture_com_perf(
     wprintf(L"ETW capture started.\n");
     wprintf(L"Provider: Microsoft-Windows-COM-Perf\n");
     wprintf(L"Provider: Microsoft-Windows-OLE-Perf\n");
+    if (process_lifecycle_enabled) {
+        wprintf(L"Provider: Kernel Process start/stop events\n");
+    }
     wprintf(L"Output: %ls\n", absolute_path);
     wprintf(L"Duration: %lu seconds\n", (unsigned long)duration_seconds);
     wprintf(L"Reproduce the behavior now. Press Ctrl+C to stop early.\n");
