@@ -78,6 +78,19 @@ int wmain(int argc, wchar_t **argv)
     ULONG mapped_flags_value = 3U;
     SHORT signed_count = 2;
     int signed_values[2] = { -13, 27 };
+    CHAR signed_byte_value = -42;
+    LONGLONG signed_wide_value = -9007199254740993LL;
+    float float_value = 1.25f;
+    double double_value = 1234.5;
+    ULONG boolean_value = 1U;
+    GUID guid_value = {
+        0x12345678UL, 0x9ABC, 0x4DEF,
+        { 0x80, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }
+    };
+    FILETIME filetime_value = { 0x5849AAE0UL, 0x01DA3D28UL };
+    SYSTEMTIME systemtime_value = { 2024U, 1U, 2U, 2U, 3U, 4U, 5U, 6U };
+    PVOID pointer_value = (PVOID)(ULONG_PTR)0x12345678UL;
+    BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
     int result = 1;
 
     if (argc != 2) {
@@ -152,7 +165,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value, port_value, win32_error_value, mapped_status_value, mapped_flags_value, signed_count, signed_values);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value, port_value, win32_error_value, mapped_status_value, mapped_flags_value, signed_count, signed_values, signed_byte_value, signed_wide_value, float_value, double_value, boolean_value, guid_value, filetime_value, systemtime_value, pointer_value, pkcs7_payload);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
