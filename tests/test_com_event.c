@@ -24,6 +24,27 @@ static const GUID other_provider = {
     {0xBA, 0x39, 0xB5, 0x53, 0x54, 0xF0, 0x85, 0x84}
 };
 
+static const GUID com_runtime_provider = {
+    0xBF406804UL,
+    0x6AFAU,
+    0x46E7U,
+    {0x8A, 0x48, 0x6C, 0x35, 0x7E, 0x1D, 0x6D, 0x61}
+};
+
+static const GUID rpc_provider = {
+    0x6AD52B32UL,
+    0xD609U,
+    0x4BE9U,
+    {0xAE, 0x07, 0xCE, 0x8D, 0xAE, 0x93, 0x7E, 0x39}
+};
+
+static const GUID rpcss_provider = {
+    0xD8975F88UL,
+    0x7DDBU,
+    0x4ED0U,
+    {0x91, 0xBF, 0x3A, 0xDF, 0x48, 0xC4, 0x8E, 0x0C}
+};
+
 static int run_mapping_case(const TestCase *test_case)
 {
     const wchar_t *operation = NULL;
@@ -213,6 +234,155 @@ static int test_com_rundown_classification(void)
     return 1;
 }
 
+
+static int test_com_runtime_classification(void)
+{
+    const wchar_t *event_name = NULL;
+
+    if (!comtrace_classify_com_runtime_event(
+            &com_runtime_provider, 7U, 0U, 0U, &event_name) ||
+        event_name == NULL ||
+        wcscmp(event_name, L"PrematureStubRundown") != 0) {
+        fputs("COMRuntime PrematureStubRundown classification failed\n", stderr);
+        return 0;
+    }
+
+    event_name = L"unchanged";
+    if (comtrace_classify_com_runtime_event(
+            &com_runtime_provider, 7U, 1U, 0U, &event_name) ||
+        event_name != NULL ||
+        comtrace_classify_com_runtime_event(
+            &com_runtime_provider, 7U, 0U, 1U, &event_name) ||
+        event_name != NULL ||
+        comtrace_classify_com_runtime_event(
+            &com_perf_provider, 7U, 0U, 0U, &event_name) ||
+        event_name != NULL) {
+        fputs("COMRuntime classification rejection failed\n", stderr);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int test_rpc_classification(void)
+{
+    static const struct {
+        USHORT event_id;
+        UCHAR opcode;
+        const wchar_t *event_name;
+        const wchar_t *phase;
+    } cases[] = {
+        {1U, 2U, L"RpcClientCall", L"stop"},
+        {2U, 0U, L"RpcServerCall", L"info"},
+        {5U, 1U, L"RpcClientCall", L"start"},
+        {6U, 1U, L"RpcServerCall", L"start"},
+        {7U, 2U, L"RpcClientCall", L"stop"},
+        {8U, 2U, L"RpcServerCall", L"stop"}
+    };
+    size_t index;
+
+    for (index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+        const wchar_t *event_name = NULL;
+        const wchar_t *phase = NULL;
+
+        if (!comtrace_classify_rpc_event(
+                &rpc_provider,
+                cases[index].event_id,
+                1U,
+                cases[index].opcode,
+                &event_name,
+                &phase
+            ) ||
+            event_name == NULL ||
+            phase == NULL ||
+            wcscmp(event_name, cases[index].event_name) != 0 ||
+            wcscmp(phase, cases[index].phase) != 0) {
+            fwprintf(stderr, L"RPC event %u classification failed\n",
+                (unsigned int)cases[index].event_id);
+            return 0;
+        }
+    }
+
+    {
+        const wchar_t *event_name = L"unchanged";
+        const wchar_t *phase = L"unchanged";
+
+        if (comtrace_classify_rpc_event(
+                &rpc_provider, 5U, 0U, 1U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &rpc_provider, 5U, 1U, 2U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &com_perf_provider, 5U, 1U, 1U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL ||
+            comtrace_classify_rpc_event(
+                &rpc_provider, 999U, 1U, 0U, &event_name, &phase) ||
+            event_name != NULL ||
+            phase != NULL) {
+            fputs("RPC event rejection cases failed\n", stderr);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int test_rpcss_classification(void)
+{
+    static const struct {
+        USHORT event_id;
+        const wchar_t *event_name;
+    } cases[] = {
+        {2U, L"InterfaceRegister"},
+        {3U, L"InterfaceUnregister"}
+    };
+    size_t index;
+
+    for (index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+        const wchar_t *event_name = NULL;
+
+        if (!comtrace_classify_rpcss_event(
+                &rpcss_provider,
+                cases[index].event_id,
+                1U,
+                0U,
+                &event_name
+            ) ||
+            event_name == NULL ||
+            wcscmp(event_name, cases[index].event_name) != 0) {
+            fwprintf(stderr, L"RPCSS event %u classification failed\n",
+                (unsigned int)cases[index].event_id);
+            return 0;
+        }
+    }
+
+    {
+        const wchar_t *event_name = L"unchanged";
+
+        if (comtrace_classify_rpcss_event(
+                &rpcss_provider, 2U, 0U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_rpcss_event(
+                &rpcss_provider, 2U, 1U, 1U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_rpcss_event(
+                &rpc_provider, 2U, 1U, 0U, &event_name) ||
+            event_name != NULL ||
+            comtrace_classify_rpcss_event(
+                &rpcss_provider, 4U, 1U, 0U, &event_name) ||
+            event_name != NULL) {
+            fputs("RPCSS event rejection cases failed\n", stderr);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -291,11 +461,14 @@ int main(void)
 
     rejection_count += 11U;
 
-    if (!test_com_rundown_classification()) {
+    if (!test_com_rundown_classification() ||
+        !test_com_runtime_classification() ||
+        !test_rpc_classification() ||
+        !test_rpcss_classification()) {
         return 1;
     }
 
-    printf("COM event classification tests passed: %zu mappings and %zu rejection cases\n",
+    printf("COM, RPC, and rundown event classification tests passed: %zu COM mappings and %zu rejection cases\n",
         sizeof(cases) / sizeof(cases[0]), rejection_count);
     return 0;
 }
