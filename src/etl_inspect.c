@@ -973,6 +973,32 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
+    wprintf(
+        L"  property_value[%lu] name=%ls ",
+        (unsigned long)index,
+        display_name
+    );
+    if ((flags & PropertyWBEMXmlFragment) != 0U) {
+        wprintf(L"format=wbem_xml_fragment ");
+    }
+    if ((flags & PropertyHasCustomSchema) != 0U) {
+        wprintf(L"format=custom_schema");
+        print_custom_schema_metadata(metadata_buffer, metadata_size, property);
+        wprintf(L" ");
+    }
+    if ((flags & PropertyHasTags) != 0U) {
+        wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
+    }
+    if ((flags & PropertyHasCustomSchema) != 0U) {
+        print_binary_value(value, value_size);
+        goto cleanup;
+    }
+
+    if ((flags & PropertyHasCustomSchema) != 0U) {
+        print_binary_value(value, value_size);
+        goto cleanup;
+    }
+
     if ((flags & PropertyHasCustomSchema) == 0U &&
         property->nonStructType.MapNameOffset != 0U &&
         print_mapped_property_value(
@@ -1007,27 +1033,6 @@ static void print_event_property_value_element(
             )) {
             goto cleanup;
         }
-    }
-
-    wprintf(
-        L"  property_value[%lu] name=%ls ",
-        (unsigned long)index,
-        display_name
-    );
-    if ((flags & PropertyWBEMXmlFragment) != 0U) {
-        wprintf(L"format=wbem_xml_fragment ");
-    }
-    if ((flags & PropertyHasCustomSchema) != 0U) {
-        wprintf(L"format=custom_schema");
-        print_custom_schema_metadata(metadata_buffer, metadata_size, property);
-        wprintf(L" ");
-    }
-    if ((flags & PropertyHasTags) != 0U) {
-        wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
-    }
-    if ((flags & PropertyHasCustomSchema) != 0U) {
-        print_binary_value(value, value_size);
-        goto cleanup;
     }
 
     switch (in_type) {
