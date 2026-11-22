@@ -174,6 +174,127 @@ static void print_binary_value(const BYTE *value, ULONG value_size)
 }
 
 
+
+static int print_tdh_formatted_property(
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
+    const EVENT_PROPERTY_INFO *property,
+    USHORT in_type,
+    USHORT out_type,
+    const BYTE *value,
+    ULONG value_size,
+    ULONG pointer_size
+)
+{
+    ULONG formatted_size = 0U;
+    ULONG allocated_size;
+    ULONG status;
+    ULONG character_count;
+    ULONG index;
+    USHORT property_length;
+    USHORT user_data_length;
+    USHORT consumed = 0U;
+    wchar_t *formatted;
+
+    if (metadata_buffer == NULL ||
+        metadata_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) ||
+        property == NULL ||
+        value == NULL ||
+        value_size == 0U ||
+        value_size > USHRT_MAX) {
+        return 0;
+    }
+
+    property_length = property->length;
+    if (property_length == 0U || property_length > value_size) {
+        property_length = (USHORT)value_size;
+    }
+    user_data_length = (USHORT)value_size;
+
+    status = TdhFormatProperty(
+        (PTRACE_EVENT_INFO)metadata_buffer,
+        NULL,
+        pointer_size,
+        in_type,
+        out_type,
+        property_length,
+        user_data_length,
+        (PBYTE)value,
+        &formatted_size,
+        NULL,
+        &consumed
+    );
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        formatted_size < sizeof(wchar_t) ||
+        formatted_size > 65536U) {
+        return 0;
+    }
+
+    allocated_size = formatted_size;
+    formatted = (wchar_t *)malloc(formatted_size);
+    if (formatted == NULL) {
+        return 0;
+    }
+
+    status = TdhFormatProperty(
+        (PTRACE_EVENT_INFO)metadata_buffer,
+        NULL,
+        pointer_size,
+        in_type,
+        out_type,
+        property_length,
+        user_data_length,
+        (PBYTE)value,
+        &formatted_size,
+        formatted,
+        &consumed
+    );
+    if (status != ERROR_SUCCESS || formatted_size > allocated_size) {
+        free(formatted);
+        return 0;
+    }
+
+    character_count = formatted_size / (ULONG)sizeof(wchar_t);
+    for (index = 0U; index < character_count; ++index) {
+        if (formatted[index] == L'\0') {
+            break;
+        }
+    }
+
+    wprintf(L"value=\"");
+    for (character_count = 0U; character_count < index; ++character_count) {
+        wchar_t character = formatted[character_count];
+        switch (character) {
+        case L'\\':
+            wprintf(L"\\\\");
+            break;
+        case L'"':
+            wprintf(L"\\\"");
+            break;
+        case L'\n':
+            wprintf(L"\\n");
+            break;
+        case L'\r':
+            wprintf(L"\\r");
+            break;
+        case L'\t':
+            wprintf(L"\\t");
+            break;
+        default:
+            if ((unsigned int)character < 0x20U ||
+                (unsigned int)character == 0x7FU) {
+                wprintf(L"\\u%04x", (unsigned int)character);
+            } else {
+                wprintf(L"%lc", character);
+            }
+            break;
+        }
+    }
+    wprintf(L"\"\n");
+    free(formatted);
+    return 1;
+}
+
 static int print_mapped_property_value(
     const EVENT_RECORD *event_record,
     const BYTE *metadata_buffer,
@@ -1309,7 +1430,19 @@ static void print_event_property_value_element(
         goto cleanup;
 
     default:
-        print_binary_value(value, value_size);
+        if ((flags & PropertyHasCustomSchema) == 0U &&
+            !print_tdh_formatted_property(
+                metadata_buffer,
+                metadata_size,
+                property,
+                in_type,
+                out_type,
+                value,
+                value_size,
+                pointer_size
+            )) {
+            print_binary_value(value, value_size);
+        }
         goto cleanup;
     }
 cleanup:
