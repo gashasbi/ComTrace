@@ -75,11 +75,14 @@ values support equality only.
 
 ## Unsupported property shapes
 
-Array properties without an index, nested struct arrays, multiple array indices
-in one property path, WBEM XML fragments, unsupported custom schemas, and values whose TDH
-metadata or payload cannot be read are not matched by this filter. Binary properties
-do not support numeric ordering comparisons. Scalar custom-schema properties are
-matched when their input and output types have a supported scalar representation. A missing or unsupported property produces
+Array properties without an index, multiple array indices in one property
+path, and values whose TDH metadata or payload cannot be read are not matched by
+this filter. Indexed arrays nested inside structures and scalar members of nested
+structures are supported when TDH exposes the required descriptor path. WBEM XML
+fragments can be searched when their input type is a string. Custom-schema payloads
+can be matched as raw binary when their input type is binary; the schema metadata
+does not imply a protocol-specific decoded representation. Binary properties do not
+support numeric ordering comparisons. A missing or unsupported property produces
 no match; it does not make the whole trace search fail.
 
 Property search does not change ETL payload decoding or CTRA storage. It is a
