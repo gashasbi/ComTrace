@@ -32,7 +32,15 @@ static const GUID ole_perf_provider_guid = {
     {0xb3, 0x3d, 0x07, 0xfa, 0xbb, 0x87, 0x96, 0x26}
 };
 
+static const GUID com_rundown_provider_guid = {
+    0x2957313d,
+    0xfcaa,
+    0x5d4a,
+    {0x2f, 0x69, 0x32, 0xce, 0x5f, 0x0a, 0xc4, 0x4e}
+};
+
 static const ULONGLONG ole_perf_keyword = 0x8000000000000000ULL;
+static const ULONGLONG com_rundown_keyword = 0x1ULL;
 
 static HANDLE g_stop_event = NULL;
 
@@ -85,7 +93,8 @@ static ULONG stop_trace_session(
     TRACEHANDLE trace_handle,
     PEVENT_TRACE_PROPERTIES properties,
     BOOL com_provider_enabled,
-    BOOL ole_provider_enabled
+    BOOL ole_provider_enabled,
+    BOOL rundown_provider_enabled
 )
 {
     ULONG status;
@@ -132,6 +141,27 @@ static ULONG stop_trace_session(
         }
     }
 
+    if (rundown_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &com_rundown_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(
+                stderr,
+                L"Warning: COM-RundownInstrumentation provider disable returned status %lu.\n",
+                (unsigned long)status
+            );
+        }
+    }
+
     return ControlTraceW(
         trace_handle,
         trace_session_name,
@@ -157,6 +187,7 @@ int comtrace_capture_com_perf(
     BOOL session_started = FALSE;
     BOOL com_provider_enabled = FALSE;
     BOOL ole_provider_enabled = FALSE;
+    BOOL rundown_provider_enabled = FALSE;
     BOOL process_lifecycle_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
@@ -394,6 +425,27 @@ int comtrace_capture_com_perf(
 
     ole_provider_enabled = TRUE;
 
+    status = EnableTraceEx2(
+        trace_handle,
+        &com_rundown_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_VERBOSE,
+        com_rundown_keyword,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        rundown_provider_enabled = TRUE;
+    } else {
+        fwprintf(
+            stderr,
+            L"Warning: COM-RundownInstrumentation provider enable returned status %lu.\n",
+            (unsigned long)status
+        );
+    }
+
     stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (stop_event == NULL) {
         fwprintf(
@@ -422,6 +474,9 @@ int comtrace_capture_com_perf(
     wprintf(L"ETW capture started.\n");
     wprintf(L"Provider: Microsoft-Windows-COM-Perf\n");
     wprintf(L"Provider: Microsoft-Windows-OLE-Perf\n");
+    if (rundown_provider_enabled) {
+        wprintf(L"Provider: Microsoft-Windows-COM-RundownInstrumentation\n");
+    }
     if (process_lifecycle_enabled) {
         wprintf(L"Provider: Kernel Process start/stop events\n");
     }
@@ -466,7 +521,8 @@ cleanup:
             trace_handle,
             properties,
             com_provider_enabled,
-            ole_provider_enabled
+            ole_provider_enabled,
+            rundown_provider_enabled
         );
 
         if (status != ERROR_SUCCESS) {
