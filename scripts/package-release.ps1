@@ -20,8 +20,11 @@ $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $exe = Join-Path $configurationDirectory "ComTrace.exe"
 $archiveExe = Join-Path $configurationDirectory "ComTraceArchive.exe"
 $oleFixtureExe = Join-Path $configurationDirectory "ComTraceOleActivityFixture.exe"
+$lifetimeFixtureExe = Join-Path $configurationDirectory "ComTraceComLifetimeFixture.exe"
+$lifetimeLibrary = Join-Path $configurationDirectory "ComTraceLifetimeInstrumentation.lib"
+$lifetimeHeader = Join-Path $repositoryRoot "include/comtrace_lifetime.h"
 
-foreach ($file in @($exe, $archiveExe, $oleFixtureExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE"))) {
+foreach ($file in @($exe, $archiveExe, $oleFixtureExe, $lifetimeFixtureExe, $lifetimeLibrary, $lifetimeHeader, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE"))) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
         throw "Required release file not found: $file"
     }
@@ -43,7 +46,11 @@ $checksumPath = Join-Path $OutputDirectory "SHA256SUMS.txt"
 
 try {
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
-    Copy-Item -Path @($exe, $archiveExe, $oleFixtureExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE")) -Destination $stage
+    Copy-Item -Path @($exe, $archiveExe, $oleFixtureExe, $lifetimeFixtureExe, (Join-Path $repositoryRoot "README.md"), (Join-Path $repositoryRoot "LICENSE")) -Destination $stage
+    New-Item -ItemType Directory -Path (Join-Path $stage "include") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $stage "lib") -Force | Out-Null
+    Copy-Item -LiteralPath $lifetimeHeader -Destination (Join-Path $stage "include")
+    Copy-Item -LiteralPath $lifetimeLibrary -Destination (Join-Path $stage "lib")
     Copy-Item -Path @((Join-Path $repositoryRoot "docs"), (Join-Path $repositoryRoot "scripts")) -Destination $stage -Recurse
 
     if (Test-Path -LiteralPath $zipPath) {
@@ -57,7 +64,7 @@ try {
 
     try {
         $entries = @($package.Entries | ForEach-Object { $_.FullName })
-        foreach ($requiredEntry in @("ComTraceOleActivityFixture.exe", "docs/REAL_TRACE_VALIDATION.md", "docs/CTRA_FORMAT.md", "docs/COMPARISON_JSON.md", "scripts/validate-real-trace.ps1")) {
+        foreach ($requiredEntry in @("ComTraceOleActivityFixture.exe", "ComTraceComLifetimeFixture.exe", "include/comtrace_lifetime.h", "lib/ComTraceLifetimeInstrumentation.lib", "docs/COM_LIFETIME_INSTRUMENTATION.md", "docs/REAL_TRACE_VALIDATION.md", "docs/CTRA_FORMAT.md", "docs/COMPARISON_JSON.md", "scripts/validate-real-trace.ps1")) {
             if ($entries -notcontains $requiredEntry) {
                 throw "Release package is missing $requiredEntry"
             }
