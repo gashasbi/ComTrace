@@ -179,7 +179,7 @@ int wmain(int argc, wchar_t **argv)
     );
     status = EventWrite(provider, &descriptor, 1U, &class_id_alias_data);
     if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"CLSID alias event write failed: %lu\\n", (unsigned long)status);
+        fwprintf(stderr, L"CLSID alias event write failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
 
