@@ -65,6 +65,7 @@ string(JSON right_observation_count GET "${compare_output}" object_lifetimes rig
 string(JSON left_initial_reference_count GET "${compare_output}" object_lifetimes left 0 initial_reference_count)
 string(JSON left_last_reference_count GET "${compare_output}" object_lifetimes left 0 last_reference_count_result)
 string(JSON right_events_without_creation GET "${compare_output}" lifetime_summary right_events_without_creation)
+string(JSON right_destructions_without_creation GET "${compare_output}" lifetime_summary right_destructions_without_creation)
 if(NOT changed_objects EQUAL 1 OR
    NOT added_objects EQUAL 0 OR
    NOT removed_objects EQUAL 0 OR
@@ -72,10 +73,11 @@ if(NOT changed_objects EQUAL 1 OR
    NOT changed_fields STREQUAL "0x5e" OR
    NOT right_initial_reference_type STREQUAL "NULL" OR
    NOT right_last_reference_count EQUAL 0 OR
-   NOT right_observation_count EQUAL 4 OR
+   NOT right_observation_count EQUAL 5 OR
    NOT left_initial_reference_count EQUAL 1 OR
    NOT left_last_reference_count EQUAL 1 OR
-   NOT right_events_without_creation EQUAL 4 OR
+   NOT right_events_without_creation EQUAL 5 OR
+   NOT right_destructions_without_creation EQUAL 1 OR
    NOT right_interface_count EQUAL 2 OR
    NOT right_native_count EQUAL 1 OR
    NOT right_native_object_id STREQUAL "0xabcdef0123456789" OR
