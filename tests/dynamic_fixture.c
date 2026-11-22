@@ -17,6 +17,7 @@ int wmain(int argc, wchar_t **argv)
     BYTE storage[sizeof(EVENT_TRACE_PROPERTIES) + 256U + MAX_PATH * sizeof(wchar_t)];
     EVENT_TRACE_PROPERTIES *properties = (EVENT_TRACE_PROPERTIES *)storage;
     TRACEHANDLE session = 0;
+    REGHANDLE extended_registration_handle = 0;
     wchar_t logger_name[96];
     size_t logger_size;
     size_t path_size;
@@ -146,6 +147,17 @@ int wmain(int argc, wchar_t **argv)
     }
     registered = 1;
 
+    status = EventRegister(
+        &COMTRACE_DYNAMIC_PROVIDER,
+        NULL,
+        NULL,
+        &extended_registration_handle
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"EventRegister extended provider failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
     status = EnableTraceEx2(
         session,
         &COMTRACE_DYNAMIC_PROVIDER,
@@ -185,7 +197,7 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&extended_descriptors[9], pkcs7_payload, sizeof(pkcs7_payload));
 
     status = EventWrite(
-        registration_handle,
+        extended_registration_handle,
         &ExtendedTypesEvent,
         (ULONG)_countof(extended_descriptors),
         extended_descriptors
@@ -200,6 +212,9 @@ int wmain(int argc, wchar_t **argv)
 cleanup:
     if (test_sid != NULL) {
         FreeSid(test_sid);
+    }
+    if (extended_registration_handle != 0) {
+        EventUnregister(extended_registration_handle);
     }
     if (registered) {
         EventUnregisterComTraceDynamicFixture();
