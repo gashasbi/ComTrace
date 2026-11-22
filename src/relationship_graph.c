@@ -458,33 +458,93 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
         }
     }
 
-    if (activity_ids != NULL && activity_ids->has_activity_id) {
-        status = add_node(
-            graph,
-            COMTRACE_GRAPH_NODE_ACTIVITY,
-            0U,
-            0U,
-            &activity_ids->activity_id,
-            0ULL,
-            &activity_index
-        );
-        if (status != COMTRACE_GRAPH_SUCCESS) {
-            return status;
-        }
-
-        if (current_thread_index != (size_t)-1) {
-            status = add_edge(
+    if (activity_ids != NULL) {
+        if (activity_ids->has_activity_id) {
+            status = add_node(
                 graph,
-                COMTRACE_GRAPH_EDGE_THREAD_HAS_ACTIVITY,
-                current_thread_index,
-                activity_index
+                COMTRACE_GRAPH_NODE_ACTIVITY,
+                0U,
+                0U,
+                &activity_ids->activity_id,
+                0ULL,
+                &activity_index
             );
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
+
+            if (current_thread_index != (size_t)-1) {
+                status = add_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_THREAD_HAS_ACTIVITY,
+                    current_thread_index,
+                    activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+            }
+
+            if (identity->has_call_trace_id) {
+                status = add_node(
+                    graph,
+                    COMTRACE_GRAPH_NODE_CALL,
+                    0U,
+                    0U,
+                    NULL,
+                    identity->call_trace_id,
+                    &call_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+
+                status = add_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY,
+                    call_index,
+                    activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+            }
         }
 
-        if (identity->has_call_trace_id) {
+        if (activity_ids->has_related_activity_id) {
+            status = add_node(
+                graph,
+                COMTRACE_GRAPH_NODE_ACTIVITY,
+                0U,
+                0U,
+                &activity_ids->related_activity_id,
+                0ULL,
+                &related_activity_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+
+            if (activity_ids->has_activity_id &&
+                memcmp(
+                    &activity_ids->activity_id,
+                    &activity_ids->related_activity_id,
+                    sizeof(GUID)
+                ) != 0) {
+                status = add_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO,
+                    activity_index,
+                    related_activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+            }
+        }
+    }
+
+    if (identity->has_call_trace_id) {
             status = add_node(
                 graph,
                 COMTRACE_GRAPH_NODE_CALL,
