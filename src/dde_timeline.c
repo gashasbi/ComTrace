@@ -124,7 +124,7 @@ static void copy_transaction_fields(
         record->format = event->format;
     }
     if (record->item[0] == L'\0' && event->item != NULL) {
-        (void)copy_text(record->item, _countof(record->item), event->item);
+        (void)copy_text(record->item, (sizeof(record->item) / sizeof(record->item[0])), event->item);
     }
 }
 
@@ -234,8 +234,8 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
     record->asynchronous = event->asynchronous;
     record->role = event->role;
     if (!copy_text(record->item, _countof(record->item), event->item) ||
-        !copy_text(record->service, _countof(record->service), event->service) ||
-        !copy_text(record->topic, _countof(record->topic), event->topic)) {
+        !copy_text(record->service, (sizeof(record->service) / sizeof(record->service[0])), event->service) ||
+        !copy_text(record->topic, (sizeof(record->topic) / sizeof(record->topic[0])), event->topic)) {
         return COMTRACE_DDE_TIMELINE_INVALID_ARGUMENT;
     }
 
