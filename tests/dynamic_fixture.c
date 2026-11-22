@@ -95,8 +95,9 @@ int wmain(int argc, wchar_t **argv)
     ULONG hidden_value = 0xDEADBEEFUL;
     wchar_t reduced_text[] = L"Reduced";
     ULONGLONG etw_time_value = 1234567890ULL;
+    ULONG string_number_value = 12345UL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
-    EVENT_DATA_DESCRIPTOR extended_descriptors[13];
+    EVENT_DATA_DESCRIPTOR extended_descriptors[14];
     int result = 1;
 
     if (argc != 2) {
@@ -200,7 +201,8 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&extended_descriptors[9], &hidden_value, sizeof(hidden_value));
     EventDataDescCreate(&extended_descriptors[10], reduced_text, sizeof(reduced_text));
     EventDataDescCreate(&extended_descriptors[11], &etw_time_value, sizeof(etw_time_value));
-    EventDataDescCreate(&extended_descriptors[12], pkcs7_payload, sizeof(pkcs7_payload));
+    EventDataDescCreate(&extended_descriptors[12], &string_number_value, sizeof(string_number_value));
+    EventDataDescCreate(&extended_descriptors[13], pkcs7_payload, sizeof(pkcs7_payload));
 
     status = EventWrite(
         extended_registration_handle,
