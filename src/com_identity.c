@@ -436,6 +436,8 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_com_object_identity(
     result.thread_id = event_record->EventHeader.ThreadId;
     result.has_process_id = result.process_id != 0U;
     result.has_thread_id = result.thread_id != 0U;
+    result.timestamp = event_record->EventHeader.TimeStamp.QuadPart;
+    result.has_timestamp = TRUE;
 
     status = comtrace_extract_guid_property(event_record, L"ClassId", &result.clsid);
     if (status == COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
