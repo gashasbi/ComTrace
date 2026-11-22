@@ -267,6 +267,110 @@ static int is_hex_output_type(USHORT out_type)
         out_type == TDH_OUTTYPE_CODE_POINTER;
 }
 
+static int is_utf8_string_output_type(USHORT out_type)
+{
+    return out_type == TDH_OUTTYPE_UTF8 ||
+        out_type == TDH_OUTTYPE_XML ||
+        out_type == TDH_OUTTYPE_JSON;
+}
+
+static int print_utf8_property_value(
+    const BYTE *value,
+    ULONG value_size
+)
+{
+    size_t content_size;
+    size_t displayed_size;
+    size_t conversion_size;
+    size_t offset;
+    int terminated;
+    int converted = 0;
+    size_t attempt;
+    wchar_t decoded[257];
+
+    if (!comtrace_scan_string(
+            value,
+            (size_t)value_size,
+            1U,
+            256U,
+            &content_size,
+            &displayed_size,
+            &terminated)) {
+        return 0;
+    }
+
+    conversion_size = displayed_size;
+    for (attempt = 0U; attempt <= 3U; ++attempt) {
+        if (conversion_size == 0U) {
+            converted = 0;
+            break;
+        }
+
+        converted = MultiByteToWideChar(
+            CP_UTF8,
+            MB_ERR_INVALID_CHARS,
+            (LPCCH)value,
+            (int)conversion_size,
+            decoded,
+            (int)_countof(decoded) - 1
+        );
+        if (converted > 0) {
+            break;
+        }
+
+        if (content_size == displayed_size || attempt == 3U) {
+            return 0;
+        }
+        --conversion_size;
+    }
+
+    decoded[converted] = L'\0';
+    wprintf(L"value=\"");
+
+    for (offset = 0U; offset < (size_t)converted; ++offset) {
+        wchar_t character = decoded[offset];
+
+        switch (character) {
+        case L'\\':
+            wprintf(L"\\\\");
+            break;
+        case L'"':
+            wprintf(L"\\\"");
+            break;
+        case L'\n':
+            wprintf(L"\\n");
+            break;
+        case L'\r':
+            wprintf(L"\\r");
+            break;
+        case L'\t':
+            wprintf(L"\\t");
+            break;
+        default:
+            if ((unsigned int)character < 0x20U ||
+                (unsigned int)character == 0x7FU) {
+                wprintf(L"\\u%04x", (unsigned int)character);
+            } else {
+                wprintf(L"%lc", character);
+            }
+            break;
+        }
+    }
+
+    if (conversion_size < content_size) {
+        wprintf(
+            L"...(+%lu bytes)",
+            (unsigned long)(content_size - conversion_size)
+        );
+    }
+    if (!terminated) {
+        wprintf(L" [unterminated]");
+    }
+
+    wprintf(L"\"\n");
+    return 1;
+}
+
 static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
@@ -466,6 +570,13 @@ static void print_event_property_value_element(
                 &displayed_size,
                 &terminated)) {
             wprintf(L"status=unavailable reason=invalid_string_size\n");
+            goto cleanup;
+        }
+
+        if (is_utf8_string_output_type(out_type)) {
+            if (!print_utf8_property_value(value, value_size)) {
+                wprintf(L"status=unavailable reason=invalid_utf8\n");
+            }
             goto cleanup;
         }
 
@@ -3086,14 +3197,23 @@ static int format_search_property_value(
             return 0;
         }
 
-        converted = MultiByteToWideChar(
-            CP_ACP,
-            0U,
-            (LPCCH)value,
-            (int)content_size,
-            text,
-            (int)text_capacity - 1
-        );
+        {
+            UINT code_page = is_utf8_string_output_type(out_type)
+                ? CP_UTF8
+                : CP_ACP;
+            DWORD conversion_flags = code_page == CP_UTF8
+                ? MB_ERR_INVALID_CHARS
+                : 0U;
+
+            converted = MultiByteToWideChar(
+                code_page,
+                conversion_flags,
+                (LPCCH)value,
+                (int)content_size,
+                text,
+                (int)text_capacity - 1
+            );
+        }
         if (converted <= 0 || (size_t)converted >= text_capacity) {
             return 0;
         }
