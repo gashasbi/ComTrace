@@ -3171,6 +3171,127 @@ static void print_ole_timeline_summary(
     }
 }
 
+static void print_dde_timeline_summary(
+    const ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t count;
+    size_t index;
+    ULONGLONG conversations = 0ULL;
+    ULONGLONG transactions = 0ULL;
+    ULONGLONG callbacks = 0ULL;
+    ULONGLONG completed = 0ULL;
+    ULONGLONG incomplete = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    count = comtrace_dde_timeline_count(&context->dde_timeline);
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_DDE_TIMELINE_RECORD *record =
+            comtrace_dde_timeline_get(&context->dde_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+        if (record->has_opened || record->has_closed) {
+            ++conversations;
+        }
+        if (record->has_start) {
+            ++transactions;
+            if (record->has_completion) {
+                ++completed;
+            } else {
+                ++incomplete;
+            }
+        }
+        if (record->has_callback) {
+            ++callbacks;
+        }
+    }
+
+    wprintf(L"\nDDE timeline summary\n");
+    wprintf(L"Conversation records: %llu\n", (unsigned long long)conversations);
+    wprintf(L"Transactions started: %llu\n", (unsigned long long)transactions);
+    wprintf(L"Transactions completed: %llu\n", (unsigned long long)completed);
+    wprintf(L"Incomplete transactions: %llu\n", (unsigned long long)incomplete);
+    wprintf(L"Server/client callbacks: %llu\n", (unsigned long long)callbacks);
+    wprintf(
+        L"Correlated client/server exchanges: %llu\n",
+        (unsigned long long)comtrace_dde_timeline_exchange_count(&context->dde_timeline)
+    );
+    wprintf(
+        L"Unmatched completions: %llu\n",
+        (unsigned long long)context->dde_timeline.unmatched_completions
+    );
+    wprintf(
+        L"Missing transaction correlation IDs: %llu\n",
+        (unsigned long long)context->dde_timeline.missing_transaction_correlation_ids
+    );
+    wprintf(
+        L"Ambiguous cross-process correlations: %llu\n",
+        (unsigned long long)context->dde_timeline.ambiguous_correlations
+    );
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_DDE_TIMELINE_RECORD *record =
+            comtrace_dde_timeline_get(&context->dde_timeline, index);
+
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(
+            L"  pid=%lu tid=%lu conversation=%llu",
+            (unsigned long)record->process_id,
+            (unsigned long)record->thread_id,
+            (unsigned long long)record->conversation_id
+        );
+        if (record->has_opened) {
+            wprintf(L" opened=%llu", (unsigned long long)record->opened_timestamp);
+        }
+        if (record->has_closed) {
+            wprintf(L" closed=%llu result=%lu",
+                (unsigned long long)record->closed_timestamp,
+                (unsigned long)record->close_result);
+        }
+        if (record->has_start) {
+            wprintf(
+                L" transaction=%llu start=%llu role=%ls type=0x%lx format=%lu item=%ls",
+                (unsigned long long)record->transaction_instance_id,
+                (unsigned long long)record->start_timestamp,
+                record->role == COMTRACE_DDE_ROLE_CLIENT ? L"client" : L"server",
+                (unsigned long)record->transaction_type,
+                (unsigned long)record->format,
+                record->item
+            );
+        }
+        if (record->has_completion) {
+            wprintf(
+                L" completion=%llu succeeded=%ls duration_ticks=%llu",
+                (unsigned long long)record->completion_timestamp,
+                record->succeeded ? L"true" : L"false",
+                (unsigned long long)record->duration_ticks
+            );
+        }
+        if (record->has_callback) {
+            wprintf(L" callback=%llu data_size=%lu",
+                (unsigned long long)record->callback_timestamp,
+                (unsigned long)record->data_size);
+        }
+        if (record->service[0] != L'\0' || record->topic[0] != L'\0') {
+            wprintf(L" service=%ls topic=%ls", record->service, record->topic);
+        }
+        wprintf(L"\n");
+    }
+
+    if (count > 100U) {
+        wprintf(L"  dde_timeline_display_limit=100 remaining=%llu\n",
+            (unsigned long long)(count - 100U));
+    }
+}
+
 static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
 {
     switch (type) {
@@ -4797,6 +4918,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     add_com_timeline_event(context, event_record);
     add_ole_timeline_event(context, event_record);
     add_rpc_timeline_event(context, event_record);
+    add_dde_timeline_event(context, event_record);
     add_relationship_graph_event(context, event_record);
     add_com_lifetime_analysis_event(context, event_record);
 
@@ -4855,6 +4977,7 @@ static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
 
     comtrace_process_lifecycle_catalog_destroy(&context->process_lifecycle);
     comtrace_relationship_graph_destroy(&context->relationship_graph);
+    comtrace_dde_timeline_destroy(&context->dde_timeline);
     comtrace_rpc_timeline_destroy(&context->rpc_timeline);
     comtrace_ole_timeline_destroy(&context->ole_timeline);
     comtrace_timeline_destroy(&context->timeline);
@@ -4894,6 +5017,8 @@ static int inspect_etl_internal(
     context.ole_timeline_status = COMTRACE_OLE_TIMELINE_SUCCESS;
     comtrace_rpc_timeline_init(&context.rpc_timeline);
     context.rpc_timeline_status = COMTRACE_RPC_TIMELINE_SUCCESS;
+    comtrace_dde_timeline_init(&context.dde_timeline);
+    context.dde_timeline_status = COMTRACE_DDE_TIMELINE_SUCCESS;
     comtrace_relationship_graph_init(&context.relationship_graph);
     context.graph_status = COMTRACE_GRAPH_SUCCESS;
     comtrace_process_lifecycle_catalog_init(&context.process_lifecycle);
@@ -4976,9 +5101,14 @@ static int inspect_etl_internal(
     close_status = CloseTrace(trace_handle);
 
     add_lifetime_records_to_graph(&context);
+    if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    }
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
     print_rpc_timeline_summary(&context);
+    print_dde_timeline_summary(&context);
     print_com_lifetime_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
     print_process_lifecycle_summary(
@@ -5090,6 +5220,11 @@ static int inspect_etl_internal(
 
     if (context.ole_timeline_status != COMTRACE_OLE_TIMELINE_SUCCESS) {
         fwprintf(stderr, L"OLE timeline processing failed.\n");
+        result = EXIT_FAILURE;
+    }
+
+    if (context.dde_timeline_status != COMTRACE_DDE_TIMELINE_SUCCESS) {
+        fwprintf(stderr, L"DDE timeline processing failed.\n");
         result = EXIT_FAILURE;
     }
 
