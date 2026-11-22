@@ -57,6 +57,15 @@ The Win10 17134 manifest defines two endpoint-mapper registration records:
 
 ComTrace labels them with `rpcss_event` and prints `rpcss_interface_uuid` and `rpcss_object_uuid` when the values can be decoded. These are RPCSS endpoint-registration fields. In particular, `ObjectUUID` is not treated as the COM Performance provider's OID, and interface unregistration is not treated as COM object destruction.
 
+## Current real-trace evidence
+
+A 30-second Windows Server 2022 CI capture used for this change successfully enabled all six capture providers and completed with 59 buffers, zero lost events, and zero lost buffers. The ETL contained 2,471 events across 59 event types. COM Performance produced 843 events.
+
+The RPC provider produced 1,010 records. ComTrace classified 980 of them: 245 client-call starts, 245 client-call stops, 245 server-call starts, and 245 server-call stops. The start records exposed 17 distinct `InterfaceUuid` values in this trace. The remaining 30 RPC records were retained as raw TDH events but are not mapped by the current classifier.
+
+COMRuntime produced zero events, RPCSS produced zero events, and COM-RundownInstrumentation produced zero events in this particular CI environment. Their absence did not fail validation. OLE-Perf also emitted no events in this headless runner.
+
+The ETL converted to CTRA with 2,471 records; archive CRC32 validation passed and the ETL/CTRA comparison was identical. These measurements describe one runner and one capture window only. The observed RPC client/server start/stop counts are separate provider observations; ComTrace does not assume each client event is a matching server event, nor does it relate the RPC interface UUIDs to COM OID/IPID values.
 ## Inspecting a trace
 
 To search each provider independently:
