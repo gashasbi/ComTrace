@@ -1567,6 +1567,16 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             if ((property->Flags & PropertyHasTags) != 0U) {
                 wprintf(L" tags=0x%07lX", (unsigned long)property->Tags);
             }
+            if ((property->Flags & PropertyParamCount) != 0U) {
+                wprintf(L" count_property_index=%u", (unsigned int)property->countPropertyIndex);
+            } else if ((property->Flags & PropertyParamFixedCount) != 0U) {
+                wprintf(L" fixed_count=%u", (unsigned int)property->count);
+            }
+            if ((property->Flags & PropertyParamLength) != 0U) {
+                wprintf(L" length_property_index=%u", (unsigned int)property->lengthPropertyIndex);
+            } else if ((property->Flags & PropertyParamFixedLength) != 0U) {
+                wprintf(L" fixed_length=%u", (unsigned int)property->length);
+            }
             wprintf(L"\n");
         }
         if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
