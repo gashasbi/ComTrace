@@ -994,11 +994,6 @@ static void print_event_property_value_element(
         goto cleanup;
     }
 
-    if ((flags & PropertyHasCustomSchema) != 0U) {
-        print_binary_value(value, value_size);
-        goto cleanup;
-    }
-
     if ((flags & PropertyHasCustomSchema) == 0U &&
         property->nonStructType.MapNameOffset != 0U &&
         print_mapped_property_value(
