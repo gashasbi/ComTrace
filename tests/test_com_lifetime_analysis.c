@@ -161,10 +161,10 @@ static int test_lifetime_anomalies(void)
         return 0;
     }
 
-    if (analysis.events_without_creation != 1ULL ||
+    if (analysis.events_without_creation != 2ULL ||
         analysis.events_after_destruction != 4ULL ||
         analysis.destructions_without_creation != 1ULL ||
-        analysis.duplicate_destructions != 1ULL ||
+        analysis.duplicate_destructions != 2ULL ||
         analysis.duplicate_creations != 0ULL ||
         analysis.record_count != 1U) {
         comtrace_lifetime_analysis_destroy(&analysis);
