@@ -579,7 +579,50 @@ int comtrace_etl_print_mapped_property_value(
 
     flags = (ULONG)map_info->Flag;
     if ((flags & EVENTMAP_INFO_FLAG_MANIFEST_PATTERNMAP) != 0U) {
-        wprintf(L"map_type=pattern_map message_only=true ");
+        map_string = get_map_string(
+            map_info,
+            map_size,
+            map_info->FormatStringOffset,
+            &string_length
+        );
+        wprintf(L"map_type=pattern_map message_only=true");
+        if (map_string != NULL) {
+            wprintf(L" pattern_format=\"");
+            print_escaped_map_string(map_string, string_length);
+            wprintf(L"\"");
+        }
+        for (index = 0U; index < map_info->EntryCount && index < 128U; ++index) {
+            const wchar_t *pattern;
+            const wchar_t *replacement;
+            ULONG pattern_length;
+            ULONG replacement_length;
+
+            pattern = get_map_string(
+                map_info,
+                map_size,
+                map_info->MapEntryArray[index].InputOffset,
+                &pattern_length
+            );
+            replacement = get_map_string(
+                map_info,
+                map_size,
+                map_info->MapEntryArray[index].OutputOffset,
+                &replacement_length
+            );
+            if (pattern == NULL || replacement == NULL) {
+                continue;
+            }
+
+            wprintf(L" pattern_entry[%lu]=\"", (unsigned long)index);
+            print_escaped_map_string(pattern, pattern_length);
+            wprintf(L"\"=>\"");
+            print_escaped_map_string(replacement, replacement_length);
+            wprintf(L"\"");
+        }
+        if (map_info->EntryCount > 128U) {
+            wprintf(L" pattern_entries_truncated=%lu", (unsigned long)(map_info->EntryCount - 128U));
+        }
+        wprintf(L" ");
         free(map_buffer);
         return 0;
     }
