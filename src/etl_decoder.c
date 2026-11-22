@@ -148,7 +148,12 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     }
 
     if (value->size == 0U) {
-        return COMTRACE_ETL_PROPERTY_READ_ZERO_SIZE;
+        value->data = (BYTE *)malloc(1U);
+        if (value->data == NULL) {
+            return COMTRACE_ETL_PROPERTY_READ_ALLOCATION_FAILED;
+        }
+        value->data[0] = 0U;
+        return COMTRACE_ETL_PROPERTY_READ_SUCCESS;
     }
     if (value->size > COMTRACE_ETL_MAX_PROPERTY_BYTES) {
         value->tdh_status = ERROR_FILE_TOO_LARGE;
@@ -245,7 +250,13 @@ int comtrace_etl_read_property_count(
     }
 
     count_property = &properties[count_index];
-    if ((count_property->Flags & PropertyStruct) != 0U) {
+    if ((count_property->Flags & (
+            PropertyStruct |
+            PropertyHasCustomSchema |
+            PropertyWBEMXmlFragment |
+            PropertyParamCount |
+            PropertyParamFixedCount
+        )) != 0U) {
         return 0;
     }
 
