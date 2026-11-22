@@ -55,6 +55,7 @@ static const GUID expected_type_manager_uuid = {
 };
 
 static const ULONGLONG expected_oid = 0x1122334455667788ULL;
+static const ULONGLONG expected_hex_oid = 0xAABBCCDDEEFF0011ULL;
 static const ULONGLONG expected_call_trace_id = 0x8877665544332211ULL;
 static const ULONGLONG expected_call_trace_id_32 = 0x12345678ULL;
 
@@ -373,6 +374,16 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         ++context->failures;
     }
 
+    status = comtrace_extract_uint32_property(
+        event_record,
+        L"HexTargetProcessId",
+        &number
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS || number != expected_target_process_id) {
+        fwprintf(stderr, L"HexTargetProcessId extraction failed: status=%u value=%lu\n", (unsigned int)status, (unsigned long)number);
+        ++context->failures;
+    }
+
     status = comtrace_extract_uint32_property(event_record, L"NotGuid", &number);
     if (status != COMTRACE_IDENTITY_SUCCESS || number != 123U) {
         fwprintf(stderr, L"NotGuid UINT32 extraction failed: status=%u value=%lu\n", (unsigned int)status, (unsigned long)number);
@@ -441,9 +452,22 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         ++context->failures;
     }
 
+    status = comtrace_extract_int32_property(event_record, L"HResultHex", &signed_number);
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        (ULONG)signed_number != 0x80070005UL) {
+        fwprintf(stderr, L"HResultHex extraction failed: status=%u value=0x%08lx\n", (unsigned int)status, (unsigned long)signed_number);
+        ++context->failures;
+    }
+
     status = comtrace_extract_uint64_property(event_record, L"OID", &wide_number);
     if (status != COMTRACE_IDENTITY_SUCCESS || wide_number != expected_oid) {
         fwprintf(stderr, L"OID extraction failed: status=%u value=%llu\n", (unsigned int)status, (unsigned long long)wide_number);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint64_property(event_record, L"HexOID", &wide_number);
+    if (status != COMTRACE_IDENTITY_SUCCESS || wide_number != expected_hex_oid) {
+        fwprintf(stderr, L"HexOID extraction failed: status=%u value=%llu\n", (unsigned int)status, (unsigned long long)wide_number);
         ++context->failures;
     }
 
