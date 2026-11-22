@@ -156,3 +156,139 @@ int comtrace_classify_com_rundown_event(
     *event_name = com_rundown_event_names[event_id - 1U];
     return 1;
 }
+
+static const GUID com_runtime_provider = {
+    0xBF406804UL,
+    0x6AFAU,
+    0x46E7U,
+    {0x8A, 0x48, 0x6C, 0x35, 0x7E, 0x1D, 0x6D, 0x61}
+};
+
+static const GUID rpc_provider = {
+    0x6AD52B32UL,
+    0xD609U,
+    0x4BE9U,
+    {0xAE, 0x07, 0xCE, 0x8D, 0xAE, 0x93, 0x7E, 0x39}
+};
+
+static const GUID rpcss_provider = {
+    0xD8975F88UL,
+    0x7DDBU,
+    0x4ED0U,
+    {0x91, 0xBF, 0x3A, 0xDF, 0x48, 0xC4, 0x8E, 0x0C}
+};
+
+int comtrace_classify_com_runtime_event(
+    const GUID *provider_id,
+    USHORT event_id,
+    UCHAR version,
+    UCHAR opcode,
+    const wchar_t **event_name
+)
+{
+    if (event_name != NULL) {
+        *event_name = NULL;
+    }
+
+    if (provider_id == NULL ||
+        event_name == NULL ||
+        memcmp(provider_id, &com_runtime_provider, sizeof(GUID)) != 0 ||
+        event_id != 7U ||
+        version != 0U ||
+        opcode != 0U) {
+        return 0;
+    }
+
+    *event_name = L"PrematureStubRundown";
+    return 1;
+}
+
+int comtrace_classify_rpc_event(
+    const GUID *provider_id,
+    USHORT event_id,
+    UCHAR version,
+    UCHAR opcode,
+    const wchar_t **event_name,
+    const wchar_t **phase
+)
+{
+    if (event_name != NULL) {
+        *event_name = NULL;
+    }
+    if (phase != NULL) {
+        *phase = NULL;
+    }
+
+    if (provider_id == NULL ||
+        event_name == NULL ||
+        phase == NULL ||
+        memcmp(provider_id, &rpc_provider, sizeof(GUID)) != 0 ||
+        version != 1U) {
+        return 0;
+    }
+
+    if (event_id == 1U && opcode == 2U) {
+        *event_name = L"RpcClientCall";
+        *phase = L"stop";
+        return 1;
+    }
+    if (event_id == 2U && opcode == 0U) {
+        *event_name = L"RpcServerCall";
+        *phase = L"info";
+        return 1;
+    }
+    if (event_id == 5U && opcode == 1U) {
+        *event_name = L"RpcClientCall";
+        *phase = L"start";
+        return 1;
+    }
+    if (event_id == 6U && opcode == 1U) {
+        *event_name = L"RpcServerCall";
+        *phase = L"start";
+        return 1;
+    }
+    if (event_id == 7U && opcode == 2U) {
+        *event_name = L"RpcClientCall";
+        *phase = L"stop";
+        return 1;
+    }
+    if (event_id == 8U && opcode == 2U) {
+        *event_name = L"RpcServerCall";
+        *phase = L"stop";
+        return 1;
+    }
+
+    return 0;
+}
+
+int comtrace_classify_rpcss_event(
+    const GUID *provider_id,
+    USHORT event_id,
+    UCHAR version,
+    UCHAR opcode,
+    const wchar_t **event_name
+)
+{
+    if (event_name != NULL) {
+        *event_name = NULL;
+    }
+
+    if (provider_id == NULL ||
+        event_name == NULL ||
+        memcmp(provider_id, &rpcss_provider, sizeof(GUID)) != 0 ||
+        version != 1U ||
+        opcode != 0U) {
+        return 0;
+    }
+
+    if (event_id == 2U) {
+        *event_name = L"InterfaceRegister";
+        return 1;
+    }
+    if (event_id == 3U) {
+        *event_name = L"InterfaceUnregister";
+        return 1;
+    }
+
+    return 0;
+}
