@@ -368,6 +368,48 @@ cleanup:
     return 0;
 }
 
+
+static void print_custom_schema_metadata(
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
+    const EVENT_PROPERTY_INFO *property
+)
+{
+    ULONG offset;
+    ULONG schema_size;
+    ULONG index;
+    USHORT protocol_id;
+
+    if (metadata_buffer == NULL || property == NULL) {
+        wprintf(L" custom_schema=unavailable");
+        return;
+    }
+
+    offset = property->customSchemaType.CustomSchemaOffset;
+    if (offset == 0U ||
+        offset > metadata_size ||
+        metadata_size - offset < 4U) {
+        wprintf(L" custom_schema=invalid");
+        return;
+    }
+
+    CopyMemory(&protocol_id, metadata_buffer + offset, sizeof(protocol_id));
+    CopyMemory(&schema_size, metadata_buffer + offset + 2U, sizeof(USHORT));
+    if (schema_size > metadata_size - offset - 4U) {
+        wprintf(L" custom_schema=invalid");
+        return;
+    }
+
+    wprintf(
+        L" custom_schema_protocol=0x%04X custom_schema_size=%lu custom_schema_data=hex:",
+        (unsigned int)protocol_id,
+        (unsigned long)schema_size
+    );
+    for (index = 0U; index < schema_size; ++index) {
+        wprintf(L"%02x", (unsigned int)metadata_buffer[offset + 4U + index]);
+    }
+}
+
 static int print_sid_value(const BYTE *value, ULONG value_size)
 {
     LPWSTR sid_text = NULL;
@@ -815,6 +857,17 @@ static void print_event_property_value_element(
         (unsigned long)index,
         display_name
     );
+    if ((flags & PropertyWBEMXmlFragment) != 0U) {
+        wprintf(L"format=wbem_xml_fragment ");
+    }
+    if ((flags & PropertyHasCustomSchema) != 0U) {
+        wprintf(L"format=custom_schema");
+        print_custom_schema_metadata(metadata_buffer, metadata_size, property);
+        wprintf(L" ");
+    }
+    if ((flags & PropertyHasTags) != 0U) {
+        wprintf(L"tags=0x%07lX ", (unsigned long)property->Tags);
+    }
 
     switch (in_type) {
     case TDH_INTYPE_UNICODESTRING: {
@@ -1491,13 +1544,23 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
                     : property->nonStructType.OutType;
 
             wprintf(
-                L"  property[%lu] name=%.*ls in_type=%u out_type=%u\n",
+                L"  property[%lu] name=%.*ls in_type=%u out_type=%u",
                 (unsigned long)index,
                 (int)name_length,
                 name,
                 (unsigned int)input_type,
                 (unsigned int)output_type
             );
+            if ((property->Flags & PropertyWBEMXmlFragment) != 0U) {
+                wprintf(L" format=wbem_xml_fragment");
+            }
+            if ((property->Flags & PropertyHasCustomSchema) != 0U) {
+                wprintf(L" format=custom_schema");
+            }
+            if ((property->Flags & PropertyHasTags) != 0U) {
+                wprintf(L" tags=0x%07lX", (unsigned long)property->Tags);
+            }
+            wprintf(L"\n");
         }
         if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
             print_event_property_value(event_record, property, name, index, pointer_size, event_info->EventPropertyInfoArray, property_count, buffer, buffer_size, NULL, NULL, 0U);
