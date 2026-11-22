@@ -106,6 +106,34 @@ if(clsid_search_position LESS 0)
 endif()
 
 execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${etl_path}" --ole --max-events 100
+    RESULT_VARIABLE ole_search_result
+    OUTPUT_VARIABLE ole_search_output
+    ERROR_VARIABLE ole_search_error
+)
+if(NOT ole_search_result EQUAL 0)
+    message(FATAL_ERROR "OLE search filter failed: ${ole_search_error}")
+endif()
+string(FIND "${ole_search_output}" "Events matching filters: 0" ole_search_position)
+if(ole_search_position LESS 0)
+    message(FATAL_ERROR "OLE search filter included non-OLE lifetime events.")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${etl_path}" --iid "{296B7D82-3A5C-4E94-A217-385B6C7D8E9F}" --max-events 100
+    RESULT_VARIABLE iid_search_result
+    OUTPUT_VARIABLE iid_search_output
+    ERROR_VARIABLE iid_search_error
+)
+if(NOT iid_search_result EQUAL 0)
+    message(FATAL_ERROR "IID search failed: ${iid_search_error}")
+endif()
+string(FIND "${iid_search_output}" "com_lifetime_event=ComObjectCreated" iid_search_position)
+if(iid_search_position LESS 0)
+    message(FATAL_ERROR "IID search did not return the matching COM lifetime event.")
+endif()
+
+execute_process(
     COMMAND "${COMTRACE_EXE}" --compare "${etl_path}" "${etl_path}" --json
     RESULT_VARIABLE compare_result
     OUTPUT_VARIABLE compare_output
