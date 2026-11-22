@@ -1,5 +1,6 @@
 #include "com_identity.h"
 #include "etl_decoder.h"
+#include "etl_property_format.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -215,6 +216,25 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     return status;
 }
 
+static int is_string_input_type(USHORT input_type)
+{
+    switch (input_type) {
+    case TDH_INTYPE_UNICODESTRING:
+    case TDH_INTYPE_ANSISTRING:
+    case TDH_INTYPE_NONNULLTERMINATEDSTRING:
+    case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
+    case TDH_INTYPE_MANIFEST_COUNTEDSTRING:
+    case TDH_INTYPE_COUNTEDSTRING:
+    case TDH_INTYPE_REVERSEDCOUNTEDSTRING:
+    case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
+    case TDH_INTYPE_COUNTEDANSISTRING:
+    case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
     const EVENT_RECORD *event_record,
     const wchar_t *property_name,
@@ -229,14 +249,14 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
 
     if (event_record == NULL ||
         property_name == NULL ||
-        property_name[0] == L'\\0' ||
+        property_name[0] == L'\0' ||
         value == NULL ||
         value_capacity == 0U ||
         value_capacity > (size_t)INT_MAX) {
         return COMTRACE_IDENTITY_INVALID_ARGUMENT;
     }
 
-    value[0] = L'\\0';
+    value[0] = L'\0';
     ZeroMemory(&event_info, sizeof(event_info));
     info_status = comtrace_etl_event_info_open(event_record, &event_info);
     if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
@@ -248,16 +268,13 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
             &event_info.info->EventPropertyInfoArray[index];
         const wchar_t *name =
             (const wchar_t *)(event_info.buffer + property->NameOffset);
-        USHORT input_type =
-            (property->Flags & PropertyHasCustomSchema) != 0U
-                ? property->customSchemaType.InType
-                : property->nonStructType.InType;
-        USHORT output_type =
-            (property->Flags & PropertyHasCustomSchema) != 0U
-                ? property->customSchemaType.OutType
-                : property->nonStructType.OutType;
         COMTRACE_ETL_PROPERTY_VALUE property_value;
         COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
+        USHORT input_type;
+        USHORT output_type;
+        USHORT normalized_type;
+        BYTE *payload;
+        ULONG payload_size;
         ULONG byte_count;
         ULONG text_length = 0U;
 
@@ -270,11 +287,14 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
                 PropertyParamCount |
                 PropertyParamFixedCount |
                 PropertyHasCustomSchema
-            )) != 0U ||
-            (input_type != TDH_INTYPE_UNICODESTRING &&
-             input_type != TDH_INTYPE_ANSISTRING &&
-             input_type != TDH_INTYPE_NONNULLTERMINATEDSTRING &&
-             input_type != TDH_INTYPE_NONNULLTERMINATEDANSISTRING)) {
+            )) != 0U) {
+            result = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
+            break;
+        }
+
+        input_type = property->nonStructType.InType;
+        output_type = property->nonStructType.OutType;
+        if (!is_string_input_type(input_type)) {
             result = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
             break;
         }
@@ -295,34 +315,46 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
             break;
         }
 
-        byte_count = property_value.size;
-        if (input_type == TDH_INTYPE_UNICODESTRING ||
-            input_type == TDH_INTYPE_NONNULLTERMINATEDSTRING) {
+        payload = property_value.data;
+        payload_size = property_value.size;
+        normalized_type = input_type;
+        if (!comtrace_etl_normalize_property_payload(
+                &normalized_type,
+                &payload,
+                &payload_size,
+                (ULONG)sizeof(void *))) {
+            comtrace_etl_property_value_destroy(&property_value);
+            result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+            break;
+        }
+
+        byte_count = payload_size;
+        if (normalized_type == TDH_INTYPE_UNICODESTRING) {
             const wchar_t *source;
             ULONG character_count;
 
             if ((byte_count % (ULONG)sizeof(wchar_t)) != 0U) {
                 result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
             } else {
-                source = (const wchar_t *)property_value.data;
+                source = (const wchar_t *)payload;
                 character_count = byte_count / (ULONG)sizeof(wchar_t);
                 while (character_count != 0U &&
-                    source[character_count - 1U] == L'\\0') {
+                    source[character_count - 1U] == L'\0') {
                     --character_count;
                 }
                 while (text_length < character_count &&
-                    source[text_length] != L'\\0') {
+                    source[text_length] != L'\0') {
                     ++text_length;
                 }
                 if ((size_t)text_length >= value_capacity) {
                     result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
                 } else {
                     CopyMemory(value, source, (size_t)text_length * sizeof(wchar_t));
-                    value[text_length] = L'\\0';
+                    value[text_length] = L'\0';
                     result = COMTRACE_IDENTITY_SUCCESS;
                 }
             }
-        } else {
+        } else if (normalized_type == TDH_INTYPE_ANSISTRING) {
             UINT code_page = output_type == TDH_OUTTYPE_UTF8 ||
                 output_type == TDH_OUTTYPE_JSON ||
                 output_type == TDH_OUTTYPE_XML
@@ -333,8 +365,7 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
                 : 0U;
             int converted;
 
-            while (byte_count != 0U &&
-                property_value.data[byte_count - 1U] == 0U) {
+            while (byte_count != 0U && payload[byte_count - 1U] == 0U) {
                 --byte_count;
             }
             if (byte_count > (ULONG)INT_MAX) {
@@ -343,7 +374,7 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
                 converted = MultiByteToWideChar(
                     code_page,
                     conversion_flags,
-                    (LPCCH)property_value.data,
+                    (LPCCH)payload,
                     (int)byte_count,
                     value,
                     (int)(value_capacity - 1U)
@@ -351,10 +382,12 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
                 if (converted <= 0 && byte_count != 0U) {
                     result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
                 } else {
-                    value[converted] = L'\\0';
+                    value[converted] = L'\0';
                     result = COMTRACE_IDENTITY_SUCCESS;
                 }
             }
+        } else {
+            result = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
         }
 
         comtrace_etl_property_value_destroy(&property_value);
