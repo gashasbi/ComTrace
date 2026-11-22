@@ -16,7 +16,8 @@ Use exactly one comparison operator with `--property`:
 - `--contains <text>` matches a substring in an ANSI or Unicode string.
 
 Property names and values are case-sensitive. The property name is limited to
-127 characters and the comparison value to 255 characters. Property filters
+127 characters and the comparison value to 255 characters. String payloads
+longer than 1023 characters are not matched. Property filters
 combine with provider, event ID, process/thread, COM/OLE, CLSID, IID, OID,
 lifetime ID, and Activity ID filters using AND semantics.
 

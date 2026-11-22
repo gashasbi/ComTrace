@@ -173,6 +173,28 @@ assert_identity_search_count(oid "0x1122334455667788" 2 "OID")
 assert_identity_search_count(clsid "{00112233-4455-6677-8899-AABBCCDDEEFF}" 2 "CLSID")
 assert_identity_search_count(iid "{10213243-5465-7687-98A9-BACBDCEDFE0F}" 2 "IID")
 
+function(assert_identity_property_search name value expected_count label)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "${name}" --equals "${value}" --max-events 10
+        RESULT_VARIABLE property_status
+        OUTPUT_VARIABLE property_output
+        ERROR_VARIABLE property_error
+    )
+    if(NOT property_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search failed: ${property_error}${property_output}")
+    endif()
+    string(FIND "${property_output}" "Events matching filters: ${expected_count}" property_match)
+    if(property_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search returned an unexpected count: ${property_output}")
+    endif()
+endfunction()
+
+assert_identity_property_search(ClassId "{00112233-4455-6677-8899-AABBCCDDEEFF}" 1 "GUID property")
+assert_identity_property_search(TargetInterface "{10213243-5465-7687-98A9-BACBDCEDFE0F}" 1 "Interface GUID property")
+assert_identity_property_search(OID "1234605616436508552" 2 "64-bit integer property")
+
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 3
     RESULT_VARIABLE call_trace_32_status
