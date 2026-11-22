@@ -506,10 +506,11 @@ static int event_property_is_array(const EVENT_PROPERTY_INFO *property)
     if (property == NULL) {
         return 0;
     }
-    if (event_property_is_array(property)) {
-        return 1;
-    }
-    return property->count > 1U;
+
+    return (property->Flags & (
+        PropertyParamCount |
+        PropertyParamFixedCount
+    )) != 0U || property->count > 1U;
 }
 
 static void build_property_display_name(
