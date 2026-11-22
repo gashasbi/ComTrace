@@ -98,7 +98,7 @@ static ULONG STDMETHODCALLTYPE fixture_release(IUnknown *interface_pointer)
     return (ULONG)reference_count;
 }
 
-static const IUnknownVtbl fixture_vtable = {
+static IUnknownVtbl fixture_vtable = {
     fixture_query_interface,
     fixture_add_ref,
     fixture_release
