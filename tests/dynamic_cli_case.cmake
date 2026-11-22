@@ -141,7 +141,7 @@ execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE clean
 if(NOT cleanup_status EQUAL 0)
     message(FATAL_ERROR "Manifest cleanup failed.")
 endif()
-foreach(expected "name=Values[0] value=11" "name=Values[1] value=22" "name=Values[2] value=33" "name=Data value=hex:deadbeef" "name=HexValues[0] value=44" "name=HexValues[1] value=55" "name=ByteValues[0] value=-7" "name=ByteValues[1] value=8" "name=Text value=\"Hello\"" "name=FixedData value=hex:11223344" "name=FixedText value=\"Fixed\"" "name=Sid value=S-1-5-32-544")
+foreach(expected "name=Values[0] value=11" "name=Values[1] value=22" "name=Values[2] value=33" "name=Data value=hex:deadbeef" "name=HexValues[0] value=44" "name=HexValues[1] value=55" "name=ByteValues[0] value=-7" "name=ByteValues[1] value=8" "name=SignedValues[0] value=-13" "name=SignedValues[1] value=27" "name=Text value=\"Hello\"" "name=FixedData value=hex:11223344" "name=FixedText value=\"Fixed\"" "name=Sid value=S-1-5-32-544")
     string(FIND "${inspect_output}" "${expected}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "Missing expected dynamic property value: ${expected}\n${inspect_output}")
