@@ -2729,6 +2729,414 @@ static void print_process_lifecycle_summary(
     }
 }
 
+static int search_property_text_matches(
+    const wchar_t *actual,
+    const COMTRACE_ETL_FILTERS *filters
+)
+{
+    if (actual == NULL || filters == NULL) {
+        return 0;
+    }
+
+    if (filters->property_contains) {
+        return wcsstr(actual, filters->property_value) != NULL;
+    }
+
+    return wcscmp(actual, filters->property_value) == 0;
+}
+
+static int format_search_property_value(
+    USHORT in_type,
+    const BYTE *value,
+    ULONG value_size,
+    ULONG pointer_size,
+    wchar_t *text,
+    size_t text_capacity
+)
+{
+    if (value == NULL || value_size == 0U || text == NULL ||
+        text_capacity == 0U) {
+        return 0;
+    }
+
+    text[0] = L'\0';
+
+    switch (in_type) {
+    case TDH_INTYPE_UNICODESTRING: {
+        size_t content_size;
+        size_t displayed_size;
+        int terminated;
+        size_t character_count;
+
+        if (!comtrace_scan_string(
+                value,
+                value_size,
+                sizeof(wchar_t),
+                (size_t)value_size,
+                &content_size,
+                &displayed_size,
+                &terminated)) {
+            return 0;
+        }
+
+        character_count = content_size / sizeof(wchar_t);
+        if (character_count >= text_capacity) {
+            return 0;
+        }
+
+        CopyMemory(text, value, content_size);
+        text[character_count] = L'\0';
+        return 1;
+    }
+    case TDH_INTYPE_ANSISTRING: {
+        size_t content_size;
+        size_t displayed_size;
+        int terminated;
+        int converted;
+
+        if (!comtrace_scan_string(
+                value,
+                value_size,
+                1U,
+                (size_t)value_size,
+                &content_size,
+                &displayed_size,
+                &terminated) ||
+            content_size > 1023U) {
+            return 0;
+        }
+
+        converted = MultiByteToWideChar(
+            CP_ACP,
+            0U,
+            (LPCCH)value,
+            (int)content_size,
+            text,
+            (int)text_capacity - 1
+        );
+        if (converted <= 0 || (size_t)converted >= text_capacity) {
+            return 0;
+        }
+        text[converted] = L'\0';
+        return 1;
+    }
+    case TDH_INTYPE_ANSICHAR:
+        if (value_size != 1U) {
+            return 0;
+        }
+        return MultiByteToWideChar(
+            CP_ACP,
+            0U,
+            (LPCCH)value,
+            1,
+            text,
+            (int)text_capacity - 1
+        ) == 1;
+    case TDH_INTYPE_UNICODECHAR:
+        if (value_size != sizeof(wchar_t)) {
+            return 0;
+        }
+        CopyMemory(text, value, sizeof(wchar_t));
+        text[1] = L'\0';
+        return 1;
+    case TDH_INTYPE_INT8: {
+        INT8 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%d", (int)number);
+        return 1;
+    }
+    case TDH_INTYPE_UINT8: {
+        UINT8 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        return 1;
+    }
+    case TDH_INTYPE_INT16: {
+        INT16 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%d", (int)number);
+        return 1;
+    }
+    case TDH_INTYPE_UINT16: {
+        UINT16 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
+        return 1;
+    }
+    case TDH_INTYPE_INT32: {
+        INT32 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%ld", (long)number);
+        return 1;
+    }
+    case TDH_INTYPE_UINT32: {
+        UINT32 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lu", (unsigned long)number);
+        return 1;
+    }
+    case TDH_INTYPE_INT64: {
+        INT64 number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lld", (long long)number);
+        return 1;
+    }
+    case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_FILETIME: {
+        ULONGLONG number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%llu", (unsigned long long)number);
+        return 1;
+    }
+    case TDH_INTYPE_FLOAT: {
+        float number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%.9g", (double)number);
+        return 1;
+    }
+    case TDH_INTYPE_DOUBLE: {
+        double number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"%.17g", number);
+        return 1;
+    }
+    case TDH_INTYPE_BOOLEAN: {
+        ULONGLONG number = 0ULL;
+        if (value_size != 1U && value_size != 2U &&
+            value_size != 4U && value_size != 8U) {
+            return 0;
+        }
+        CopyMemory(&number, value, value_size);
+        wcscpy_s(text, text_capacity, number == 0ULL ? L"false" : L"true");
+        return 1;
+    }
+    case TDH_INTYPE_GUID: {
+        GUID guid;
+        if (value_size != sizeof(guid)) return 0;
+        CopyMemory(&guid, value, sizeof(guid));
+        _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+            (unsigned long)guid.Data1,
+            (unsigned int)guid.Data2,
+            (unsigned int)guid.Data3,
+            (unsigned int)guid.Data4[0],
+            (unsigned int)guid.Data4[1],
+            (unsigned int)guid.Data4[2],
+            (unsigned int)guid.Data4[3],
+            (unsigned int)guid.Data4[4],
+            (unsigned int)guid.Data4[5],
+            (unsigned int)guid.Data4[6],
+            (unsigned int)guid.Data4[7]
+        );
+        return 1;
+    }
+    case TDH_INTYPE_HEXINT32: {
+        ULONG number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%08lX", (unsigned long)number);
+        return 1;
+    }
+    case TDH_INTYPE_HEXINT64: {
+        ULONGLONG number;
+        if (value_size != sizeof(number)) return 0;
+        CopyMemory(&number, value, sizeof(number));
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%016llX", (unsigned long long)number);
+        return 1;
+    }
+    case TDH_INTYPE_POINTER:
+    case TDH_INTYPE_SIZET: {
+        ULONGLONG number = 0ULL;
+        if ((pointer_size != 4U && pointer_size != 8U) ||
+            value_size != pointer_size) {
+            return 0;
+        }
+        CopyMemory(&number, value, value_size);
+        _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%llX", (unsigned long long)number);
+        return 1;
+    }
+    case TDH_INTYPE_SYSTEMTIME: {
+        ComTraceSystemTime time_value;
+        if (!comtrace_decode_systemtime(value, value_size, &time_value)) {
+            return 0;
+        }
+        _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"%04u-%02u-%02uT%02u:%02u:%02u.%03u",
+            (unsigned int)time_value.year,
+            (unsigned int)time_value.month,
+            (unsigned int)time_value.day,
+            (unsigned int)time_value.hour,
+            (unsigned int)time_value.minute,
+            (unsigned int)time_value.second,
+            (unsigned int)time_value.milliseconds
+        );
+        return 1;
+    }
+    default:
+        return 0;
+    }
+}
+
+static int event_property_matches_filter(
+    const EVENT_RECORD *event_record,
+    const COMTRACE_ETL_FILTERS *filters,
+    ULONG pointer_size
+)
+{
+    ULONG buffer_size = 0U;
+    ULONG allocated_size;
+    ULONG status;
+    ULONG available_count;
+    ULONG index;
+    BYTE *buffer = NULL;
+    TRACE_EVENT_INFO *event_info;
+    size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+    int matched = 0;
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        NULL,
+        &buffer_size
+    );
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        buffer_size < property_offset ||
+        buffer_size > 65536U) {
+        return 0;
+    }
+
+    allocated_size = buffer_size;
+    buffer = (BYTE *)malloc(buffer_size);
+    if (buffer == NULL) {
+        return 0;
+    }
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        (PTRACE_EVENT_INFO)buffer,
+        &buffer_size
+    );
+    if (status != ERROR_SUCCESS ||
+        buffer_size < property_offset ||
+        buffer_size > allocated_size) {
+        free(buffer);
+        return 0;
+    }
+
+    event_info = (TRACE_EVENT_INFO *)buffer;
+    available_count = (ULONG)(
+        (buffer_size - property_offset) / sizeof(EVENT_PROPERTY_INFO)
+    );
+    if (event_info->PropertyCount > available_count ||
+        event_info->TopLevelPropertyCount > event_info->PropertyCount) {
+        free(buffer);
+        return 0;
+    }
+
+    for (index = 0U; index < event_info->TopLevelPropertyCount; ++index) {
+        const EVENT_PROPERTY_INFO *property =
+            &event_info->EventPropertyInfoArray[index];
+        ULONG name_offset = property->NameOffset;
+        ULONG remaining;
+        ULONG name_length = 0U;
+        const wchar_t *name;
+        USHORT in_type;
+        COMTRACE_ETL_PROPERTY_VALUE property_value;
+        COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
+        BYTE *value;
+        ULONG value_size;
+        wchar_t actual[1024];
+
+        if (name_offset >= buffer_size ||
+            (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+            break;
+        }
+
+        name = (const wchar_t *)(buffer + name_offset);
+        remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+        while (name_length < remaining && name[name_length] != L'\0') {
+            ++name_length;
+        }
+        if (name_length == remaining) {
+            break;
+        }
+
+        if (wcscmp(name, filters->property_name) != 0) {
+            continue;
+        }
+
+        if ((property->Flags & (
+                PropertyStruct |
+                PropertyParamCount |
+                PropertyParamFixedCount |
+                PropertyWBEMXmlFragment |
+                PropertyHasCustomSchema
+            )) != 0U) {
+            break;
+        }
+
+        in_type = property->nonStructType.InType;
+        ZeroMemory(&property_value, sizeof(property_value));
+        read_status = comtrace_etl_read_property_value(
+            event_record,
+            property,
+            name,
+            NULL,
+            NULL,
+            0U,
+            0xFFFFFFFFUL,
+            &property_value
+        );
+        if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
+            comtrace_etl_property_value_destroy(&property_value);
+            break;
+        }
+
+        value = property_value.data;
+        value_size = property_value.size;
+        if (normalize_property_payload(
+                &in_type,
+                &value,
+                &value_size,
+                pointer_size) &&
+            format_search_property_value(
+                in_type,
+                value,
+                value_size,
+                pointer_size,
+                actual,
+                _countof(actual)
+            )) {
+            matched = search_property_text_matches(actual, filters);
+        }
+
+        comtrace_etl_property_value_destroy(&property_value);
+        break;
+    }
+
+    free(buffer);
+    return matched;
+}
+
 static int event_matches_filters(
     const ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
@@ -2843,6 +3251,15 @@ static int event_matches_filters(
               memcmp(&activity_ids.related_activity_id, &context->filters.activity_id, sizeof(GUID)) != 0))) {
             return 0;
         }
+    }
+
+    if (context->filters.has_property_name &&
+        !event_property_matches_filter(
+            event_record,
+            &context->filters,
+            context->pointer_size
+        )) {
+        return 0;
     }
 
     return 1;

@@ -14,6 +14,30 @@ if(NOT fixture_status EQUAL 0)
     message(FATAL_ERROR "Fixture failed: ${fixture_error}")
 endif()
 execute_process(COMMAND "${COMTRACE_EXE}" --inspect "${ETL_FILE}" RESULT_VARIABLE inspect_status OUTPUT_VARIABLE inspect_output ERROR_VARIABLE inspect_error)
+
+function(assert_property_search name operator value expected_count label)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "${name}" "--${operator}" "${value}" --max-events 10
+        RESULT_VARIABLE search_status
+        OUTPUT_VARIABLE search_output
+        ERROR_VARIABLE search_error
+    )
+    if(NOT search_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search failed: ${search_error}${search_output}")
+    endif()
+    string(FIND "${search_output}" "Events matching filters: ${expected_count}" search_match)
+    if(search_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search returned an unexpected result: ${search_output}")
+    endif()
+endfunction()
+
+assert_property_search(Text equals Hello 1 "Unicode equality")
+assert_property_search(Text contains ell 1 "Unicode contains")
+assert_property_search(Count equals 3 1 "Numeric equality")
+assert_property_search(Text equals Goodbye 0 "Property no-match")
+
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
 if(NOT cleanup_status EQUAL 0)
     message(FATAL_ERROR "Manifest cleanup failed.")

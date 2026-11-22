@@ -54,7 +54,7 @@ static const COMTRACE_PROVIDER known_providers[] = {
 static void print_usage(const wchar_t *program_name)
 {
     wprintf(
-        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--com | --ole] [--max-events <n>]]\n",
+        L"Usage: %ls [--help | --version | --self-test | --providers | --capture <seconds> <output.etl> | --inspect <file.etl> [max-events] | --compare <left.etl|ctra> <right.etl|ctra> [--json] | --search <file.etl> [--provider <guid>] [--event-id <id>] [--pid <id>] [--tid <id>] [--clsid <guid>] [--iid <guid>] [--oid <value>] [--lifetime-id <value>] [--activity-id <guid>] [--property <name> (--equals <value> | --contains <text>)] [--com | --ole] [--max-events <n>]]\n",
         program_name
     );
 }
@@ -425,6 +425,9 @@ static int run_etl_search(int argc, wchar_t **argv)
                    wcscmp(option, L"--activity-id") == 0 ||
                    wcscmp(option, L"--oid") == 0 ||
                    wcscmp(option, L"--lifetime-id") == 0 ||
+                   wcscmp(option, L"--property") == 0 ||
+                   wcscmp(option, L"--equals") == 0 ||
+                   wcscmp(option, L"--contains") == 0 ||
                    wcscmp(option, L"--max-events") == 0) {
             const wchar_t *argument;
 
@@ -492,6 +495,26 @@ static int run_etl_search(int argc, wchar_t **argv)
                     return EXIT_FAILURE;
                 }
                 filters.has_lifetime_object_id = TRUE;
+            } else if (wcscmp(option, L"--property") == 0) {
+                if (filters.has_property_name ||
+                    argument[0] == L'\\0' ||
+                    wcslen(argument) >= _countof(filters.property_name) ||
+                    wcscpy_s(filters.property_name, _countof(filters.property_name), argument) != 0) {
+                    fwprintf(stderr, L"Invalid or repeated property name.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_property_name = TRUE;
+            } else if (wcscmp(option, L"--equals") == 0 ||
+                       wcscmp(option, L"--contains") == 0) {
+                if (filters.has_property_value ||
+                    argument[0] == L'\\0' ||
+                    wcslen(argument) >= _countof(filters.property_value) ||
+                    wcscpy_s(filters.property_value, _countof(filters.property_value), argument) != 0) {
+                    fwprintf(stderr, L"Invalid or repeated property comparison value.\n");
+                    return EXIT_FAILURE;
+                }
+                filters.has_property_value = TRUE;
+                filters.property_contains = wcscmp(option, L"--contains") == 0;
             } else {
                 if (!parse_decimal_value(argument, 10000UL, &filters.sample_limit) ||
                     filters.sample_limit == 0U) {
@@ -503,6 +526,11 @@ static int run_etl_search(int argc, wchar_t **argv)
             fwprintf(stderr, L"Unknown search option: %ls\n", option);
             return EXIT_FAILURE;
         }
+    }
+
+    if (filters.has_property_name != filters.has_property_value) {
+        fwprintf(stderr, L"Use --property with either --equals or --contains.\n");
+        return EXIT_FAILURE;
     }
 
     if (filters.com_only && filters.ole_only) {

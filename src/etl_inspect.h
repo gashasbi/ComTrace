@@ -25,6 +25,11 @@ typedef struct {
     ULONGLONG lifetime_object_id;
     BOOL has_activity_id;
     GUID activity_id;
+    BOOL has_property_name;
+    BOOL has_property_value;
+    BOOL property_contains;
+    wchar_t property_name[128];
+    wchar_t property_value[256];
     ULONG sample_limit;
 } COMTRACE_ETL_FILTERS;
 
