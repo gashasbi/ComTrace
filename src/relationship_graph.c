@@ -236,6 +236,39 @@ static COMTRACE_GRAPH_STATUS add_thread(
     );
 }
 
+static void record_identity_observation(
+    COMTRACE_GRAPH_NODE *node,
+    const COMTRACE_COM_OBJECT_IDENTITY *identity
+)
+{
+    if (node == NULL || identity == NULL) {
+        return;
+    }
+
+    if (node->observation_count != (ULONGLONG)-1) {
+        ++node->observation_count;
+    }
+
+    if (!identity->has_timestamp) {
+        return;
+    }
+
+    if (!node->has_observed_timestamp) {
+        node->first_seen_timestamp = identity->timestamp;
+        node->last_seen_timestamp = identity->timestamp;
+        node->has_observed_timestamp = TRUE;
+        return;
+    }
+
+    if (identity->timestamp < node->first_seen_timestamp) {
+        node->first_seen_timestamp = identity->timestamp;
+    }
+
+    if (identity->timestamp > node->last_seen_timestamp) {
+        node->last_seen_timestamp = identity->timestamp;
+    }
+}
+
 static COMTRACE_GRAPH_STATUS add_call_relationship(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     const COMTRACE_COM_OBJECT_IDENTITY *identity
@@ -591,6 +624,8 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
             return status;
         }
 
+        record_identity_observation(&graph->nodes[ipid_index], identity);
+
         if (iid_index != (size_t)-1) {
             status = add_edge(
                 graph,
@@ -630,6 +665,8 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_event(
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
+
+        record_identity_observation(&graph->nodes[object_index], identity);
 
         status = add_edge(
             graph,
