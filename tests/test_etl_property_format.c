@@ -102,7 +102,7 @@ static int test_payload_normalization(void)
             hex_dump,
             (ULONG)sizeof(hex_dump),
             8U,
-            TDH_INTYPE_BINARY,
+            TDH_INTYPE_HEXDUMP,
             4U,
             expected_hex,
             (ULONG)sizeof(expected_hex)
