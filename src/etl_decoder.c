@@ -52,8 +52,8 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
     if (status != ERROR_SUCCESS ||
         buffer_size < property_offset ||
         buffer_size > allocated_size) {
-        event_info->tdh_status = status;
         comtrace_etl_event_info_close(event_info);
+        event_info->tdh_status = status;
         return COMTRACE_ETL_EVENT_INFO_UNAVAILABLE;
     }
 
