@@ -4055,10 +4055,7 @@ static int event_property_value_matches(
     if (property == NULL ||
         name == NULL ||
         filters == NULL ||
-        (property->Flags & (
-            PropertyStruct |
-            PropertyWBEMXmlFragment
-        )) != 0U) {
+        (property->Flags & PropertyStruct) != 0U) {
         return 0;
     }
 
