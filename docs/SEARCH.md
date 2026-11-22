@@ -1,7 +1,8 @@
 # ETL event property search
 
-ComTrace can filter an ETL trace by the value of a top-level event property or
-one indexed element of a top-level array property.
+ComTrace can filter an ETL trace by the value of a top-level event property,
+one indexed element of a top-level array property, or a scalar member of an
+indexed top-level struct array.
 
 ## Syntax
 
@@ -9,6 +10,7 @@ one indexed element of a top-level array property.
 ComTrace.exe --search trace.etl --property Text --equals Hello
 ComTrace.exe --search trace.etl --property Text --contains ell
 ComTrace.exe --search trace.etl --property Values[1] --equals 22
+ComTrace.exe --search trace.etl --property Values[1].Code --equals 1432778632
 ComTrace.exe --search trace.etl --property Outer.Inner.NestedCode --equals 1432778632
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
@@ -35,8 +37,9 @@ lifetime ID, and Activity ID filters using AND semantics.
 
 The property can be a top-level scalar, an indexed element of a top-level
 array, or a scalar member reached through dot notation in a non-array struct.
-For example, `Outer.Inner.Code` selects a nested member. Struct arrays and array
-members inside struct parents are not currently supported. An array property
+For example, `Outer.Inner.Code` selects a nested member. Indexed members of top-level struct arrays are supported, for example
+`Values[1].Code`. Arrays of nested structs and arrays inside struct parents are
+not currently supported. An array property
 without an index is not matched.
 Supported values include:
 
@@ -68,8 +71,8 @@ values support equality only.
 
 ## Unsupported property shapes
 
-Array properties without an index, struct arrays, array members inside struct
-parents, WBEM XML fragments, unsupported custom schemas, and values whose TDH
+Array properties without an index, nested struct arrays, array members inside
+struct parents, WBEM XML fragments, unsupported custom schemas, and values whose TDH
 metadata or payload cannot be read are not matched by this filter. Binary properties
 do not support numeric ordering comparisons. Scalar custom-schema properties are
 matched when their input and output types have a supported scalar representation. A missing or unsupported property produces

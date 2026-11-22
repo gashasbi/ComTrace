@@ -3869,8 +3869,15 @@ static int event_struct_property_matches(
     if (property == NULL || name == NULL || path == NULL ||
         path[0] == L'\0' ||
         (property->Flags & PropertyStruct) == 0U ||
-        (property->Flags & (PropertyParamCount | PropertyParamFixedCount)) != 0U ||
         parent_count >= 8U) {
+        return 0;
+    }
+
+    if ((property->Flags & (PropertyParamCount | PropertyParamFixedCount)) != 0U) {
+        if (parent_count != 0U || !filters->property_index_on_struct) {
+            return 0;
+        }
+    } else if (parent_count == 0U && filters->property_index_on_struct) {
         return 0;
     }
 
@@ -3886,7 +3893,10 @@ static int event_struct_property_matches(
         nested_indices[index] = parent_indices[index];
     }
     nested_names[parent_count] = name;
-    nested_indices[parent_count] = 0xFFFFFFFFUL;
+    nested_indices[parent_count] =
+        parent_count == 0U && filters->property_index_on_struct
+            ? filters->property_index
+            : 0xFFFFFFFFUL;
 
     separator = wcschr(path, L'.');
     component_length = separator == NULL
@@ -3932,16 +3942,25 @@ static int event_struct_property_matches(
             );
         }
 
-        return event_property_value_matches(
-            event_record,
-            member,
-            member_name,
-            nested_names,
-            nested_indices,
-            parent_count + 1U,
-            filters,
-            pointer_size
-        );
+        {
+            COMTRACE_ETL_FILTERS leaf_filters = *filters;
+
+            if (leaf_filters.property_index_on_struct) {
+                leaf_filters.has_property_index = FALSE;
+                leaf_filters.property_index_on_struct = FALSE;
+            }
+
+            return event_property_value_matches(
+                event_record,
+                member,
+                member_name,
+                nested_names,
+                nested_indices,
+                parent_count + 1U,
+                &leaf_filters,
+                pointer_size
+            );
+        }
     }
 
     return 0;
@@ -4034,16 +4053,18 @@ static int event_property_matches_filter(
         }
 
         if (separator == NULL) {
-            matched = event_property_value_matches(
-                event_record,
-                property,
-                name,
-                no_parent_names,
-                no_parent_indices,
-                0U,
-                filters,
-                pointer_size
-            );
+            if (!filters->property_index_on_struct) {
+                matched = event_property_value_matches(
+                    event_record,
+                    property,
+                    name,
+                    no_parent_names,
+                    no_parent_indices,
+                    0U,
+                    filters,
+                    pointer_size
+                );
+            }
         } else if (separator[1] != L'\0') {
             matched = event_struct_property_matches(
                 event_record,

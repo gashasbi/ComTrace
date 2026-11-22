@@ -511,15 +511,32 @@ static int run_etl_search(int argc, wchar_t **argv)
                 open_bracket = wcschr(argument, L'[');
                 if (open_bracket != NULL) {
                     wchar_t index_text[16];
+                    const wchar_t *dot;
+                    const wchar_t *suffix;
                     size_t name_length = (size_t)(open_bracket - argument);
                     size_t index_length;
+                    size_t suffix_length = 0U;
 
                     close_bracket = wcschr(open_bracket + 1, L']');
+                    dot = wcschr(argument, L'.');
+                    suffix = close_bracket == NULL ? NULL : close_bracket + 1;
                     if (name_length == 0U ||
-                        name_length >= _countof(filters.property_name) ||
                         close_bracket == NULL ||
-                        close_bracket[1] != L'\0') {
+                        (dot != NULL && dot < open_bracket) ||
+                        wcschr(close_bracket + 1, L'[') != NULL ||
+                        (suffix[0] != L'\0' && suffix[0] != L'.') ||
+                        (suffix[0] == L'.' && suffix[1] == L'\0')) {
                         fwprintf(stderr, L"Invalid property array selector.\n");
+                        return EXIT_FAILURE;
+                    }
+
+                    if (suffix[0] == L'.') {
+                        suffix_length = wcslen(suffix);
+                        filters.property_index_on_struct = TRUE;
+                    }
+
+                    if (name_length + suffix_length >= _countof(filters.property_name)) {
+                        fwprintf(stderr, L"Invalid property name.\n");
                         return EXIT_FAILURE;
                     }
 
@@ -539,7 +556,15 @@ static int run_etl_search(int argc, wchar_t **argv)
                         argument,
                         name_length * sizeof(wchar_t)
                     );
-                    filters.property_name[name_length] = L'\0';
+                    if (suffix_length != 0U) {
+                        CopyMemory(
+                            filters.property_name + name_length,
+                            suffix,
+                            (suffix_length + 1U) * sizeof(wchar_t)
+                        );
+                    } else {
+                        filters.property_name[name_length] = L'\0';
+                    }
 
                     if (!parse_decimal_value(index_text, 4095UL,
                             &filters.property_index)) {
