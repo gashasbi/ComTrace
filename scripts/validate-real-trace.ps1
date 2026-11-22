@@ -254,7 +254,8 @@ $processEndCount = [UInt64]::Parse($processLifecycleMatch.Groups[2].Value)
 $processDecodeFailures = [UInt64]::Parse($processLifecycleMatch.Groups[6].Value)
 
 if ($processStartTypeCount -eq 0 -or $processEndTypeCount -eq 0 -or
-    $processStartCount -eq 0 -or $processEndCount -eq 0) {
+    $processStartCount -eq 0 -or $processEndCount -eq 0 -or
+    $processDecodeFailures -ne 0) {
     throw "Kernel Process start/stop payloads were not both decoded. Provider Start=$processStartTypeCount End=$processEndTypeCount; decoded Start=$processStartCount End=$processEndCount. Review $inspectPath"
 }
 
