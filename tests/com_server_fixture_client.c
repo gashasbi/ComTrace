@@ -70,16 +70,46 @@ static int stop_trace(TRACEHANDLE h,EVENT_TRACE_PROPERTIES *p)
 }
 static int test_regular(void)
 {
- COMTRACE_PRIMARY *a=NULL;COMTRACE_SECONDARY *b=NULL;IUnknown *ia=NULL,*ib=NULL;LONG v=0;int ok=0;
- if(FAILED(CoCreateInstance(&COMTRACE_FIXTURE_CLSID,NULL,CLSCTX_INPROC_SERVER,&COMTRACE_FIXTURE_IID_PRIMARY,(void**)&a)))goto done;
- if(FAILED(a->lpVtbl->SetValue(a,40))||FAILED(a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b))||
-    FAILED(b->lpVtbl->AddToValue(b,2))||FAILED(a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia))||
-    FAILED(b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib))||ia!=ib||
-    FAILED(a->lpVtbl->GetValue(a,&v))||v!=42)goto done;
+ IClassFactory *factory=NULL;
+ COMTRACE_PRIMARY *a=NULL;
+ COMTRACE_SECONDARY *b=NULL;
+ IUnknown *ia=NULL;
+ IUnknown *ib=NULL;
+ LONG v=0;
+ BOOL server_locked=FALSE;
+ int ok=0;
+
+ if(FAILED(CoGetClassObject(
+        &COMTRACE_FIXTURE_CLSID,
+        CLSCTX_INPROC_SERVER,
+        NULL,
+        &IID_IClassFactory,
+        (void**)&factory)))goto done;
+ if(FAILED(factory->lpVtbl->LockServer(factory,TRUE)))goto done;
+ server_locked=TRUE;
+ if(FAILED(factory->lpVtbl->CreateInstance(
+        factory,
+        NULL,
+        &COMTRACE_FIXTURE_IID_PRIMARY,
+        (void**)&a)))goto done;
+ if(FAILED(a->lpVtbl->SetValue(a,40))||
+    FAILED(a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b))||
+    FAILED(b->lpVtbl->AddToValue(b,2))||
+    FAILED(a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia))||
+    FAILED(b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib))||
+    ia!=ib||
+    FAILED(a->lpVtbl->GetValue(a,&v))||
+    v!=42)goto done;
  ok=1;
+
 done:
- if(ib)(void)ib->lpVtbl->Release(ib);if(ia)(void)ia->lpVtbl->Release(ia);
- if(b)(void)b->lpVtbl->Release(b);if(a)(void)a->lpVtbl->Release(a);return ok;
+ if(ib)(void)ib->lpVtbl->Release(ib);
+ if(ia)(void)ia->lpVtbl->Release(ia);
+ if(b)(void)b->lpVtbl->Release(b);
+ if(a)(void)a->lpVtbl->Release(a);
+ if(server_locked&&FAILED(factory->lpVtbl->LockServer(factory,FALSE)))ok=0;
+ if(factory)(void)factory->lpVtbl->Release(factory);
+ return ok;
 }
 static int test_aggregation(void)
 {
