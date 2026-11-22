@@ -107,7 +107,12 @@ Use [the real ETL validation workflow](docs/REAL_TRACE_VALIDATION.md) on a Windo
 - Peer process/thread IDs are read from explicitly named event properties such as `TargetProcessId`, `TargetThreadId`, `SourceProcessId`, and `SourceThreadId`. Executable paths are displayed only when Windows permits the process query.
 - The OLE Performance manifest inspected on Windows Server 2022 defines 28 events across 14 Clipboard and Drag & Drop operations, but does not declare event payload templates or data fields. ComTrace also queries TDH runtime metadata for displayed events and preserves any named properties it exposes. DataObject identity is not inferred from raw payload bytes; it is only eligible for extraction when a stable runtime property and its meaning can be verified.
 - The COM Performance manifest inspected on the Windows Server 2022 CI runner defines 55 events but no templates or data fields. ComTrace therefore relies on named TDH runtime properties when available; some identifiers, including CLSID, may remain unavailable in real traces. It does not infer them from undocumented payload offsets.
-- `--providers` reports five providers in the CLI inventory: COMRuntime, COM-Perf, COM-RundownInstrumentation, RPC, and RPCSS. Capture also enables OLE-Perf, which is not part of that CLI inventory.
+- `--providers` reports six providers in the CLI inventory: COMRuntime, COM-Perf, COM-RundownInstrumentation, RPC, RPCSS, and the optional ComTrace.COMLifetime instrumentation provider. Capture also enables OLE-Perf, which is not part of that CLI inventory.
 - A registered or enabled provider is not proof that it emitted events. Validate event production using an ETL captured on the target Windows system.
 - ETL processing uses Windows ETW and TDH APIs. Build and end-to-end trace validation must be performed on Windows.
 - ComTrace is a static trace analysis tool. Its output does not establish that an operation is malicious or vulnerable.
+
+
+### COM object lifetime instrumentation
+
+ComTrace also ships an optional static library, `ComTraceLifetimeInstrumentation.lib`, for COM implementations that you control. Call its API from the actual object creation, `IUnknown::AddRef`, `IUnknown::Release`, and final-destruction paths to emit self-describing ETW records. Capture enables the `ComTrace.COMLifetime` provider, and Inspect decodes its object instance ID, CLSID, IID, and observed reference-count return values. This is explicit application instrumentation, not automatic system-wide COM interception. See [COM Object Lifetime Instrumentation](docs/COM_LIFETIME_INSTRUMENTATION.md).
