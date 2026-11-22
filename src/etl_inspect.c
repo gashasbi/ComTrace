@@ -1432,12 +1432,14 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
                     : property->nonStructType.OutType;
 
             wprintf(
-                L"  property[%lu] name=%.*ls in_type=%u out_type=%u",
+                L"  property[%lu] name=%.*ls in_type=%u in_type_name=%ls out_type=%u out_type_name=%ls",
                 (unsigned long)index,
                 (int)name_length,
                 name,
                 (unsigned int)input_type,
-                (unsigned int)output_type
+                comtrace_etl_input_type_name(input_type),
+                (unsigned int)output_type,
+                comtrace_etl_output_type_name(output_type)
             );
             if ((property->Flags & PropertyWBEMXmlFragment) != 0U) {
                 wprintf(L" format=wbem_xml_fragment");
