@@ -3,6 +3,7 @@
 #include <unknwn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 #include "comtrace_lifetime.h"
 
@@ -42,21 +43,33 @@ typedef struct {
     ULONGLONG object_instance_id;
 } COMTRACE_FIXTURE_OBJECT;
 
+static const GUID unknown_interface_id = {
+    0x00000000,
+    0x0000,
+    0x0000,
+    {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+};
+
 static HRESULT STDMETHODCALLTYPE fixture_query_interface(
     IUnknown *interface_pointer,
     REFIID interface_id,
     void **object
 )
 {
-    (void)interface_pointer;
-    (void)interface_id;
-
-    if (object == NULL) {
+    if (interface_pointer == NULL || interface_id == NULL || object == NULL) {
         return E_POINTER;
     }
 
     *object = NULL;
-    return E_NOINTERFACE;
+
+    if (memcmp(interface_id, &unknown_interface_id, sizeof(GUID)) != 0 &&
+        memcmp(interface_id, &fixture_interface_id, sizeof(GUID)) != 0) {
+        return E_NOINTERFACE;
+    }
+
+    *object = interface_pointer;
+    (void)interface_pointer->lpVtbl->AddRef(interface_pointer);
+    return S_OK;
 }
 
 static ULONG STDMETHODCALLTYPE fixture_add_ref(IUnknown *interface_pointer)
@@ -278,7 +291,24 @@ int wmain(int argc, wchar_t **argv)
 
 cleanup:
     if (object != NULL) {
-        while (InterlockedCompareExchange(&object->reference_count, 0, 0) > 0) {
+        LONG reference_count = InterlockedCompareExchange(
+            &object->reference_count,
+            0,
+            0
+        );
+
+        while (reference_count > 1) {
+            (void)object->interface_pointer.lpVtbl->Release(
+                &object->interface_pointer
+            );
+            reference_count = InterlockedCompareExchange(
+                &object->reference_count,
+                0,
+                0
+            );
+        }
+
+        if (reference_count == 1) {
             (void)object->interface_pointer.lpVtbl->Release(
                 &object->interface_pointer
             );
