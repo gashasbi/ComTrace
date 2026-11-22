@@ -3140,6 +3140,16 @@ static void print_ole_timeline_summary(
             (unsigned long)record->thread_id
         );
 
+        if (record->has_stop &&
+            (record->stop_process_id != record->process_id ||
+             record->stop_thread_id != record->thread_id)) {
+            wprintf(
+                L" stop_pid=%lu stop_tid=%lu",
+                (unsigned long)record->stop_process_id,
+                (unsigned long)record->stop_thread_id
+            );
+        }
+
         if (record->has_start && record->has_stop) {
             wprintf(
                 L" match=%ls",
