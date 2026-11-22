@@ -208,11 +208,61 @@ static int test_ambiguous_and_unmatched_events(void)
     return 1;
 }
 
+static int test_partial_conversation_correlation_is_rejected(void)
+{
+    COMTRACE_DDE_TIMELINE timeline;
+    COMTRACE_DDE_TIMELINE_EVENT event;
+
+    comtrace_dde_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED;
+    event.process_id = 1U;
+    event.thread_id = 2U;
+    event.timestamp = 10ULL;
+    event.conversation_id = 3ULL;
+    event.conversation_correlation_id = 4ULL;
+    event.transaction_instance_id = 5ULL;
+    event.transaction_correlation_id = 6ULL;
+    event.transaction_type = 0x20B0U;
+    event.format = 1U;
+    event.role = COMTRACE_DDE_ROLE_CLIENT;
+    event.item = L"Item";
+
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.type = COMTRACE_DDE_TIMELINE_CALLBACK_RECEIVED;
+    event.process_id = 7U;
+    event.thread_id = 8U;
+    event.timestamp = 20ULL;
+    event.conversation_id = 9ULL;
+    event.conversation_correlation_id = 0ULL;
+    event.transaction_instance_id = 0ULL;
+    event.role = COMTRACE_DDE_ROLE_SERVER;
+
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+            COMTRACE_DDE_TIMELINE_SUCCESS ||
+        comtrace_dde_timeline_correlate(&timeline) !=
+            COMTRACE_DDE_TIMELINE_SUCCESS ||
+        comtrace_dde_timeline_exchange_count(&timeline) != 0U) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_dde_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_conversation_and_transaction_lifecycle() ||
         !test_explicit_cross_process_exchange() ||
-        !test_ambiguous_and_unmatched_events()) {
+        !test_ambiguous_and_unmatched_events() ||
+        !test_partial_conversation_correlation_is_rejected()) {
         fputs("DDE timeline tests failed.\n", stderr);
         return 1;
     }
