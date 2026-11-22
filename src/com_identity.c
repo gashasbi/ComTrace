@@ -214,6 +214,155 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     return status;
 }
 
+COMTRACE_IDENTITY_STATUS comtrace_extract_string_property(
+    const EVENT_RECORD *event_record,
+    const wchar_t *property_name,
+    wchar_t *value,
+    size_t value_capacity
+)
+{
+    COMTRACE_ETL_EVENT_INFO event_info;
+    COMTRACE_ETL_EVENT_INFO_STATUS info_status;
+    ULONG index;
+    COMTRACE_IDENTITY_STATUS result = COMTRACE_IDENTITY_PROPERTY_NOT_FOUND;
+
+    if (event_record == NULL ||
+        property_name == NULL ||
+        property_name[0] == L'\\0' ||
+        value == NULL ||
+        value_capacity == 0U) {
+        return COMTRACE_IDENTITY_INVALID_ARGUMENT;
+    }
+
+    value[0] = L'\\0';
+    ZeroMemory(&event_info, sizeof(event_info));
+    info_status = comtrace_etl_event_info_open(event_record, &event_info);
+    if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
+        return COMTRACE_IDENTITY_METADATA_UNAVAILABLE;
+    }
+
+    for (index = 0U; index < event_info.top_level_property_count; ++index) {
+        const EVENT_PROPERTY_INFO *property =
+            &event_info.info->EventPropertyInfoArray[index];
+        const wchar_t *name =
+            (const wchar_t *)(event_info.buffer + property->NameOffset);
+        USHORT input_type =
+            (property->Flags & PropertyHasCustomSchema) != 0U
+                ? property->customSchemaType.InType
+                : property->nonStructType.InType;
+        USHORT output_type =
+            (property->Flags & PropertyHasCustomSchema) != 0U
+                ? property->customSchemaType.OutType
+                : property->nonStructType.OutType;
+        COMTRACE_ETL_PROPERTY_VALUE property_value;
+        COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
+        ULONG byte_count;
+        ULONG text_length = 0U;
+
+        if (wcscmp(name, property_name) != 0) {
+            continue;
+        }
+
+        if ((property->Flags & (
+                PropertyStruct |
+                PropertyParamCount |
+                PropertyParamFixedCount |
+                PropertyHasCustomSchema
+            )) != 0U ||
+            (input_type != TDH_INTYPE_UNICODESTRING &&
+             input_type != TDH_INTYPE_ANSISTRING &&
+             input_type != TDH_INTYPE_NONNULLTERMINATEDSTRING &&
+             input_type != TDH_INTYPE_NONNULLTERMINATEDANSISTRING)) {
+            result = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
+            break;
+        }
+
+        ZeroMemory(&property_value, sizeof(property_value));
+        read_status = comtrace_etl_read_property_value(
+            event_record,
+            property,
+            name,
+            NULL,
+            NULL,
+            0U,
+            0xFFFFFFFFUL,
+            &property_value
+        );
+        if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
+            result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+            break;
+        }
+
+        byte_count = property_value.size;
+        if (input_type == TDH_INTYPE_UNICODESTRING ||
+            input_type == TDH_INTYPE_NONNULLTERMINATEDSTRING) {
+            const wchar_t *source;
+            ULONG character_count;
+
+            if ((byte_count % (ULONG)sizeof(wchar_t)) != 0U) {
+                result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+            } else {
+                source = (const wchar_t *)property_value.data;
+                character_count = byte_count / (ULONG)sizeof(wchar_t);
+                while (character_count != 0U &&
+                    source[character_count - 1U] == L'\\0') {
+                    --character_count;
+                }
+                while (text_length < character_count &&
+                    source[text_length] != L'\\0') {
+                    ++text_length;
+                }
+                if ((size_t)text_length >= value_capacity) {
+                    result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+                } else {
+                    CopyMemory(value, source, (size_t)text_length * sizeof(wchar_t));
+                    value[text_length] = L'\\0';
+                    result = COMTRACE_IDENTITY_SUCCESS;
+                }
+            }
+        } else {
+            UINT code_page = output_type == TDH_OUTTYPE_UTF8 ||
+                output_type == TDH_OUTTYPE_JSON ||
+                output_type == TDH_OUTTYPE_XML
+                    ? CP_UTF8
+                    : CP_ACP;
+            DWORD conversion_flags = code_page == CP_UTF8
+                ? MB_ERR_INVALID_CHARS
+                : 0U;
+            int converted;
+
+            while (byte_count != 0U &&
+                property_value.data[byte_count - 1U] == 0U) {
+                --byte_count;
+            }
+            if (byte_count > (ULONG)INT_MAX) {
+                result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+            } else {
+                converted = MultiByteToWideChar(
+                    code_page,
+                    conversion_flags,
+                    (LPCCH)property_value.data,
+                    (int)byte_count,
+                    value,
+                    (int)(value_capacity - 1U)
+                );
+                if (converted <= 0 && byte_count != 0U) {
+                    result = COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+                } else {
+                    value[converted] = L'\\0';
+                    result = COMTRACE_IDENTITY_SUCCESS;
+                }
+            }
+        }
+
+        comtrace_etl_property_value_destroy(&property_value);
+        break;
+    }
+
+    comtrace_etl_event_info_close(&event_info);
+    return result;
+}
+
 COMTRACE_IDENTITY_STATUS comtrace_extract_call_trace_id(
     const EVENT_RECORD *event_record,
     ULONGLONG *value
