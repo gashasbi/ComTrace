@@ -209,6 +209,16 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
         (ULONG)sizeof(candidate)
     );
 
+    if (status == COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        status = extract_property_value(
+            event_record,
+            property_name,
+            TDH_INTYPE_HEXINT64,
+            (BYTE *)&candidate,
+            (ULONG)sizeof(candidate)
+        );
+    }
+
     if (status == COMTRACE_IDENTITY_SUCCESS) {
         *value = candidate;
     }
