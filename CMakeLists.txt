@@ -28,6 +28,8 @@ add_executable(ComTrace
     src/relationship_graph.c
     src/ole_timeline.c
     src/rpc_timeline.c
+    src/dde_event.c
+    src/dde_timeline.c
     src/object_identity_compare.c
     src/trace_compare.c
     src/archive_reader.c
@@ -686,7 +688,7 @@ endif()
 install(TARGETS ComTrace ComTraceArchive
     RUNTIME DESTINATION .
 )
-install(TARGETS ComTraceLifetimeInstrumentation
+install(TARGETS ComTraceLifetimeInstrumentation ComTraceDdeInstrumentation
     ARCHIVE DESTINATION lib
 )
 install(FILES include/comtrace_lifetime.h DESTINATION include)
