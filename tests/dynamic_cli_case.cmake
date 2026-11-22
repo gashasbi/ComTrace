@@ -44,6 +44,9 @@ assert_property_search(Data equals hex:deadbeee 0 "Binary exact no-match")
 assert_property_search(Data contains dead 0 "Binary contains is unsupported")
 assert_property_search(Sid equals S-1-5-32-544 1 "SID equality")
 assert_property_search(Sid equals S-1-5-32-545 0 "SID no-match")
+assert_property_search(AddressV4 equals 127.0.0.1 1 "IPv4 formatting")
+assert_property_search(AddressV6 equals 2001:db8::1 1 "IPv6 formatting")
+assert_property_search(AddressV6 equals 2001:db8::2 0 "IPv6 no-match")
 assert_property_search(Count equals 3 1 "Numeric equality")
 assert_property_search(Count equals 4 0 "Numeric no-match")
 assert_property_search(Count greater-than 2 1 "Numeric greater-than")
@@ -68,6 +71,13 @@ assert_property_search(Values[1] greater-than 21 1 "Dynamic array numeric compar
 assert_property_search(HexValues[1] equals 55 1 "UInt32-counted array element")
 assert_property_search(ByteValues[0] equals -7 1 "UInt8-counted array element")
 assert_property_search(Text equals Goodbye 0 "Property no-match")
+foreach(expected "name=AddressV4 value=127.0.0.1" "name=AddressV6 value=2001:db8::1")
+    string(FIND "${inspect_output}" "${expected}" found)
+    if(found EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Missing formatted IP property: ${expected}")
+    endif()
+endforeach()
 
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property Text

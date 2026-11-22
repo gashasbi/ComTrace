@@ -33,7 +33,7 @@ add_executable(ComTrace
 )
 
 
-target_link_libraries(ComTrace PRIVATE Tdh Advapi32)
+target_link_libraries(ComTrace PRIVATE Tdh Advapi32 Ws2_32)
 
 if(MINGW)
     target_link_options(ComTrace PRIVATE -municode)

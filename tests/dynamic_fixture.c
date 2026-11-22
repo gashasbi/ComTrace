@@ -39,6 +39,11 @@ int wmain(int argc, wchar_t **argv)
     PSID test_sid = NULL;
     int registered = 0;
     unsigned long long wide_value = 9007199254740993ULL;
+    ULONG ipv4_address = 0x0100007FUL;
+    BYTE ipv6_address[16] = {
+        0x20, 0x01, 0x0D, 0xB8, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    };
     int result = 1;
 
     if (argc != 2) {
@@ -113,7 +118,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;

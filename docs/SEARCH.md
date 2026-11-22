@@ -50,6 +50,8 @@ Supported values include:
 - FILETIME values as their raw 64-bit tick count
 - SYSTEMTIME values as `YYYY-MM-DDTHH:mm:ss.fff`
 - SID values as standard SDDL strings such as `S-1-5-32-544`
+- IPv4 values in dotted-decimal notation
+- IPv6 binary values in canonical address notation when the schema declares `win:IPv6`
 
 For `--contains`, only ANSI and Unicode strings are considered. ANSI strings
 are converted using the active Windows code page. Binary properties support exact

@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <ws2tcpip.h>
 #include <evntrace.h>
 #include <evntcons.h>
 #include <tdh.h>
@@ -271,6 +272,9 @@ static void print_event_property_value_element(
     USHORT in_type = (flags & PropertyHasCustomSchema) != 0U
         ? property->customSchemaType.InType
         : property->nonStructType.InType;
+    USHORT out_type = (flags & PropertyHasCustomSchema) != 0U
+        ? property->customSchemaType.OutType
+        : property->nonStructType.OutType;
     wchar_t display_name[256];
     wchar_t part[32];
     ULONG path_index;
@@ -585,8 +589,18 @@ static void print_event_property_value_element(
             wprintf(L"status=unavailable reason=type_size_mismatch\n");
             goto cleanup;
         }
-        CopyMemory(&number, value, sizeof(number));
-        wprintf(L"value=%lu\n", number);
+        if (out_type == TDH_OUTTYPE_IPV4) {
+            wprintf(
+                L"value=%u.%u.%u.%u\n",
+                (unsigned int)value[0],
+                (unsigned int)value[1],
+                (unsigned int)value[2],
+                (unsigned int)value[3]
+            );
+        } else {
+            CopyMemory(&number, value, sizeof(number));
+            wprintf(L"value=%lu\n", number);
+        }
         goto cleanup;
     }
 
@@ -724,7 +738,17 @@ static void print_event_property_value_element(
         }
 
     case TDH_INTYPE_BINARY:
-        print_binary_value(value, value_size);
+        if (out_type == TDH_OUTTYPE_IPV6) {
+            wchar_t address[46];
+            if (value_size != 16U ||
+                InetNtopW(AF_INET6, value, address, _countof(address)) == NULL) {
+                wprintf(L"status=unavailable reason=invalid_ipv6_address\n");
+            } else {
+                wprintf(L"value=%ls\n", address);
+            }
+        } else {
+            print_binary_value(value, value_size);
+        }
         goto cleanup;
 
     case TDH_INTYPE_SID:
@@ -2887,6 +2911,7 @@ static int search_property_text_matches(
 
 static int format_search_property_value(
     USHORT in_type,
+    USHORT out_type,
     const BYTE *value,
     ULONG value_size,
     ULONG pointer_size,
@@ -2900,6 +2925,31 @@ static int format_search_property_value(
     }
 
     text[0] = L'\0';
+
+    if (out_type == TDH_OUTTYPE_IPV4) {
+        if (in_type != TDH_INTYPE_UINT32 || value_size != 4U) {
+            return 0;
+        }
+        _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"%u.%u.%u.%u",
+            (unsigned int)value[0],
+            (unsigned int)value[1],
+            (unsigned int)value[2],
+            (unsigned int)value[3]
+        );
+        return 1;
+    }
+
+    if (out_type == TDH_OUTTYPE_IPV6) {
+        if (in_type != TDH_INTYPE_BINARY || value_size != 16U ||
+            InetNtopW(AF_INET6, value, text, text_capacity) == NULL) {
+            return 0;
+        }
+        return 1;
+    }
 
     switch (in_type) {
     case TDH_INTYPE_UNICODESTRING: {
@@ -3265,6 +3315,7 @@ static int event_property_value_matches(
     COMTRACE_ETL_PROPERTY_VALUE property_value;
     COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
     USHORT in_type;
+    USHORT out_type;
     BYTE *value;
     ULONG value_size;
     wchar_t actual[1024];
@@ -3293,6 +3344,7 @@ static int event_property_value_matches(
     }
 
     in_type = property->nonStructType.InType;
+    out_type = property->nonStructType.OutType;
     ZeroMemory(&property_value, sizeof(property_value));
     read_status = comtrace_etl_read_property_value(
         event_record,
@@ -3319,6 +3371,7 @@ static int event_property_value_matches(
             &value_size,
             pointer_size)) {
         if (in_type == TDH_INTYPE_BINARY &&
+            out_type != TDH_OUTTYPE_IPV6 &&
             filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
             matched = search_binary_property_matches(
                 value,
@@ -3327,6 +3380,7 @@ static int event_property_value_matches(
             );
         } else if (format_search_property_value(
                 in_type,
+                out_type,
                 value,
                 value_size,
                 pointer_size,
