@@ -4,6 +4,114 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int metadata_string_is_valid(
+    const BYTE *buffer,
+    ULONG buffer_size,
+    ULONG property_end,
+    ULONG offset
+)
+{
+    ULONG remaining;
+    ULONG index;
+    const wchar_t *value;
+
+    if (offset == 0U) {
+        return 1;
+    }
+    if (offset < property_end ||
+        offset >= buffer_size ||
+        (offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        return 0;
+    }
+
+    value = (const wchar_t *)(buffer + offset);
+    remaining = (buffer_size - offset) / (ULONG)sizeof(wchar_t);
+    for (index = 0U; index < remaining; ++index) {
+        if (value[index] == L'\\0') {
+            return index != 0U;
+        }
+    }
+
+    return 0;
+}
+
+static int event_property_metadata_is_valid(
+    const BYTE *buffer,
+    ULONG buffer_size,
+    ULONG property_end,
+    const TRACE_EVENT_INFO *event_info
+)
+{
+    ULONG index;
+
+    for (index = 0U; index < event_info->PropertyCount; ++index) {
+        const EVENT_PROPERTY_INFO *property =
+            &event_info->EventPropertyInfoArray[index];
+        ULONG flags = (ULONG)property->Flags;
+
+        if (!metadata_string_is_valid(
+                buffer,
+                buffer_size,
+                property_end,
+                property->NameOffset)) {
+            return 0;
+        }
+
+        if ((flags & PropertyParamCount) != 0U &&
+            (flags & PropertyParamFixedCount) != 0U) {
+            return 0;
+        }
+        if ((flags & PropertyParamLength) != 0U &&
+            (flags & PropertyParamFixedLength) != 0U) {
+            return 0;
+        }
+        if ((flags & PropertyStruct) != 0U) {
+            ULONG member_start = property->structType.StructStartIndex;
+            ULONG member_count = property->structType.NumOfStructMembers;
+
+            if ((flags & PropertyHasCustomSchema) != 0U ||
+                member_start > event_info->PropertyCount ||
+                member_count > event_info->PropertyCount - member_start) {
+                return 0;
+            }
+            continue;
+        }
+
+        if ((flags & PropertyParamCount) != 0U &&
+            (ULONG)property->countPropertyIndex >= event_info->PropertyCount) {
+            return 0;
+        }
+        if ((flags & PropertyParamLength) != 0U &&
+            (ULONG)property->lengthPropertyIndex >= event_info->PropertyCount) {
+            return 0;
+        }
+
+        if ((flags & PropertyHasCustomSchema) != 0U) {
+            ULONG offset = property->customSchemaType.CustomSchemaOffset;
+            USHORT schema_size;
+
+            if (offset < property_end ||
+                offset > buffer_size ||
+                buffer_size - offset < 4U) {
+                return 0;
+            }
+            CopyMemory(&schema_size, buffer + offset + 2U, sizeof(schema_size));
+            if ((ULONG)schema_size > buffer_size - offset - 4U) {
+                return 0;
+            }
+        } else if (property->nonStructType.MapNameOffset != 0U &&
+            !metadata_string_is_valid(
+                buffer,
+                buffer_size,
+                property_end,
+                property->nonStructType.MapNameOffset)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
     const EVENT_RECORD *event_record,
     COMTRACE_ETL_EVENT_INFO *event_info
@@ -13,6 +121,7 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
     ULONG allocated_size;
     ULONG status;
     ULONG available_count;
+    ULONG property_end;
     size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
 
     if (event_info != NULL) {
@@ -68,6 +177,19 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
     );
     if (event_info->info->PropertyCount > available_count ||
         event_info->info->TopLevelPropertyCount > event_info->info->PropertyCount) {
+        comtrace_etl_event_info_close(event_info);
+        return COMTRACE_ETL_EVENT_INFO_INVALID_METADATA;
+    }
+
+    property_end = (ULONG)(
+        property_offset +
+        (size_t)event_info->info->PropertyCount * sizeof(EVENT_PROPERTY_INFO)
+    );
+    if (!event_property_metadata_is_valid(
+            event_info->buffer,
+            event_info->size,
+            property_end,
+            event_info->info)) {
         comtrace_etl_event_info_close(event_info);
         return COMTRACE_ETL_EVENT_INFO_INVALID_METADATA;
     }
