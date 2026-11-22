@@ -130,14 +130,14 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
     if (event_record->EventHeader.EventDescriptor.Id == 2U) {
         status = comtrace_extract_guid_property(event_record, L"ClassId", &value);
         if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
-            fwprintf(stderr, L"ClassId alias fixture unexpectedly exposed ClassId: status=%u\\n", (unsigned int)status);
+            fwprintf(stderr, L"ClassId alias fixture unexpectedly exposed ClassId: status=%u\n", (unsigned int)status);
             ++context->failures;
         }
 
         status = comtrace_extract_guid_property(event_record, L"CLSID", &value);
         if (status != COMTRACE_IDENTITY_SUCCESS ||
             memcmp(&value, &expected_class_id, sizeof(GUID)) != 0) {
-            fwprintf(stderr, L"CLSID alias extraction failed: status=%u\\n", (unsigned int)status);
+            fwprintf(stderr, L"CLSID alias extraction failed: status=%u\n", (unsigned int)status);
             ++context->failures;
         }
 
@@ -149,7 +149,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
             object_identity.has_oid ||
             object_identity.has_call_trace_id ||
             memcmp(&object_identity.clsid, &expected_class_id, sizeof(GUID)) != 0) {
-            fwprintf(stderr, L"CLSID alias identity model failed: status=%u\\n", (unsigned int)status);
+            fwprintf(stderr, L"CLSID alias identity model failed: status=%u\n", (unsigned int)status);
             ++context->failures;
         }
         return;
@@ -294,9 +294,11 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         ++context->failures;
     }
 
+    value = expected_class_id;
     status = comtrace_extract_guid_property(event_record, L"MissingGuid", &value);
-    if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
-        fwprintf(stderr, L"MissingGuid lookup failed: status=%u\n", (unsigned int)status);
+    if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND ||
+        memcmp(&value, &expected_class_id, sizeof(GUID)) != 0) {
+        fwprintf(stderr, L"MissingGuid lookup changed its output: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
 
