@@ -106,3 +106,8 @@ Provider schemas were cross-checked against community-maintained Win10 manifest 
 - RPC and RPCSS: https://github.com/repnz/etw-providers-docs/tree/master/Manifests-Win10-17134
 
 Those snapshots are not Microsoft contracts. The target machine's installed manifest and TDH metadata remain the runtime source of truth. Microsoft's COM lifetime overview documents the reference-count role of AddRef and Release: https://learn.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object.
+
+
+## Application-level COM object lifetime events
+
+The native COMRuntime, RPC, RPCSS, and rundown providers described above do not supply a verified general-purpose per-object AddRef/Release sequence. For COM implementations under your control, ComTrace now provides an opt-in TraceLogging instrumentation library. It emits explicit object-created, AddRef, Release, and object-destroyed records from the instrumented implementation. See [COM Object Lifetime Instrumentation](COM_LIFETIME_INSTRUMENTATION.md) for the API, event fields, sample fixture, and limitations. These application-generated events are kept distinct from native Windows provider observations.
