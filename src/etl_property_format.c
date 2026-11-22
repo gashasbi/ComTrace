@@ -770,13 +770,6 @@ int comtrace_etl_print_mapped_property_value(
             wprintf(L"%02x", (unsigned int)value[index]);
         }
         wprintf(L"\n");
-    } else if (is_value_map && get_map_numeric_value(in_type, value, value_size, &numeric_value)) {
-        wprintf(L"value=\"0x%lx\" raw=hex:", (unsigned long)numeric_value);
-        for (index = 0U; index < value_size; ++index) {
-            wprintf(L"%02x", (unsigned int)value[index]);
-        }
-        wprintf(L"\"\n");
-        matched = 1;
     }
 
     free(map_buffer);
