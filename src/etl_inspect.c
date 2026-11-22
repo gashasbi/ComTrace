@@ -807,6 +807,9 @@ static void print_event_property_value_element(
         case COMTRACE_ETL_PROPERTY_READ_ZERO_SIZE:
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=zero_size\n", (unsigned long)index, display_name);
             break;
+        case COMTRACE_ETL_PROPERTY_READ_SIZE_LIMIT:
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=property_size_limit maximum=%lu\n", (unsigned long)index, display_name, (unsigned long)COMTRACE_ETL_MAX_PROPERTY_BYTES);
+            break;
         case COMTRACE_ETL_PROPERTY_READ_ALLOCATION_FAILED:
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=allocation_failed\n", (unsigned long)index, display_name);
             break;
@@ -1328,10 +1331,10 @@ static void print_event_property_value(
         ULONG member_index;
         ULONG struct_count = 1U;
         ULONG struct_index;
-        const wchar_t *nested_names[8];
-        ULONG nested_indices[8];
+        const wchar_t *nested_names[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
+        ULONG nested_indices[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
 
-        if (parent_count >= 8U) {
+        if (parent_count >= COMTRACE_ETL_MAX_PROPERTY_DEPTH) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_depth_limit\n", (unsigned long)index, name);
             return;
         }
@@ -1347,7 +1350,7 @@ static void print_event_property_value(
         } else if ((flags & PropertyParamFixedCount) != 0U) {
             struct_count = (ULONG)property->count;
         }
-        if (struct_count > 4096U) {
+        if (struct_count > COMTRACE_ETL_MAX_ARRAY_ELEMENTS) {
             wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=struct_count_limit\n", (unsigned long)index, name);
             return;
         }
@@ -1417,6 +1420,10 @@ static void print_event_property_value(
     }
 
     if ((flags & PropertyParamFixedCount) != 0U) {
+        if ((ULONG)property->count > COMTRACE_ETL_MAX_ARRAY_ELEMENTS) {
+            wprintf(L"  property_value[%lu] name=%ls status=unavailable reason=fixed_array_count_limit maximum=%lu\n", (unsigned long)index, name, (unsigned long)COMTRACE_ETL_MAX_ARRAY_ELEMENTS);
+            return;
+        }
         for (element_index = 0U; element_index < (ULONG)property->count; ++element_index) {
             print_event_property_value_element(
                 event_record, property, name, parent_names, parent_indices,
@@ -4144,14 +4151,14 @@ static int event_struct_property_matches(
     ULONG member_index;
     size_t component_length;
     const wchar_t *separator;
-    const wchar_t *nested_names[8];
-    ULONG nested_indices[8];
+    const wchar_t *nested_names[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
+    ULONG nested_indices[COMTRACE_ETL_MAX_PROPERTY_DEPTH];
     ULONG index;
 
     if (property == NULL || name == NULL || path == NULL ||
         path[0] == L'\0' ||
         (property->Flags & PropertyStruct) == 0U ||
-        parent_count >= 8U) {
+        parent_count >= COMTRACE_ETL_MAX_PROPERTY_DEPTH) {
         return 0;
     }
 
