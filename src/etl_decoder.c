@@ -271,7 +271,7 @@ int comtrace_etl_read_property_count(
     while (name_length < remaining && count_name[name_length] != L'\0') {
         ++name_length;
     }
-    if (name_length == remaining) {
+    if (name_length == 0U || name_length == remaining) {
         return 0;
     }
 
