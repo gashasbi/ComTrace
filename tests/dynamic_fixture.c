@@ -34,6 +34,10 @@ int wmain(int argc, wchar_t **argv)
     wchar_t text[] = L"Hello";
     unsigned short utf8_text_length = 6U;
     char utf8_text[] = "caf\xc3\xa9";
+    unsigned short json_text_length = 20U;
+    char json_text[] = "{\\"message\\":\\"caf\\xc3\\xa9\\"}";
+    unsigned short xml_text_length = 13U;
+    char xml_text[] = "<v>caf\\xc3\\xa9</v>";
     unsigned char fixed_data[4] = { 0x11, 0x22, 0x33, 0x44 };
     wchar_t fixed_text[] = L"Fixed";
     unsigned char large_data[5000];
@@ -142,7 +146,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
