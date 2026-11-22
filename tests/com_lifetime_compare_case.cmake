@@ -12,25 +12,14 @@ set(right_path "${TEST_DIR}/lifetime-right.etl")
 file(REMOVE "${TEST_DIR}/lifetime-left.etl" "${TEST_DIR}/lifetime-right.etl")
 
 execute_process(
-    COMMAND "${FIXTURE_EXE}" "${TEST_DIR}/lifetime-left.etl"
-    RESULT_VARIABLE left_result
-    OUTPUT_VARIABLE left_output
-    ERROR_VARIABLE left_error
-    TIMEOUT 30
+    COMMAND "${FIXTURE_EXE}" --pair "${TEST_DIR}/lifetime-left.etl" "${TEST_DIR}/lifetime-right.etl"
+    RESULT_VARIABLE fixture_result
+    OUTPUT_VARIABLE fixture_output
+    ERROR_VARIABLE fixture_error
+    TIMEOUT 60
 )
-if(NOT left_result EQUAL 0)
-    message(FATAL_ERROR "Unable to create left lifetime trace: ${left_output}${left_error}")
-endif()
-
-execute_process(
-    COMMAND "${FIXTURE_EXE}" "${TEST_DIR}/lifetime-right.etl" alternate
-    RESULT_VARIABLE right_result
-    OUTPUT_VARIABLE right_output
-    ERROR_VARIABLE right_error
-    TIMEOUT 30
-)
-if(NOT right_result EQUAL 0)
-    message(FATAL_ERROR "Unable to create right lifetime trace: ${right_output}${right_error}")
+if(NOT fixture_result EQUAL 0)
+    message(FATAL_ERROR "Unable to create paired lifetime traces: ${fixture_output}${fixture_error}")
 endif()
 
 execute_process(
@@ -53,12 +42,11 @@ string(JSON right_interface_count LENGTH "${compare_output}" object_lifetimes ri
 string(JSON right_native_count LENGTH "${compare_output}" object_lifetimes right 0 native_identities)
 string(JSON right_native_object_id GET "${compare_output}" object_lifetimes right 0 native_identities 0 native_object_id)
 string(JSON right_native_ipid GET "${compare_output}" object_lifetimes right 0 native_identities 0 ipid)
-
 if(NOT changed_objects EQUAL 1 OR
    NOT added_objects EQUAL 0 OR
    NOT removed_objects EQUAL 0 OR
    NOT change_count EQUAL 1 OR
-   NOT changed_fields STREQUAL "0x1a" OR
+   NOT changed_fields STREQUAL "0x1e" OR
    NOT right_interface_count EQUAL 2 OR
    NOT right_native_count EQUAL 1 OR
    NOT right_native_object_id STREQUAL "0xabcdef0123456789" OR

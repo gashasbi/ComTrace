@@ -242,16 +242,28 @@ int wmain(int argc, wchar_t **argv)
     COMTRACE_FIXTURE_OBJECT *object = NULL;
     BOOL provider_registered = FALSE;
     BOOL alternate = FALSE;
+    BOOL pair_capture = FALSE;
+    const wchar_t *first_etl_path = NULL;
+    const wchar_t *second_etl_path = NULL;
 
-    if (argc < 2 || argc > 3 || argv[1] == NULL ||
-        argv[1][0] == L'\0' ||
-        (argc == 3 && wcscmp(argv[2], L"alternate") != 0)) {
-        fwprintf(stderr, L"Usage: ComTraceComLifetimeFixture <output.etl> [alternate]\n");
+    if (argc == 4 && wcscmp(argv[1], L"--pair") == 0 &&
+        argv[2] != NULL && argv[2][0] != L'\0' &&
+        argv[3] != NULL && argv[3][0] != L'\0') {
+        pair_capture = TRUE;
+        alternate = TRUE;
+        first_etl_path = argv[2];
+        second_etl_path = argv[3];
+    } else if ((argc == 2 || argc == 3) &&
+               argv[1] != NULL && argv[1][0] != L'\0' &&
+               (argc == 2 || wcscmp(argv[2], L"alternate") == 0)) {
+        first_etl_path = argv[1];
+        alternate = argc == 3;
+    } else {
+        fwprintf(stderr, L"Usage: ComTraceComLifetimeFixture <output.etl> [alternate] | --pair <left.etl> <right.etl>\n");
         return EXIT_FAILURE;
     }
-    alternate = argc == 3;
 
-    if (!start_trace_session(argv[1], &trace_handle, &properties)) {
+    if (!start_trace_session(first_etl_path, &trace_handle, &properties)) {
         goto cleanup;
     }
 
@@ -295,6 +307,19 @@ int wmain(int argc, wchar_t **argv)
     );
     if (release_count != 1U) {
         goto cleanup;
+    }
+
+    if (pair_capture) {
+        if (!stop_trace_session(trace_handle, properties)) {
+            goto cleanup;
+        }
+        trace_handle = 0U;
+        (void)HeapFree(GetProcessHeap(), 0U, properties);
+        properties = NULL;
+
+        if (!start_trace_session(second_etl_path, &trace_handle, &properties)) {
+            goto cleanup;
+        }
     }
 
     if (alternate) {

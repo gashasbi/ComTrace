@@ -994,9 +994,8 @@ static ULONG compare_lifetime_record_fields(
 {
     ULONG changed_fields = 0U;
 
-    if (left->has_class_id != right->has_class_id ||
-        (left->has_class_id &&
-         memcmp(&left->class_id, &right->class_id, sizeof(GUID)) != 0)) {
+    if (left->has_class_id && right->has_class_id &&
+        memcmp(&left->class_id, &right->class_id, sizeof(GUID)) != 0) {
         changed_fields |= 0x1U;
     }
     if (!lifetime_interface_sets_equal(left, right)) changed_fields |= 0x2U;
