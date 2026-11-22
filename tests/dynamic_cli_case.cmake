@@ -51,7 +51,7 @@ execute_process(
     ERROR_VARIABLE missing_operator_error
 )
 if(missing_operator_status EQUAL 0 OR
-   NOT missing_operator_output MATCHES "Use --property with either --equals or --contains")
+   NOT "${missing_operator_output}${missing_operator_error}" MATCHES "Use --property with either --equals or --contains")
     execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
     message(FATAL_ERROR "A property filter without an operator was accepted.")
 endif()
