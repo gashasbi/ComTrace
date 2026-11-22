@@ -451,8 +451,7 @@ static COMTRACE_TRACE_COMPARE_STATUS append_event_type_diff(
 
 static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
     COMTRACE_TRACE_COMPARISON *comparison,
-    DWORD process_id,
-    ULONGLONG object_id,
+    const COMTRACE_GRAPH_NODE *object_node,
     BOOL present_in_left,
     BOOL present_in_right,
     ULONG changed_fields
@@ -461,7 +460,8 @@ static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
     size_t new_count;
     COMTRACE_OBJECT_DIFF *diffs;
 
-    if (comparison->object_diff_count == (size_t)-1 ||
+    if (object_node == NULL ||
+        comparison->object_diff_count == (size_t)-1 ||
         comparison->object_diff_count + 1U >
             (size_t)-1 / sizeof(*diffs)) {
         return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
@@ -477,8 +477,12 @@ static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
     }
 
     comparison->object_diffs = diffs;
-    diffs[comparison->object_diff_count].process_id = process_id;
-    diffs[comparison->object_diff_count].object_id = object_id;
+    diffs[comparison->object_diff_count].process_id = object_node->process_id;
+    diffs[comparison->object_diff_count].process_generation =
+        object_node->process_generation;
+    diffs[comparison->object_diff_count].has_process_generation =
+        object_node->has_process_generation;
+    diffs[comparison->object_diff_count].object_id = object_node->value;
     diffs[comparison->object_diff_count].present_in_left = present_in_left;
     diffs[comparison->object_diff_count].present_in_right = present_in_right;
     diffs[comparison->object_diff_count].changed_fields = changed_fields;
@@ -489,18 +493,25 @@ static COMTRACE_TRACE_COMPARE_STATUS append_object_diff(
 
 static size_t find_object_index(
     const COMTRACE_RELATIONSHIP_GRAPH *graph,
-    DWORD process_id,
-    ULONGLONG object_id
+    const COMTRACE_GRAPH_NODE *object_node
 )
 {
     size_t index;
+
+    if (graph == NULL || object_node == NULL) {
+        return (size_t)-1;
+    }
 
     for (index = 0U; index < graph->node_count; ++index) {
         const COMTRACE_GRAPH_NODE *node = &graph->nodes[index];
 
         if (node->type == COMTRACE_GRAPH_NODE_COM_OBJECT &&
-            node->process_id == process_id &&
-            node->value == object_id) {
+            node->process_id == object_node->process_id &&
+            node->value == object_node->value &&
+            node->has_process_generation ==
+                object_node->has_process_generation &&
+            (!node->has_process_generation ||
+             node->process_generation == object_node->process_generation)) {
             return index;
         }
     }
@@ -589,16 +600,14 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
 
         right_index = find_object_index(
             &comparison->right.relationship_graph,
-            left_node->process_id,
-            left_node->value
+            left_node
         );
 
         if (right_index == (size_t)-1) {
             ++comparison->removed_objects;
             if (append_object_diff(
                     comparison,
-                    left_node->process_id,
-                    left_node->value,
+                    left_node,
                     TRUE,
                     FALSE,
                     0U
@@ -617,8 +626,7 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
                 ++comparison->changed_objects;
                 if (append_object_diff(
                         comparison,
-                        left_node->process_id,
-                        left_node->value,
+                        left_node,
                         TRUE,
                         TRUE,
                         changed_fields
@@ -639,13 +647,11 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
 
         if (find_object_index(
                 &comparison->left.relationship_graph,
-                right_node->process_id,
-                right_node->value) == (size_t)-1) {
+                right_node) == (size_t)-1) {
             ++comparison->added_objects;
             if (append_object_diff(
                     comparison,
-                    right_node->process_id,
-                    right_node->value,
+                    right_node,
                     FALSE,
                     TRUE,
                     0U
@@ -1296,9 +1302,19 @@ static void write_json_object_observations(
         }
 
         wprintf(
-            L"%ls      {\"process_id\": %lu, \"oid\": \"0x%llx\", \"observations\": %llu",
+            L"%ls      {\"process_id\": %lu, \"process_generation\": ",
             written == 0U ? L"\n" : L",\n",
-            (unsigned long)node->process_id,
+            (unsigned long)node->process_id
+        );
+
+        if (node->has_process_generation) {
+            wprintf(L"%llu", (unsigned long long)node->process_generation);
+        } else {
+            wprintf(L"null");
+        }
+
+        wprintf(
+            L", \"oid\": \"0x%llx\", \"observations\": %llu",
             (unsigned long long)node->value,
             (unsigned long long)node->observation_count
         );
@@ -1460,9 +1476,17 @@ void comtrace_trace_comparison_write_json(
         const COMTRACE_OBJECT_DIFF *diff = &comparison->object_diffs[index];
 
         wprintf(
-            L"%ls    {\"process_id\": %lu, \"oid\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
+            L"%ls    {\"process_id\": %lu, \"process_generation\": ",
             index == 0U ? L"\n" : L",\n",
-            (unsigned long)diff->process_id,
+            (unsigned long)diff->process_id
+        );
+        if (diff->has_process_generation) {
+            wprintf(L"%llu", (unsigned long long)diff->process_generation);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(
+            L", \"oid\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
             (unsigned long long)diff->object_id,
             diff->present_in_left ? L"true" : L"false",
             diff->present_in_right ? L"true" : L"false",
