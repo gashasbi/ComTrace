@@ -1676,8 +1676,10 @@ static void add_relationship_graph_event(
     } else {
         identity.process_id = event_record->EventHeader.ProcessId;
         identity.thread_id = event_record->EventHeader.ThreadId;
+        identity.timestamp = event_record->EventHeader.TimeStamp.QuadPart;
         identity.has_process_id = identity.process_id != 0U;
         identity.has_thread_id = identity.thread_id != 0U;
+        identity.has_timestamp = TRUE;
     }
 
     if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
