@@ -241,13 +241,56 @@ static int test_duplicate_start_does_not_create_generation(void)
     return 1;
 }
 
+
+static int test_system_idle_process_id_is_valid(void)
+{
+    COMTRACE_PROCESS_LIFECYCLE_CATALOG catalog;
+    COMTRACE_PROCESS_EVENT event;
+    const COMTRACE_PROCESS_LIFETIME *lifetime;
+
+    comtrace_process_lifecycle_catalog_init(&catalog);
+    event = make_event(0U, COMTRACE_PROCESS_EVENT_DC_START, 7000);
+    event.parent_process_id = 0U;
+    event.has_parent_process_id = TRUE;
+
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event = make_event(0U, COMTRACE_PROCESS_EVENT_DC_END, 8000);
+    if (comtrace_process_lifecycle_catalog_add(&catalog, &event) !=
+        COMTRACE_PROCESS_LIFECYCLE_SUCCESS ||
+        catalog.count != 1U) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    lifetime = &catalog.items[0];
+    if (lifetime->process_id != 0U ||
+        !lifetime->has_parent_process_id ||
+        lifetime->parent_process_id != 0U ||
+        !lifetime->has_first_seen_timestamp ||
+        lifetime->first_seen_timestamp != 7000 ||
+        !lifetime->has_trace_end_timestamp ||
+        lifetime->trace_end_timestamp != 8000) {
+        comtrace_process_lifecycle_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_process_lifecycle_catalog_destroy(&catalog);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_event_classification() ||
         !test_pid_reuse_creates_generations() ||
         !test_rundown_is_not_creation_or_exit() ||
         !test_unmatched_end_is_preserved() ||
-        !test_duplicate_start_does_not_create_generation()) {
+        !test_duplicate_start_does_not_create_generation() ||
+        !test_system_idle_process_id_is_valid()) {
         fputs("Process lifecycle tests failed.\n", stderr);
         return 1;
     }
