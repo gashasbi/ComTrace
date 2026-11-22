@@ -49,6 +49,9 @@ Supported values include:
 Mapped integer and bit fields are displayed with their TDH map labels during
 inspection. Property search compares the underlying typed value, not the rendered
 map label, so use the numeric value with `--equals` or a numeric ordering operator.
+Pattern maps transform event message strings rather than individual property
+values. ComTrace reports their format and entries as metadata and does not apply
+them to a property value.
 
 - ANSI and Unicode strings and characters
 - UTF-8 encoded ANSI strings when the schema declares `win:Utf8`, `win:Xml`, or `win:Json`; JSON and XML payloads are decoded as UTF-8; non-ASCII characters are rendered as `\\uXXXX` escapes so output is independent of the active console code page
