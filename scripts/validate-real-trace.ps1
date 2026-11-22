@@ -447,6 +447,17 @@ $rpcFunctionTraceEndpointCount = [regex]::Matches(
     $rpcSearchOutput,
     "(?im)^\s*rpc_event=FunctionTraceStart16 phase=start"
 ).Count
+$rpcBreakdownTotal = $rpcClientCallStartCount +
+                     $rpcClientCallStopCount +
+                     $rpcServerCallStartCount +
+                     $rpcServerCallStopCount +
+                     $rpcFunctionTraceStartCount +
+                     $rpcFunctionTraceStopCount +
+                     $rpcFunctionTraceEndpointCount
+if ($rpcBreakdownTotal -ne $rpcClassifiedEventCount -or
+    $rpcClassifiedEventCount -gt $rpcEventCount) {
+    throw "RPC classified event counts do not match the reported event breakdown."
+}
 
 $rpcssSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rpcssProviderGuid, "--max-events", "10000") -Description "RPCSS event search"
 Set-Content -LiteralPath $rpcssSearchPath -Value $rpcssSearchOutput -Encoding UTF8
