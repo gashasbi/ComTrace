@@ -1512,6 +1512,14 @@ static void print_relationship_graph_node(
     switch (node->type) {
     case COMTRACE_GRAPH_NODE_PROCESS:
         wprintf(L"process:%lu", (unsigned long)node->process_id);
+        if (node->has_process_generation) {
+            wprintf(
+                L" generation=%llu",
+                (unsigned long long)node->process_generation
+            );
+        } else {
+            wprintf(L" generation=unknown");
+        }
         break;
     case COMTRACE_GRAPH_NODE_THREAD:
         wprintf(
@@ -1519,6 +1527,14 @@ static void print_relationship_graph_node(
             (unsigned long)node->process_id,
             (unsigned long)node->thread_id
         );
+        if (node->has_process_generation) {
+            wprintf(
+                L" generation=%llu",
+                (unsigned long long)node->process_generation
+            );
+        } else {
+            wprintf(L" generation=unknown");
+        }
         break;
     case COMTRACE_GRAPH_NODE_ACTIVITY:
         wprintf(L"activity:");
@@ -1534,6 +1550,14 @@ static void print_relationship_graph_node(
             (unsigned long long)node->value,
             (unsigned long long)node->observation_count
         );
+        if (node->has_process_generation) {
+            wprintf(
+                L" generation=%llu",
+                (unsigned long long)node->process_generation
+            );
+        } else {
+            wprintf(L" generation=unknown");
+        }
         if (node->has_observed_timestamp) {
             wprintf(
                 L" observed_ticks=%lld..%lld",
