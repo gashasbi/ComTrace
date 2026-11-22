@@ -29,6 +29,8 @@ typedef struct {
 
 typedef struct {
     DWORD process_id;
+    ULONGLONG process_generation;
+    BOOL has_process_generation;
     ULONGLONG object_id;
     BOOL present_in_left;
     BOOL present_in_right;
