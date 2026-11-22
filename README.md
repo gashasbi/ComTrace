@@ -60,7 +60,9 @@ ComTrace.exe --compare before.etl after.ctra --json
 
 **Inspect** processes the full trace and prints a bounded sample of events (100 by default; accepted range 1–10000), event-type counts, COM and OLE operation timelines, and a relationship-graph summary. The sample limit only limits detailed event output; the trace analysis continues across the full ETL.
 
-**ETL property decoding** uses TDH metadata and supports scalar values, fixed and dynamic arrays, and structure members, including dynamic arrays of structures. Nested descriptor paths are handled when runtime metadata exposes them, and nested TraceLogging structures are covered by an ETL fixture. The Windows manifest compiler rejects nested `<struct>` declarations, so that specific manifest shape cannot be used as a manifest fixture. WBEM XML fragments and custom-schema properties remain explicitly unsupported rather than being decoded as ordinary scalar values.\n\n**Search** scans an ETL file and supports these optional filters:
+**ETL property decoding** uses TDH metadata and supports scalar values, fixed and dynamic arrays, and structure members, including dynamic arrays of structures. Nested descriptor paths are handled when runtime metadata exposes them, and nested TraceLogging structures are covered by an ETL fixture. The Windows manifest compiler rejects nested `<struct>` declarations, so that specific manifest shape cannot be used as a manifest fixture. WBEM XML fragments and custom-schema properties remain explicitly unsupported rather than being decoded as ordinary scalar values.
+
+**Search** scans an ETL file and supports these optional filters:
 
 - `--provider <guid>`
 - `--event-id <id>`
