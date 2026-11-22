@@ -428,7 +428,7 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
         _countof(string_value)
     );
     if (status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND ||
-        string_value[0] != L'\\0') {
+        string_value[0] != L'\0') {
         fwprintf(stderr, L"Missing identity string handling failed: status=%u\n", (unsigned int)status);
         ++context->failures;
     }
