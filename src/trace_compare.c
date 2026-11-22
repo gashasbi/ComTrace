@@ -1070,8 +1070,19 @@ void comtrace_trace_comparison_write_text(
         const COMTRACE_OBJECT_DIFF *diff = &comparison->object_diffs[index];
 
         wprintf(
-            L"  com_object pid=%lu oid=0x%llx left=%ls right=%ls changed_fields=0x%lx\n",
-            (unsigned long)diff->process_id,
+            L"  com_object pid=%lu",
+            (unsigned long)diff->process_id
+        );
+        if (diff->has_process_generation) {
+            wprintf(
+                L" generation=%llu",
+                (unsigned long long)diff->process_generation
+            );
+        } else {
+            wprintf(L" generation=unknown");
+        }
+        wprintf(
+            L" oid=0x%llx left=%ls right=%ls changed_fields=0x%lx\n",
             (unsigned long long)diff->object_id,
             diff->present_in_left ? L"present" : L"absent",
             diff->present_in_right ? L"present" : L"absent",
