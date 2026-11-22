@@ -719,7 +719,10 @@ static void print_event_property_value_element(
         out_type == TDH_OUTTYPE_ETWTIME ||
         out_type == TDH_OUTTYPE_REDUCEDSTRING ||
         (in_type == TDH_INTYPE_BINARY &&
-         out_type == TDH_OUTTYPE_PKCS7_WITH_TYPE_INFO) ||
+         out_type != TDH_OUTTYPE_NULL &&
+         out_type != TDH_OUTTYPE_HEXBINARY &&
+         out_type != TDH_OUTTYPE_IPV6 &&
+         out_type != TDH_OUTTYPE_SOCKETADDRESS) ||
         (out_type == TDH_OUTTYPE_STRING &&
          in_type != TDH_INTYPE_UNICODESTRING &&
          in_type != TDH_INTYPE_ANSISTRING &&
