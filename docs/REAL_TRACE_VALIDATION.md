@@ -1,6 +1,6 @@
 # Real ETL Validation
 
-This validation runs on a Windows machine and uses the installed COM Performance and OLE Performance providers. A new capture generates COM activation traffic plus OLE clipboard and drag-drop registration activity through `ComTraceOleActivityFixture.exe`. It checks the resulting ETL and verifies that converting it to CTRA preserves the event stream and the derived COM/OLE analysis.
+This validation runs on a Windows machine and uses the installed COM Performance and OLE Performance providers. New captures also attempt to enable COM-RundownInstrumentation and record its event count and available OID/IID/IPID observations separately. A new capture generates COM activation traffic plus OLE clipboard and drag-drop registration activity through `ComTraceOleActivityFixture.exe`. It checks the resulting ETL and verifies that converting it to CTRA preserves the event stream and the derived COM/OLE analysis.
 
 ## Capture and validate
 
@@ -36,9 +36,10 @@ Use a trace that contains COM Performance and OLE Performance events, including 
 1. The ETL opens and can be processed by `ComTrace.exe --inspect` without event-processing failures.
 2. `ComTrace.exe --search <trace.etl> --com` finds COM Performance events, reports matched COM calls by `CallTraceId`, `ActivityId`, and the weaker process/thread/operation fallback, and counts events missing each identifier.
 3. `ComTrace.exe --search <trace.etl> --ole` finds OLE Performance events and validates clipboard or drag-and-drop activity, OLE start/stop pairing, and missing ActivityId counts.
-4. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
+4. `ComTrace.exe --search <trace.etl> --provider {2957313D-FCAA-5D4A-2F69-32CE5F0AC44E}` records COM-RundownInstrumentation events and available OID/IID/IPID fields. No events is reported as `NOT_EMITTED` and does not fail the validation.
+5. `ComTraceArchive.exe` converts the ETL to a CTRA archive.
 5. `ComTraceArchive.exe --inspect` validates the archive and reports a valid CTRA v2 CRC32 checksum.
-6. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
+7. `ComTrace.exe --compare <trace.etl> <trace.ctra> --json` reports identical event totals and event-type totals, no event-type or COM-object differences, and matching COM/OLE timeline summaries and per-operation timings.
 
 The COM Performance provider can encode `CallTraceId` as either `UInt32` or `UInt64`. ComTrace accepts both scalar forms for that property while keeping its generic typed property readers strict. `CallTraceId` remains the primary match key. When both COM events lack it, matching non-empty `ActivityId`, process ID, thread ID, and operation are used as the second level. When both events lack both identifiers, the same process ID, thread ID, and operation can be used as a weaker third level; the report keeps that count separate so it is not confused with identifier-based matching. Nested starts use last-in-first-out pairing. One-sided or mismatched identifiers are never treated as matches.
 
