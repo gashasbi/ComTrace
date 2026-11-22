@@ -859,6 +859,55 @@ static int print_utf8_property_value(
     return 1;
 }
 
+
+static void build_property_display_name(
+    wchar_t *display_name,
+    size_t display_name_capacity,
+    const wchar_t *name,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
+    ULONG array_index
+)
+{
+    ULONG index;
+    wchar_t part[32];
+
+    if (display_name == NULL || display_name_capacity == 0U) {
+        return;
+    }
+
+    display_name[0] = L'\0';
+    if (name == NULL ||
+        (parent_count != 0U &&
+            (parent_names == NULL || parent_indices == NULL))) {
+        return;
+    }
+
+    for (index = 0U; index < parent_count; ++index) {
+        if (parent_names[index] == NULL) {
+            return;
+        }
+        if (index != 0U) {
+            wcsncat_s(display_name, display_name_capacity, L".", _TRUNCATE);
+        }
+        wcsncat_s(display_name, display_name_capacity, parent_names[index], _TRUNCATE);
+        if (parent_indices[index] != 0xFFFFFFFFUL) {
+            _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)parent_indices[index]);
+            wcsncat_s(display_name, display_name_capacity, part, _TRUNCATE);
+        }
+    }
+
+    if (parent_count != 0U) {
+        wcsncat_s(display_name, display_name_capacity, L".", _TRUNCATE);
+    }
+    wcsncat_s(display_name, display_name_capacity, name, _TRUNCATE);
+    if (array_index != 0xFFFFFFFFUL) {
+        _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)array_index);
+        wcsncat_s(display_name, display_name_capacity, part, _TRUNCATE);
+    }
+}
+
 static void print_event_property_value_element(
     const EVENT_RECORD *event_record,
     const EVENT_PROPERTY_INFO *property,
@@ -884,30 +933,17 @@ static void print_event_property_value_element(
         ? property->customSchemaType.OutType
         : property->nonStructType.OutType;
     wchar_t display_name[256];
-    wchar_t part[32];
-    ULONG path_index;
 
     ZeroMemory(&decoded_value, sizeof(decoded_value));
-
-    display_name[0] = L'\0';
-    for (path_index = 0U; path_index < parent_count; ++path_index) {
-        if (path_index != 0U) {
-            wcsncat_s(display_name, _countof(display_name), L".", _TRUNCATE);
-        }
-        wcsncat_s(display_name, _countof(display_name), parent_names[path_index], _TRUNCATE);
-        if (parent_indices[path_index] != 0xFFFFFFFFUL) {
-            _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)parent_indices[path_index]);
-            wcsncat_s(display_name, _countof(display_name), part, _TRUNCATE);
-        }
-    }
-    if (parent_count != 0U) {
-        wcsncat_s(display_name, _countof(display_name), L".", _TRUNCATE);
-    }
-    wcsncat_s(display_name, _countof(display_name), name, _TRUNCATE);
-    if (array_index != 0xFFFFFFFFUL) {
-        _snwprintf_s(part, _countof(part), _TRUNCATE, L"[%lu]", (unsigned long)array_index);
-        wcsncat_s(display_name, _countof(display_name), part, _TRUNCATE);
-    }
+    build_property_display_name(
+        display_name,
+        _countof(display_name),
+        name,
+        parent_names,
+        parent_indices,
+        parent_count,
+        array_index
+    );
 
     if ((flags & PropertyStruct) != 0U) {
         wprintf(
@@ -1515,6 +1551,17 @@ static void print_event_property_value(
 {
     ULONG flags = (ULONG)property->Flags;
     ULONG element_index;
+    wchar_t display_name[256];
+
+    build_property_display_name(
+        display_name,
+        _countof(display_name),
+        name,
+        parent_names,
+        parent_indices,
+        parent_count,
+        0xFFFFFFFFUL
+    );
 
     if ((flags & PropertyStruct) != 0U) {
         ULONG member_start = property->structType.StructStartIndex;
@@ -1552,7 +1599,7 @@ static void print_event_property_value(
         wprintf(
             L"  property_value[%lu] name=%ls type=struct elements=%lu\\n",
             (unsigned long)index,
-            name,
+            display_name,
             (unsigned long)struct_count
         );
 
