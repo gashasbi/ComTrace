@@ -13,4 +13,12 @@ int comtrace_classify_com_event(
     const wchar_t **phase
 );
 
+int comtrace_classify_com_rundown_event(
+    const GUID *provider_id,
+    USHORT event_id,
+    UCHAR version,
+    UCHAR opcode,
+    const wchar_t **event_name
+);
+
 #endif
