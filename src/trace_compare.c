@@ -25,6 +25,7 @@ static void trace_summary_init(COMTRACE_TRACE_SUMMARY *summary)
     comtrace_relationship_graph_init(&summary->relationship_graph);
     comtrace_timeline_init(&summary->com_timeline);
     comtrace_ole_timeline_init(&summary->ole_timeline);
+    comtrace_process_lifecycle_catalog_init(&summary->process_lifecycle);
 }
 
 static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
@@ -34,6 +35,7 @@ static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
     }
 
     free(summary->operation_timings);
+    comtrace_process_lifecycle_catalog_destroy(&summary->process_lifecycle);
     comtrace_ole_timeline_destroy(&summary->ole_timeline);
     comtrace_timeline_destroy(&summary->com_timeline);
     comtrace_relationship_graph_destroy(&summary->relationship_graph);
@@ -74,6 +76,29 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
     }
 
     ++summary->total_events;
+
+    if (comtrace_process_lifecycle_is_event(event_record)) {
+        COMTRACE_PROCESS_EVENT process_event;
+        COMTRACE_PROCESS_LIFECYCLE_STATUS process_status;
+
+        process_status = comtrace_process_lifecycle_extract(
+            event_record,
+            &process_event
+        );
+
+        if (process_status == COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+            process_status = comtrace_process_lifecycle_catalog_add(
+                &summary->process_lifecycle,
+                &process_event
+            );
+
+            if (process_status != COMTRACE_PROCESS_LIFECYCLE_SUCCESS) {
+                return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+            }
+        } else if (summary->process_lifecycle_failures != ULLONG_MAX) {
+            ++summary->process_lifecycle_failures;
+        }
+    }
 
     is_com_event = comtrace_classify_com_event(
         &event_record->EventHeader.ProviderId,
@@ -1159,6 +1184,96 @@ static void write_json_string(const wchar_t *value)
     putwchar(L'"');
 }
 
+static void write_json_process_lifetimes(
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog
+)
+{
+    size_t index;
+
+    wprintf(L"[");
+    if (catalog == NULL) {
+        wprintf(L"]");
+        return;
+    }
+
+    for (index = 0U; index < catalog->count; ++index) {
+        const COMTRACE_PROCESS_LIFETIME *lifetime =
+            &catalog->items[index];
+        const wchar_t *start_kind = lifetime->started_during_trace
+            ? L"start"
+            : (lifetime->has_first_seen_timestamp ? L"dcstart" : L"unknown");
+
+        wprintf(
+            L"%ls      {\"process_id\": %lu, \"generation\": %llu, \"parent_process_id\": ",
+            index == 0U ? L"\n" : L",\n",
+            (unsigned long)lifetime->process_id,
+            (unsigned long long)lifetime->generation
+        );
+
+        if (lifetime->has_parent_process_id) {
+            wprintf(L"%lu", (unsigned long)lifetime->parent_process_id);
+        } else {
+            wprintf(L"null");
+        }
+
+        wprintf(L", \"start_kind\": \"%ls\", \"first_seen_ticks\": ", start_kind);
+
+        if (lifetime->has_first_seen_timestamp) {
+            wprintf(L"\"%lld\"", (long long)lifetime->first_seen_timestamp);
+        } else {
+            wprintf(L"null");
+        }
+
+        wprintf(L", \"end_ticks\": ");
+        if (lifetime->has_end_timestamp) {
+            wprintf(L"\"%lld\"", (long long)lifetime->end_timestamp);
+        } else {
+            wprintf(L"null");
+        }
+
+        wprintf(
+            L", \"running_at_trace_end\": %ls, \"trace_end_observed_ticks\": ",
+            lifetime->has_trace_end_timestamp ? L"true" : L"false"
+        );
+
+        if (lifetime->has_trace_end_timestamp) {
+            wprintf(L"\"%lld\"", (long long)lifetime->trace_end_timestamp);
+        } else {
+            wprintf(L"null");
+        }
+
+        wprintf(L"}");
+    }
+
+    if (catalog->count != 0U) {
+        wprintf(L"\n    ");
+    }
+    wprintf(L"]");
+}
+
+static void write_json_process_lifecycle_summary(
+    const COMTRACE_TRACE_SUMMARY *summary
+)
+{
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog;
+
+    if (summary == NULL) {
+        wprintf(L"null");
+        return;
+    }
+
+    catalog = &summary->process_lifecycle;
+    wprintf(
+        L"{\"start_events\": %llu, \"end_events\": %llu, \"dc_start_events\": %llu, \"dc_end_events\": %llu, \"defunct_events\": %llu, \"decode_failures\": %llu}",
+        (unsigned long long)catalog->start_events,
+        (unsigned long long)catalog->end_events,
+        (unsigned long long)catalog->dc_start_events,
+        (unsigned long long)catalog->dc_end_events,
+        (unsigned long long)catalog->defunct_events,
+        (unsigned long long)summary->process_lifecycle_failures
+    );
+}
+
 static void write_json_object_observations(
     const COMTRACE_RELATIONSHIP_GRAPH *graph
 )
@@ -1362,6 +1477,17 @@ void comtrace_trace_comparison_write_json(
     write_json_object_observations(&comparison->left.relationship_graph);
     wprintf(L",\n    \"right\": ");
     write_json_object_observations(&comparison->right.relationship_graph);
+    wprintf(L"\n  },\n");
+
+    wprintf(L"  \"process_lifetimes\": {\n    \"left\": ");
+    write_json_process_lifetimes(&comparison->left.process_lifecycle);
+    wprintf(L",\n    \"right\": ");
+    write_json_process_lifetimes(&comparison->right.process_lifecycle);
+    wprintf(L"\n  },\n");
+    wprintf(L"  \"process_lifecycle_summary\": {\n    \"left\": ");
+    write_json_process_lifecycle_summary(&comparison->left);
+    wprintf(L",\n    \"right\": ");
+    write_json_process_lifecycle_summary(&comparison->right);
     wprintf(L"\n  },\n");
 
     wprintf(L"  \"timeline\": {\n    \"left\": [");
