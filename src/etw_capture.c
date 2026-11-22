@@ -60,10 +60,18 @@ static const GUID rpcss_provider_guid = {
     {0x91, 0xbf, 0x3a, 0xdf, 0x48, 0xc4, 0x8e, 0x0c}
 };
 
+static const GUID com_lifetime_provider_guid = {
+    0x6f3b5e21,
+    0x7c14,
+    0x4a90,
+    {0x9d, 0x42, 0x81, 0x31, 0x6c, 0xe2, 0xa7, 0x50}
+};
+
 static const ULONGLONG ole_perf_keyword = 0x8000000000000000ULL;
 static const ULONGLONG com_rundown_keyword = 0x1ULL;
 static const ULONGLONG com_runtime_keyword = 0x8ULL;
 static const ULONGLONG rpcss_keyword = 0x600ULL;
+static const ULONGLONG com_lifetime_keyword = 0x1ULL;
 
 static HANDLE g_stop_event = NULL;
 
@@ -120,7 +128,8 @@ static ULONG stop_trace_session(
     BOOL rundown_provider_enabled,
     BOOL com_runtime_provider_enabled,
     BOOL rpc_provider_enabled,
-    BOOL rpcss_provider_enabled
+    BOOL rpcss_provider_enabled,
+    BOOL com_lifetime_provider_enabled
 )
 {
     ULONG status;
@@ -243,6 +252,25 @@ static ULONG stop_trace_session(
         }
     }
 
+
+    if (com_lifetime_provider_enabled) {
+        status = EnableTraceEx2(
+            trace_handle,
+            &com_lifetime_provider_guid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_NONE,
+            0U,
+            0U,
+            0U,
+            NULL
+        );
+
+        if (status != ERROR_SUCCESS) {
+            fwprintf(stderr, L"Warning: ComTrace lifetime provider disable returned status %lu.\n",
+                (unsigned long)status);
+        }
+    }
+
     return ControlTraceW(
         trace_handle,
         trace_session_name,
@@ -272,6 +300,7 @@ int comtrace_capture_com_perf(
     BOOL com_runtime_provider_enabled = FALSE;
     BOOL rpc_provider_enabled = FALSE;
     BOOL rpcss_provider_enabled = FALSE;
+    BOOL com_lifetime_provider_enabled = FALSE;
     BOOL process_lifecycle_enabled = FALSE;
     BOOL handler_registered = FALSE;
     HANDLE stop_event = NULL;
@@ -585,6 +614,25 @@ int comtrace_capture_com_perf(
             (unsigned long)status);
     }
 
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &com_lifetime_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        com_lifetime_keyword,
+        0U,
+        0U,
+        NULL
+    );
+
+    if (status == ERROR_SUCCESS) {
+        com_lifetime_provider_enabled = TRUE;
+    } else {
+        fwprintf(stderr, L"Warning: ComTrace lifetime provider enable returned status %lu.\n",
+            (unsigned long)status);
+    }
+
     stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (stop_event == NULL) {
         fwprintf(
@@ -624,6 +672,9 @@ int comtrace_capture_com_perf(
     }
     if (rpcss_provider_enabled) {
         wprintf(L"Provider: Microsoft-Windows-RPCSS (interface registration)\n");
+    }
+    if (com_lifetime_provider_enabled) {
+        wprintf(L"Provider: ComTrace.COMLifetime (application instrumentation)\n");
     }
     if (process_lifecycle_enabled) {
         wprintf(L"Provider: Kernel Process start/stop events\n");
@@ -673,7 +724,8 @@ cleanup:
             rundown_provider_enabled,
             com_runtime_provider_enabled,
             rpc_provider_enabled,
-            rpcss_provider_enabled
+            rpcss_provider_enabled,
+            com_lifetime_provider_enabled
         );
 
         if (status != ERROR_SUCCESS) {
