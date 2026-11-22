@@ -24,11 +24,37 @@ typedef enum {
     COMTRACE_ETL_PROPERTY_READ_FAILED
 } COMTRACE_ETL_PROPERTY_READ_STATUS;
 
+typedef enum {
+    COMTRACE_ETL_EVENT_INFO_SUCCESS = 0,
+    COMTRACE_ETL_EVENT_INFO_INVALID_ARGUMENT,
+    COMTRACE_ETL_EVENT_INFO_UNAVAILABLE,
+    COMTRACE_ETL_EVENT_INFO_ALLOCATION_FAILED,
+    COMTRACE_ETL_EVENT_INFO_INVALID_METADATA
+} COMTRACE_ETL_EVENT_INFO_STATUS;
+
+typedef struct {
+    BYTE *buffer;
+    ULONG size;
+    TRACE_EVENT_INFO *info;
+    ULONG property_count;
+    ULONG top_level_property_count;
+    ULONG tdh_status;
+} COMTRACE_ETL_EVENT_INFO;
+
 typedef struct {
     BYTE *data;
     ULONG size;
     ULONG tdh_status;
 } COMTRACE_ETL_PROPERTY_VALUE;
+
+COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
+    const EVENT_RECORD *event_record,
+    COMTRACE_ETL_EVENT_INFO *event_info
+);
+
+void comtrace_etl_event_info_close(
+    COMTRACE_ETL_EVENT_INFO *event_info
+);
 
 COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     const EVENT_RECORD *event_record,
