@@ -511,14 +511,12 @@ static int run_etl_search(int argc, wchar_t **argv)
                 open_bracket = wcschr(argument, L'[');
                 if (open_bracket != NULL) {
                     wchar_t index_text[16];
-                    const wchar_t *dot;
                     const wchar_t *suffix;
                     size_t name_length = (size_t)(open_bracket - argument);
                     size_t index_length;
                     size_t suffix_length = 0U;
 
                     close_bracket = wcschr(open_bracket + 1, L']');
-                    dot = wcschr(argument, L'.');
                     suffix = close_bracket == NULL ? NULL : close_bracket + 1;
                     if (name_length == 0U ||
                         open_bracket[-1] == L'.' ||

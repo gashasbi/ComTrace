@@ -37,12 +37,13 @@ lifetime ID, and Activity ID filters using AND semantics.
 ## Supported scalar values
 
 The property can be a top-level scalar, an indexed element of a top-level
-array, or a scalar member reached through dot notation in a non-array struct.
-For example, `Outer.Inner.Code` selects a nested member. One array index can be used at any level of a property path, including nested
-struct arrays and arrays inside struct parents. Examples include
-`Values[1].Code` and `Outer.Inner[1].NestedCode`. Multiple array indices in one
-property path are not currently supported. An array property
-without an index is not matched.
+array, or a scalar member reached through dot notation in a struct. For example,
+`Outer.Inner.Code` selects a nested member. One array index can be used at any
+level of a property path, including nested struct arrays and arrays inside
+struct parents. Examples include `Values[1].Code`,
+`Outer.Inner[1].NestedCode`, and `Outer.Numbers[1]`. Multiple array indices in
+one property path are not currently supported. An array property without an
+index is not matched.
 Supported values include:
 
 - ANSI and Unicode strings and characters
@@ -73,8 +74,8 @@ values support equality only.
 
 ## Unsupported property shapes
 
-Array properties without an index, nested struct arrays, array members inside
-struct parents, WBEM XML fragments, unsupported custom schemas, and values whose TDH
+Array properties without an index, multiple array indices in one property path,
+WBEM XML fragments, unsupported custom schemas, and values whose TDH
 metadata or payload cannot be read are not matched by this filter. Binary properties
 do not support numeric ordering comparisons. Scalar custom-schema properties are
 matched when their input and output types have a supported scalar representation. A missing or unsupported property produces
