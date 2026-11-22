@@ -11,7 +11,7 @@ typedef struct {
  volatile LONG refs;
  IUnknown *outer;
  ULONGLONG id;
- LONG value;
+ volatile LONG value;
 } FIXTURE_OBJECT;
 
 static SRWLOCK provider_lock = SRWLOCK_INIT;
@@ -115,13 +115,15 @@ static ULONG STDMETHODCALLTYPE primary_release(COMTRACE_PRIMARY *s)
 }
 static HRESULT STDMETHODCALLTYPE primary_set(COMTRACE_PRIMARY *s, LONG v)
 {
- CONTAINING_RECORD(s, FIXTURE_OBJECT, primary)->value = v;
+ FIXTURE_OBJECT *o = CONTAINING_RECORD(s, FIXTURE_OBJECT, primary);
+ (void)InterlockedExchange(&o->value, v);
  return S_OK;
 }
 static HRESULT STDMETHODCALLTYPE primary_get(COMTRACE_PRIMARY *s, LONG *v)
 {
+ FIXTURE_OBJECT *o = CONTAINING_RECORD(s, FIXTURE_OBJECT, primary);
  if (v == NULL) return E_POINTER;
- *v = CONTAINING_RECORD(s, FIXTURE_OBJECT, primary)->value;
+ *v = InterlockedCompareExchange(&o->value, 0, 0);
  return S_OK;
 }
 static HRESULT STDMETHODCALLTYPE secondary_query(COMTRACE_SECONDARY *s, REFIID iid, void **r)
@@ -140,7 +142,8 @@ static ULONG STDMETHODCALLTYPE secondary_release(COMTRACE_SECONDARY *s)
 }
 static HRESULT STDMETHODCALLTYPE secondary_add(COMTRACE_SECONDARY *s, LONG v)
 {
- CONTAINING_RECORD(s, FIXTURE_OBJECT, secondary)->value += v;
+ FIXTURE_OBJECT *o = CONTAINING_RECORD(s, FIXTURE_OBJECT, secondary);
+ (void)InterlockedExchangeAdd(&o->value, v);
  return S_OK;
 }
 static IUnknownVtbl inner_vtable = {inner_query,inner_addref,inner_release};
