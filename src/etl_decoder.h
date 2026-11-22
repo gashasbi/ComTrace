@@ -52,6 +52,10 @@ int comtrace_etl_read_property_count(
     const BYTE *metadata_buffer,
     ULONG metadata_size,
     const EVENT_PROPERTY_INFO *property,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    const ULONG *parent_property_indices,
+    ULONG parent_count,
     ULONG *count
 );
 
