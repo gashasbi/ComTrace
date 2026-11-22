@@ -62,6 +62,8 @@ ComTrace.exe --compare before.etl after.ctra --json
 
 **ETL property decoding** uses TDH metadata and supports scalar values, fixed and dynamic arrays, and structure members, including dynamic arrays of structures. Nested descriptor paths are handled when runtime metadata exposes them. Dynamic array counts support signed and unsigned integer fields, including pointer-sized counts; negative or excessive counts are rejected. The decoder limits nesting to 16 struct levels, arrays to 4096 elements, event metadata to 1 MiB, and an individual property payload to 16 MiB. Value and bitmap maps are decoded from TDH map entries; inspection reports the map kind and name, resolved label, and original raw value. When TDH exposes a pattern map, its format and entries are reported as message-rendering metadata and are not applied to individual property values. TDH output formats for date/time values, reduced strings, and PKCS7-with-type-info payloads are used when supported; no-print fields remain suppressed and unknown values retain their raw bytes. WBEM XML-fragment properties retain their declared format and can be searched as text when their input type is a string. Custom-schema properties retain their raw payload and expose the schema protocol identifier and schema bytes; protocol-specific deserialization is not guessed. Nested TraceLogging structures are covered by an ETL fixture. The Windows manifest compiler rejects nested `<struct>` declarations, so that specific manifest shape cannot be used as a manifest fixture.
 
+See [ETL_DECODER.md](docs/ETL_DECODER.md) for the detailed supported-type matrix, map behavior, resource limits, and fixture coverage.
+
 **Search** scans an ETL file and supports these optional filters:
 
 - `--provider <guid>`
