@@ -169,6 +169,11 @@ int wmain(int argc, wchar_t **argv)
             (0x11U, 0x22U, 0x33U),
             3U,
             "CustomField"
+        ),
+        TraceLoggingUInt32(
+            0xCAFEBABEUL,
+            "TaggedValue",
+            TraceLoggingTag(0x123U)
         )
     );
 
