@@ -105,6 +105,9 @@ $inspectPath = Join-Path $OutputDirectory "comtrace-$runId-inspect.txt"
 $searchPath = Join-Path $OutputDirectory "comtrace-$runId-com-search.txt"
 $oleSearchPath = Join-Path $OutputDirectory "comtrace-$runId-ole-search.txt"
 $rundownSearchPath = Join-Path $OutputDirectory "comtrace-$runId-com-rundown-search.txt"
+$comRuntimeSearchPath = Join-Path $OutputDirectory "comtrace-$runId-com-runtime-search.txt"
+$rpcSearchPath = Join-Path $OutputDirectory "comtrace-$runId-rpc-search.txt"
+$rpcssSearchPath = Join-Path $OutputDirectory "comtrace-$runId-rpcss-search.txt"
 $oleFixturePath = Join-Path $OutputDirectory "comtrace-$runId-ole-fixture.txt"
 $archiveInspectPath = Join-Path $OutputDirectory "comtrace-$runId-archive-inspect.txt"
 $comparePath = Join-Path $OutputDirectory "comtrace-$runId-compare.json"
@@ -388,6 +391,47 @@ if ($rundownEventCount -eq 0) {
     Write-Warning "The COM-RundownInstrumentation provider emitted no events in this trace."
 }
 
+Write-Host "Checking for COMRuntime, RPC, and RPCSS events."
+$comRuntimeProviderGuid = "{BF406804-6AFA-46E7-8A48-6C357E1D6D61}"
+$rpcProviderGuid = "{6AD52B32-D609-4BE9-AE07-CE8DAE937E39}"
+$rpcssProviderGuid = "{D8975F88-7DDB-4ED0-91BF-3ADF48C48E0C}"
+
+$comRuntimeSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $comRuntimeProviderGuid, "--max-events", "10000") -Description "COMRuntime event search"
+Set-Content -LiteralPath $comRuntimeSearchPath -Value $comRuntimeSearchOutput -Encoding UTF8
+$comRuntimeEventMatch = [regex]::Match($comRuntimeSearchOutput, "Events matching filters:\s*(\d+)")
+if (-not $comRuntimeEventMatch.Success) {
+    throw "The COMRuntime search output did not contain an event count. Review $comRuntimeSearchPath"
+}
+$comRuntimeEventCount = [UInt64]::Parse($comRuntimeEventMatch.Groups[1].Value)
+$comRuntimeStubRundownCount = [regex]::Matches(
+    $comRuntimeSearchOutput,
+    "(?im)^\s*com_runtime_event=PrematureStubRundown"
+).Count
+
+$rpcSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rpcProviderGuid, "--max-events", "10000") -Description "RPC event search"
+Set-Content -LiteralPath $rpcSearchPath -Value $rpcSearchOutput -Encoding UTF8
+$rpcEventMatch = [regex]::Match($rpcSearchOutput, "Events matching filters:\s*(\d+)")
+if (-not $rpcEventMatch.Success) {
+    throw "The RPC search output did not contain an event count. Review $rpcSearchPath"
+}
+$rpcEventCount = [UInt64]::Parse($rpcEventMatch.Groups[1].Value)
+$rpcClassifiedEventCount = [regex]::Matches(
+    $rpcSearchOutput,
+    "(?im)^\s*rpc_event="
+).Count
+
+$rpcssSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rpcssProviderGuid, "--max-events", "10000") -Description "RPCSS event search"
+Set-Content -LiteralPath $rpcssSearchPath -Value $rpcssSearchOutput -Encoding UTF8
+$rpcssEventMatch = [regex]::Match($rpcssSearchOutput, "Events matching filters:\s*(\d+)")
+if (-not $rpcssEventMatch.Success) {
+    throw "The RPCSS search output did not contain an event count. Review $rpcssSearchPath"
+}
+$rpcssEventCount = [UInt64]::Parse($rpcssEventMatch.Groups[1].Value)
+$rpcssClassifiedEventCount = [regex]::Matches(
+    $rpcssSearchOutput,
+    "(?im)^\s*rpcss_event="
+).Count
+
 Write-Host "Converting ETL to CTRA."
 $archiveOutput = Invoke-NativeCommand -Executable $ComTraceArchiveExe -Arguments @($EtlPath, $archivePath) -Description "ETL to CTRA conversion"
 if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
@@ -473,6 +517,12 @@ $summary = [ordered]@{
     com_rundown_validation_status = $rundownValidationStatus
     com_rundown_events = $rundownEventCount
     com_rundown_identity_values_reported = $rundownIdentityValueCount
+    com_runtime_events = $comRuntimeEventCount
+    com_premature_stub_rundown_events = $comRuntimeStubRundownCount
+    rpc_events = $rpcEventCount
+    rpc_classified_events = $rpcClassifiedEventCount
+    rpcss_events = $rpcssEventCount
+    rpcss_classified_events = $rpcssClassifiedEventCount
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
     ole_clipboard_operations = $oleClipboardOperations
@@ -497,6 +547,9 @@ $summary = [ordered]@{
     inspect_report = $inspectPath
     com_search_report = $searchPath
     com_rundown_search_report = $rundownSearchPath
+    com_runtime_search_report = $comRuntimeSearchPath
+    rpc_search_report = $rpcSearchPath
+    rpcss_search_report = $rpcssSearchPath
     ole_search_report = $oleSearchPath
     ole_fixture_report = $oleFixtureReport
     archive_inspect_report = $archiveInspectPath
@@ -517,6 +570,10 @@ Write-Host "COM Performance events: $comEventCount"
 Write-Host "COM rundown validation status: $rundownValidationStatus"
 Write-Host "COM rundown events: $rundownEventCount"
 Write-Host "COM rundown identity values reported: $rundownIdentityValueCount"
+Write-Host "COMRuntime events: $comRuntimeEventCount"
+Write-Host "COM PrematureStubRundown events: $comRuntimeStubRundownCount"
+Write-Host "RPC events: $rpcEventCount (classified=$rpcClassifiedEventCount)"
+Write-Host "RPCSS events: $rpcssEventCount (classified=$rpcssClassifiedEventCount)"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
