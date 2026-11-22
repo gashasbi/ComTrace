@@ -14,7 +14,9 @@ if(NOT fixture_status EQUAL 0)
     message(FATAL_ERROR "Fixture failed: ${fixture_error}")
 endif()
 execute_process(COMMAND "${COMTRACE_EXE}" --inspect "${ETL_FILE}" RESULT_VARIABLE inspect_status OUTPUT_VARIABLE inspect_output ERROR_VARIABLE inspect_error)
-foreach(index_value expected_value IN ITEMS 0 11 1 22 2 33 3 44)
+set(expected_values 11 22 33 44)
+foreach(index_value RANGE 0 3)
+    list(GET expected_values ${index_value} expected_value)
     execute_process(
         COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "Values[${index_value}]" --equals "${expected_value}" --max-events 10
         RESULT_VARIABLE search_status
