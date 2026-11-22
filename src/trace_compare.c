@@ -64,7 +64,22 @@ static int get_trace_event_name(
         return 0;
     }
 
-    name[0] = L'\\0';
+    {
+        static const GUID lifetime_provider_id = {
+            0x6f3b5e21, 0x7c14, 0x4a90,
+            {0x9d, 0x42, 0x81, 0x31, 0x6c, 0xe2, 0xa7, 0x50}
+        };
+
+        if (memcmp(
+                &event_record->EventHeader.ProviderId,
+                &lifetime_provider_id,
+                sizeof(GUID)
+            ) != 0) {
+            return 0;
+        }
+    }
+
+    name[0] = L'\0';
     status = TdhGetEventInformation(event_record, 0U, NULL, NULL, &required_size);
     if (status != ERROR_INSUFFICIENT_BUFFER ||
         required_size < sizeof(TRACE_EVENT_INFO)) {
@@ -94,7 +109,7 @@ static int get_trace_event_name(
 
     event_name = (const wchar_t *)((const BYTE *)event_info + offset);
     available_chars = (required_size - offset) / sizeof(wchar_t);
-    while (length < available_chars && event_name[length] != L'\\0') {
+    while (length < available_chars && event_name[length] != L'\0') {
         ++length;
     }
 
@@ -104,7 +119,7 @@ static int get_trace_event_name(
     }
 
     wmemcpy(name, event_name, length);
-    name[length] = L'\\0';
+    name[length] = L'\0';
     free(event_info);
     return 1;
 }
@@ -897,6 +912,200 @@ static COMTRACE_TRACE_COMPARE_STATUS build_object_diffs(
     return COMTRACE_TRACE_COMPARE_SUCCESS;
 }
 
+static int lifetime_records_match(
+    const COMTRACE_LIFETIME_RECORD *left,
+    const COMTRACE_LIFETIME_RECORD *right
+)
+{
+    return left->process_id == right->process_id &&
+        left->object_instance_id == right->object_instance_id &&
+        left->has_process_generation == right->has_process_generation &&
+        (!left->has_process_generation ||
+         left->process_generation == right->process_generation);
+}
+
+static size_t find_lifetime_record_index(
+    const COMTRACE_COM_LIFETIME_ANALYSIS *analysis,
+    const COMTRACE_LIFETIME_RECORD *record
+)
+{
+    size_t index;
+    for (index = 0U; index < analysis->record_count; ++index) {
+        if (lifetime_records_match(&analysis->records[index], record)) return index;
+    }
+    return (size_t)-1;
+}
+
+static int lifetime_interface_sets_equal(
+    const COMTRACE_LIFETIME_RECORD *left,
+    const COMTRACE_LIFETIME_RECORD *right
+)
+{
+    size_t index;
+    size_t other;
+
+    if (left->interface_id_count != right->interface_id_count) return 0;
+    for (index = 0U; index < left->interface_id_count; ++index) {
+        for (other = 0U; other < right->interface_id_count; ++other) {
+            if (memcmp(&left->interface_ids[index].interface_id,
+                       &right->interface_ids[other].interface_id,
+                       sizeof(GUID)) == 0) break;
+        }
+        if (other == right->interface_id_count) return 0;
+    }
+    if (left->interface_id_count == 0U &&
+        left->has_interface_id != right->has_interface_id) return 0;
+    if (left->interface_id_count == 0U && left->has_interface_id &&
+        memcmp(&left->interface_id, &right->interface_id, sizeof(GUID)) != 0) return 0;
+    return 1;
+}
+
+static int lifetime_native_identity_sets_equal(
+    const COMTRACE_LIFETIME_RECORD *left,
+    const COMTRACE_LIFETIME_RECORD *right
+)
+{
+    size_t index;
+    size_t other;
+
+    if (left->native_identity_count != right->native_identity_count) return 0;
+    for (index = 0U; index < left->native_identity_count; ++index) {
+        const COMTRACE_LIFETIME_NATIVE_IDENTITY *item = &left->native_identities[index];
+        for (other = 0U; other < right->native_identity_count; ++other) {
+            const COMTRACE_LIFETIME_NATIVE_IDENTITY *candidate =
+                &right->native_identities[other];
+            if (item->native_object_id == candidate->native_object_id &&
+                item->has_native_ipid == candidate->has_native_ipid &&
+                item->has_interface_id == candidate->has_interface_id &&
+                (!item->has_native_ipid ||
+                 memcmp(&item->native_ipid, &candidate->native_ipid, sizeof(GUID)) == 0) &&
+                (!item->has_interface_id ||
+                 memcmp(&item->interface_id, &candidate->interface_id, sizeof(GUID)) == 0)) break;
+        }
+        if (other == right->native_identity_count) return 0;
+    }
+    return 1;
+}
+
+static ULONG compare_lifetime_record_fields(
+    const COMTRACE_LIFETIME_RECORD *left,
+    const COMTRACE_LIFETIME_RECORD *right
+)
+{
+    ULONG changed_fields = 0U;
+
+    if (left->has_class_id != right->has_class_id ||
+        (left->has_class_id &&
+         memcmp(&left->class_id, &right->class_id, sizeof(GUID)) != 0)) {
+        changed_fields |= 0x1U;
+    }
+    if (!lifetime_interface_sets_equal(left, right)) changed_fields |= 0x2U;
+    if (left->has_created != right->has_created ||
+        left->has_destroyed != right->has_destroyed) changed_fields |= 0x4U;
+    if (left->create_events != right->create_events ||
+        left->add_ref_events != right->add_ref_events ||
+        left->release_events != right->release_events ||
+        left->destroy_events != right->destroy_events ||
+        left->release_zero_results != right->release_zero_results) changed_fields |= 0x8U;
+    if (!lifetime_native_identity_sets_equal(left, right)) changed_fields |= 0x10U;
+    return changed_fields;
+}
+
+static COMTRACE_TRACE_COMPARE_STATUS append_lifetime_object_diff(
+    COMTRACE_TRACE_COMPARISON *comparison,
+    const COMTRACE_LIFETIME_RECORD *record,
+    BOOL present_in_left,
+    BOOL present_in_right,
+    ULONG changed_fields
+)
+{
+    COMTRACE_LIFETIME_OBJECT_DIFF *diff;
+
+    if (comparison->lifetime_object_diff_count ==
+        comparison->lifetime_object_diff_capacity) {
+        size_t capacity = comparison->lifetime_object_diff_capacity == 0U
+            ? 8U : comparison->lifetime_object_diff_capacity * 2U;
+        COMTRACE_LIFETIME_OBJECT_DIFF *items;
+
+        if (capacity < comparison->lifetime_object_diff_capacity ||
+            capacity > (size_t)-1 / sizeof(*items)) {
+            return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+        }
+        items = (COMTRACE_LIFETIME_OBJECT_DIFF *)realloc(
+            comparison->lifetime_object_diffs, capacity * sizeof(*items)
+        );
+        if (items == NULL) return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+        comparison->lifetime_object_diffs = items;
+        comparison->lifetime_object_diff_capacity = capacity;
+    }
+
+    diff = &comparison->lifetime_object_diffs[comparison->lifetime_object_diff_count];
+    ZeroMemory(diff, sizeof(*diff));
+    diff->process_id = record->process_id;
+    diff->process_generation = record->process_generation;
+    diff->has_process_generation = record->has_process_generation;
+    diff->object_instance_id = record->object_instance_id;
+    diff->present_in_left = present_in_left;
+    diff->present_in_right = present_in_right;
+    diff->changed_fields = changed_fields;
+    ++comparison->lifetime_object_diff_count;
+    return COMTRACE_TRACE_COMPARE_SUCCESS;
+}
+
+static COMTRACE_TRACE_COMPARE_STATUS build_lifetime_object_diffs(
+    COMTRACE_TRACE_COMPARISON *comparison
+)
+{
+    size_t index;
+
+    for (index = 0U; index < comparison->left.lifetime_analysis.record_count; ++index) {
+        const COMTRACE_LIFETIME_RECORD *left_record =
+            &comparison->left.lifetime_analysis.records[index];
+        size_t right_index = find_lifetime_record_index(
+            &comparison->right.lifetime_analysis, left_record
+        );
+
+        if (right_index == (size_t)-1) {
+            ++comparison->removed_lifetime_objects;
+            if (append_lifetime_object_diff(
+                    comparison, left_record, TRUE, FALSE, 0U
+                ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
+                return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+            }
+        } else {
+            ULONG changed_fields = compare_lifetime_record_fields(
+                left_record,
+                &comparison->right.lifetime_analysis.records[right_index]
+            );
+            if (changed_fields != 0U) {
+                ++comparison->changed_lifetime_objects;
+                if (append_lifetime_object_diff(
+                        comparison, left_record, TRUE, TRUE, changed_fields
+                    ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
+                    return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+                }
+            }
+        }
+    }
+
+    for (index = 0U; index < comparison->right.lifetime_analysis.record_count; ++index) {
+        const COMTRACE_LIFETIME_RECORD *right_record =
+            &comparison->right.lifetime_analysis.records[index];
+        if (find_lifetime_record_index(
+                &comparison->left.lifetime_analysis, right_record
+            ) == (size_t)-1) {
+            ++comparison->added_lifetime_objects;
+            if (append_lifetime_object_diff(
+                    comparison, right_record, FALSE, TRUE, 0U
+                ) != COMTRACE_TRACE_COMPARE_SUCCESS) {
+                return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+            }
+        }
+    }
+
+    return COMTRACE_TRACE_COMPARE_SUCCESS;
+}
+
 static COMTRACE_TRACE_COMPARE_STATUS add_operation_timing(
     COMTRACE_TRACE_SUMMARY *summary,
     const wchar_t *operation,
@@ -1082,6 +1291,12 @@ COMTRACE_TRACE_COMPARE_STATUS comtrace_trace_compare(
         return status;
     }
 
+    status = build_lifetime_object_diffs(comparison);
+    if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+        comtrace_trace_comparison_destroy(comparison);
+        return status;
+    }
+
     status = build_operation_timings(&comparison->left);
     if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
         comtrace_trace_comparison_destroy(comparison);
@@ -1107,6 +1322,7 @@ void comtrace_trace_comparison_destroy(
 
     free(comparison->event_type_diffs);
     free(comparison->object_diffs);
+    free(comparison->lifetime_object_diffs);
     trace_summary_destroy(&comparison->left);
     trace_summary_destroy(&comparison->right);
     ZeroMemory(comparison, sizeof(*comparison));

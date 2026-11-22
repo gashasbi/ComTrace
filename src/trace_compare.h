@@ -39,6 +39,16 @@ typedef struct {
 } COMTRACE_OBJECT_DIFF;
 
 typedef struct {
+    DWORD process_id;
+    ULONGLONG process_generation;
+    BOOL has_process_generation;
+    ULONGLONG object_instance_id;
+    BOOL present_in_left;
+    BOOL present_in_right;
+    ULONG changed_fields;
+} COMTRACE_LIFETIME_OBJECT_DIFF;
+
+typedef struct {
     wchar_t operation[128];
     ULONGLONG call_count;
     ULONGLONG failed_count;
@@ -68,12 +78,18 @@ typedef struct {
     size_t event_type_diff_count;
     COMTRACE_OBJECT_DIFF *object_diffs;
     size_t object_diff_count;
+    COMTRACE_LIFETIME_OBJECT_DIFF *lifetime_object_diffs;
+    size_t lifetime_object_diff_count;
+    size_t lifetime_object_diff_capacity;
     ULONGLONG added_event_types;
     ULONGLONG removed_event_types;
     ULONGLONG changed_event_types;
     ULONGLONG added_objects;
     ULONGLONG removed_objects;
     ULONGLONG changed_objects;
+    ULONGLONG added_lifetime_objects;
+    ULONGLONG removed_lifetime_objects;
+    ULONGLONG changed_lifetime_objects;
 } COMTRACE_TRACE_COMPARISON;
 
 COMTRACE_TRACE_COMPARE_STATUS comtrace_trace_compare(
