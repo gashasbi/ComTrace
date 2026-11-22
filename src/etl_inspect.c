@@ -4397,7 +4397,7 @@ static int event_struct_property_matches(
         return 0;
     }
 
-    if ((property->Flags & (PropertyParamCount | PropertyParamFixedCount)) != 0U) {
+    if (event_property_is_array(property)) {
         if (!filters->property_index_on_struct ||
             parent_count != filters->property_index_component) {
             return 0;
