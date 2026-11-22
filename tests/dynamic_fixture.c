@@ -72,6 +72,8 @@ int wmain(int argc, wchar_t **argv)
     ULONG error_code_value = 0x00000005UL;
     ULONG ntstatus_value = 0xC0000005UL;
     ULONG code_pointer_value = 0x12345678UL;
+    USHORT port_value = 0xBB01U;
+    ULONG win32_error_value = ERROR_ACCESS_DENIED;
     int result = 1;
 
     if (argc != 2) {
@@ -146,7 +148,7 @@ int wmain(int argc, wchar_t **argv)
 
     memset(large_data, 0xAB, sizeof(large_data));
 
-    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value);
+    status = EventWriteDynamicEvent(count, values, length, data, text_length, text, utf8_text_length, utf8_text, json_text_length, json_text, xml_text_length, xml_text, fixed_data, fixed_text, large_data, hex_count, hex_values, byte_count, byte_values, test_sid, wide_value, ipv4_address, ipv6_address, socket_address, socket_address_v6, socket_address_other, hresult_value, hex8_value, hex16_value, hex32_value, hex64_value, error_code_value, ntstatus_value, code_pointer_value, port_value, win32_error_value);
     if (status != ERROR_SUCCESS) {
         fwprintf(stderr, L"EventWriteDynamicEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;

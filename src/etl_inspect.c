@@ -262,6 +262,7 @@ static int is_hex_output_type(USHORT out_type)
         out_type == TDH_OUTTYPE_HEXINT32 ||
         out_type == TDH_OUTTYPE_HEXINT64 ||
         out_type == TDH_OUTTYPE_ERRORCODE ||
+        out_type == TDH_OUTTYPE_WIN32ERROR ||
         out_type == TDH_OUTTYPE_HRESULT ||
         out_type == TDH_OUTTYPE_NTSTATUS ||
         out_type == TDH_OUTTYPE_CODE_POINTER;
@@ -815,6 +816,8 @@ static void print_event_property_value_element(
         CopyMemory(&number, value, sizeof(number));
         if (out_type == TDH_OUTTYPE_HEXINT16) {
             wprintf(L"value=0x%04X\n", (unsigned int)number);
+        } else if (out_type == TDH_OUTTYPE_PORT) {
+            wprintf(L"value=%u\n", (unsigned int)ntohs(number));
         } else {
             wprintf(L"value=%u\n", (unsigned int)number);
         }
@@ -3402,6 +3405,8 @@ static int format_search_property_value(
         CopyMemory(&number, value, sizeof(number));
         if (out_type == TDH_OUTTYPE_HEXINT16) {
             _snwprintf_s(text, text_capacity, _TRUNCATE, L"0x%04X", (unsigned int)number);
+        } else if (out_type == TDH_OUTTYPE_PORT) {
+            _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)ntohs(number));
         } else {
             _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
         }

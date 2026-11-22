@@ -61,7 +61,8 @@ Supported values include:
 - IPv6 binary values in canonical address notation when the schema declares `win:IPv6`
 - IPv4 and IPv6 socket-address binary values as `IP:port` and `[IPv6]:port` when the schema declares `win:SocketAddress`; other address families are retained as hexadecimal bytes
 - Binary payloads with exact equality and byte-sequence contains matching using `hex:` notation
-- HRESULT, NTSTATUS, ErrorCode, and other hexadecimal output types in `0x` notation
+- Port output values converted from network byte order to host-order decimal
+- HRESULT, NTSTATUS, ErrorCode, Win32Error, and other hexadecimal output types in `0x` notation
 
 For string `--contains`, ANSI strings are converted using the active Windows code page.
 Binary properties support exact `--equals hex:<bytes>` matching and byte-sequence
