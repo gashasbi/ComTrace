@@ -74,6 +74,8 @@ Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_ins
 
 The provider GUID is `{6F3B5E21-7C14-4A90-9D42-81316CE2A750}`. Its TraceLogging events carry their own metadata and are decoded by TDH without installing a separate event manifest.
 
+TraceLoggingWrite also records the current thread's ETW ActivityId. ComTrace retains ActivityId and RelatedActivityId on lifetime events and links an instrumented lifetime object to the corresponding activity node in the relationship graph. This creates a useful bridge when the object operation runs on a thread that already carries the OLE/COM activity ID. The library does not create or propagate activity IDs automatically; a zero ActivityId or work moved to a thread without the activity context produces no link. Applications that manage their own activities should follow the ETW activity scoping rules and restore the previous thread ActivityId after the operation.
+
 ## Scope and limitations
 
 This is explicit application instrumentation, not transparent system-wide COM interception. It observes only code paths that call the library. If the instrumented pointer is a COM proxy, the observations describe that local proxy implementation; they do not automatically describe the remote server object's reference count. Instrumentation must be placed in the implementation whose lifetime is being studied.
