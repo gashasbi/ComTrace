@@ -2851,7 +2851,7 @@ static int format_search_property_value(
         return 1;
     }
     case TDH_INTYPE_UINT8: {
-        Uint8_t number;
+        uint8_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
@@ -2865,7 +2865,7 @@ static int format_search_property_value(
         return 1;
     }
     case TDH_INTYPE_UINT16: {
-        Uint16_t number;
+        uint16_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%u", (unsigned int)number);
@@ -2879,7 +2879,7 @@ static int format_search_property_value(
         return 1;
     }
     case TDH_INTYPE_UINT32: {
-        Uint32_t number;
+        uint32_t number;
         if (value_size != sizeof(number)) return 0;
         CopyMemory(&number, value, sizeof(number));
         _snwprintf_s(text, text_capacity, _TRUNCATE, L"%lu", (unsigned long)number);
