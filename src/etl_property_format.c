@@ -667,7 +667,7 @@ int comtrace_etl_print_mapped_property_value(
                     map_value_length)) {
                 continue;
             }
-            map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
+            map_string = get_map_string(map_info, map_size, output_offset, &string_length, (flags & (EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP | EVENTMAP_INFO_FLAG_MANIFEST_BITMAP)) != 0U);
             if (map_string == NULL) {
                 continue;
             }
@@ -681,7 +681,7 @@ int comtrace_etl_print_mapped_property_value(
             if ((flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) != 0U) {
                 if (numeric_value < map_info->EntryCount) {
                     output_offset = map_info->MapEntryArray[numeric_value].OutputOffset;
-                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, (flags & (EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP | EVENTMAP_INFO_FLAG_MANIFEST_BITMAP)) != 0U);
                     if (map_string != NULL) {
                         wprintf(L"value=\"");
                         print_escaped_map_string(map_string, string_length);
@@ -694,7 +694,7 @@ int comtrace_etl_print_mapped_property_value(
                         continue;
                     }
                     output_offset = map_info->MapEntryArray[index].OutputOffset;
-                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length, (flags & (EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP | EVENTMAP_INFO_FLAG_MANIFEST_BITMAP)) != 0U);
                     if (map_string == NULL) {
                         continue;
                     }
@@ -723,7 +723,7 @@ int comtrace_etl_print_mapped_property_value(
                 }
 
                 output_offset = map_info->MapEntryArray[index].OutputOffset;
-                map_string = get_map_string(map_info, map_size, output_offset, &string_length, 1);
+                map_string = get_map_string(map_info, map_size, output_offset, &string_length, (flags & (EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP | EVENTMAP_INFO_FLAG_MANIFEST_BITMAP)) != 0U);
                 if (map_string == NULL) {
                     continue;
                 }
