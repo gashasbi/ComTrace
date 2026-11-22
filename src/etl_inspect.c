@@ -267,6 +267,92 @@ static int is_hex_output_type(USHORT out_type)
         out_type == TDH_OUTTYPE_CODE_POINTER;
 }
 
+static int format_socket_address(
+    const BYTE *value,
+    ULONG value_size,
+    wchar_t *text,
+    size_t text_capacity
+)
+{
+    ADDRESS_FAMILY family;
+
+    if (value == NULL || text == NULL ||
+        text_capacity == 0U ||
+        value_size < sizeof(family)) {
+        return 0;
+    }
+
+    CopyMemory(&family, value, sizeof(family));
+
+    if (family == AF_INET) {
+        SOCKADDR_IN address;
+        wchar_t address_text[INET_ADDRSTRLEN];
+
+        if (value_size < sizeof(address)) {
+            return 0;
+        }
+
+        CopyMemory(&address, value, sizeof(address));
+        if (InetNtopW(
+                AF_INET,
+                &address.sin_addr,
+                address_text,
+                _countof(address_text)) == NULL) {
+            return 0;
+        }
+
+        return _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"%ls:%u",
+            address_text,
+            (unsigned int)ntohs(address.sin_port)
+        ) >= 0;
+    }
+
+    if (family == AF_INET6) {
+        SOCKADDR_IN6 address;
+        wchar_t address_text[INET6_ADDRSTRLEN];
+
+        if (value_size < sizeof(address)) {
+            return 0;
+        }
+
+        CopyMemory(&address, value, sizeof(address));
+        if (InetNtopW(
+                AF_INET6,
+                &address.sin6_addr,
+                address_text,
+                _countof(address_text)) == NULL) {
+            return 0;
+        }
+
+        if (address.sin6_scope_id != 0U) {
+            return _snwprintf_s(
+                text,
+                text_capacity,
+                _TRUNCATE,
+                L"[%ls%%%lu]:%u",
+                address_text,
+                (unsigned long)address.sin6_scope_id,
+                (unsigned int)ntohs(address.sin6_port)
+            ) >= 0;
+        }
+
+        return _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"[%ls]:%u",
+            address_text,
+            (unsigned int)ntohs(address.sin6_port)
+        ) >= 0;
+    }
+
+    return 0;
+}
+
 static int is_utf8_string_output_type(USHORT out_type)
 {
     return out_type == TDH_OUTTYPE_UTF8 ||
@@ -890,6 +976,13 @@ static void print_event_property_value_element(
             if (value_size != 16U ||
                 InetNtopW(AF_INET6, value, address, _countof(address)) == NULL) {
                 wprintf(L"status=unavailable reason=invalid_ipv6_address\n");
+            } else {
+                wprintf(L"value=%ls\n", address);
+            }
+        } else if (out_type == TDH_OUTTYPE_SOCKETADDRESS) {
+            wchar_t address[128];
+            if (!format_socket_address(value, value_size, address, _countof(address))) {
+                wprintf(L"status=unavailable reason=invalid_socket_address\n");
             } else {
                 wprintf(L"value=%ls\n", address);
             }
@@ -3152,6 +3245,11 @@ static int format_search_property_value(
         return 1;
     }
 
+    if (out_type == TDH_OUTTYPE_SOCKETADDRESS) {
+        return in_type == TDH_INTYPE_BINARY &&
+            format_socket_address(value, value_size, text, text_capacity);
+    }
+
     switch (in_type) {
     case TDH_INTYPE_UNICODESTRING: {
         size_t content_size;
@@ -3680,6 +3778,7 @@ static int event_property_value_matches(
             pointer_size)) {
         if (in_type == TDH_INTYPE_BINARY &&
             out_type != TDH_OUTTYPE_IPV6 &&
+            out_type != TDH_OUTTYPE_SOCKETADDRESS &&
             filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
             matched = search_binary_property_matches(
                 value,
@@ -3688,6 +3787,7 @@ static int event_property_value_matches(
             );
         } else if (in_type == TDH_INTYPE_BINARY &&
                    out_type != TDH_OUTTYPE_IPV6 &&
+                   out_type != TDH_OUTTYPE_SOCKETADDRESS &&
                    filters->property_match_mode == COMTRACE_PROPERTY_MATCH_CONTAINS) {
             matched = search_binary_property_contains(
                 value,

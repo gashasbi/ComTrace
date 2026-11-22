@@ -53,6 +53,7 @@ Supported values include:
 - SID values as standard SDDL strings such as `S-1-5-32-544`
 - IPv4 values in dotted-decimal notation
 - IPv6 binary values in canonical address notation when the schema declares `win:IPv6`
+- IPv4 and IPv6 socket-address binary values as `IP:port` and `[IPv6]:port` when the schema declares `win:SocketAddress`
 - Binary payloads with exact equality and byte-sequence contains matching using `hex:` notation
 - HRESULT, NTSTATUS, ErrorCode, and other hexadecimal output types in `0x` notation
 
