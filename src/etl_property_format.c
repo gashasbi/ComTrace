@@ -120,7 +120,11 @@ int comtrace_etl_print_tdh_formatted_property(
             break;
         }
     }
-    wprintf(L"\"\n");
+    wprintf(L"\" raw=hex:");
+    for (index = 0U; index < value_size; ++index) {
+        wprintf(L"%02x", (unsigned int)value[index]);
+    }
+    wprintf(L"\n");
     free(formatted);
     return 1;
 }
