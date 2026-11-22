@@ -71,11 +71,15 @@ ComTrace.exe --compare before.etl after.ctra --json
 - `--com` or `--ole` (mutually exclusive)
 - `--clsid <guid>`, `--iid <guid>`, `--oid <value>`
 - `--lifetime-id <value>`, `--activity-id <guid>`
-- `--property <name> --equals <value>` for exact scalar-value matching
-- `--property <name> --contains <text>` for string substring matching
+- `--property <name> --equals <value>` for exact value matching
+- `--property <name> --contains <value>` for string or binary substring matching
+- `--property <name> --greater-than <number>`
+- `--property <name> --greater-or-equal <number>`
+- `--property <name> --less-than <number>`
+- `--property <name> --less-or-equal <number>`
 - `--max-events <n>` (1–10000; default 100)
 
-Filters can be combined and all supplied filters must match. Property filters support top-level scalar values including strings, integers, floating-point values, booleans, GUIDs, hexadecimal integers, pointers, FILETIME, and SYSTEMTIME. `--contains` applies only to ANSI and Unicode strings. Array, nested-structure, binary, and custom-schema properties are not treated as scalar values. See [SEARCH.md](docs/SEARCH.md) for details.
+Filters can be combined and all supplied filters must match. Property filters support top-level values, indexed fixed and dynamic arrays, nested structure members, and indexed structure arrays. Supported scalar types include strings, signed and unsigned integers, floating-point values, booleans, GUIDs, hexadecimal integers, pointers, FILETIME, SYSTEMTIME, SID, IPv4/IPv6, and socket addresses. Binary and custom-schema payloads support exact matching and byte-sequence contains matching with `hex:<bytes>`. Value and bitmap maps are displayed using their TDH labels while search compares the underlying value. See [SEARCH.md](docs/SEARCH.md) for details.
 
 **Compare** accepts ETL or CTRA input files. It reports event-type count changes, COM object changes keyed by process ID, resolved process generation, and OID, Process lifetime generations, changes to available CLSID/IID/IPID identity fields, COM and OLE timeline counts, and per-operation timing summaries. Add `--json` for the versioned JSON report (currently schema version 1); its fields and data types are documented in [COMPARISON_JSON.md](docs/COMPARISON_JSON.md).
 
