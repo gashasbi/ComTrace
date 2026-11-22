@@ -1843,7 +1843,7 @@ static void write_json_lifetime_records(
             wprintf(L"null");
         }
         wprintf(
-            L", \"object_instance_id\": \"0x%llx\", \"created\": %ls, \"destroyed\": %ls, \"create_events\": %llu, \"add_ref_events\": %llu, \"release_events\": %llu, \"destroy_events\": %llu, \"release_zero_results\": %llu, \"observation_count\": %llu, \"first_seen_ticks\": \"%llu\", \"last_seen_ticks\": \"%llu\",
+            L", \"object_instance_id\": \"0x%llx\", \"created\": %ls, \"destroyed\": %ls, \"create_events\": %llu, \"add_ref_events\": %llu, \"release_events\": %llu, \"destroy_events\": %llu, \"release_zero_results\": %llu, \"observation_count\": %llu, \"first_seen_ticks\": \"%llu\", \"last_seen_ticks\": \"%llu\"",
             (unsigned long long)record->object_instance_id,
             record->has_created ? L"true" : L"false",
             record->has_destroyed ? L"true" : L"false",
