@@ -1739,6 +1739,9 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
     }
 
     wprintf(L"  payload_properties=%lu\n", (unsigned long)top_level_property_count);
+    if (event_info->Tags != 0U) {
+        wprintf(L"  payload_event_tags=0x%07lX\n", (unsigned long)event_info->Tags);
+    }
 
     for (index = 0U; index < top_level_property_count; ++index) {
         const EVENT_PROPERTY_INFO *property =
