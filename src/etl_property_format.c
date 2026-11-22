@@ -222,6 +222,253 @@ int comtrace_etl_print_tdh_formatted_property(
     return 1;
 }
 
+
+static const wchar_t *get_map_string(
+    const EVENT_MAP_INFO *map_info,
+    ULONG map_size,
+    ULONG offset,
+    ULONG *length
+)
+{
+    ULONG remaining;
+    ULONG index;
+    const wchar_t *value;
+
+    if (map_info == NULL ||
+        length == NULL ||
+        offset == 0U ||
+        offset >= map_size ||
+        (offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        return NULL;
+    }
+
+    value = (const wchar_t *)((const BYTE *)map_info + offset);
+    remaining = (map_size - offset) / (ULONG)sizeof(wchar_t);
+    for (index = 0U; index < remaining; ++index) {
+        if (value[index] == L'\0') {
+            *length = index;
+            while (*length != 0U && value[*length - 1U] == L' ') {
+                --(*length);
+            }
+            return value;
+        }
+    }
+
+    return NULL;
+}
+
+static void print_escaped_map_string(
+    const wchar_t *value,
+    ULONG length
+)
+{
+    ULONG index;
+
+    for (index = 0U; index < length; ++index) {
+        wchar_t character = value[index];
+        switch (character) {
+        case L'\\':
+            wprintf(L"\\\\");
+            break;
+        case L'"':
+            wprintf(L"\\\"");
+            break;
+        case L'\n':
+            wprintf(L"\\n");
+            break;
+        case L'\r':
+            wprintf(L"\\r");
+            break;
+        case L'\t':
+            wprintf(L"\\t");
+            break;
+        default:
+            if ((unsigned int)character < 0x20U ||
+                (unsigned int)character == 0x7FU) {
+                wprintf(L"\\u%04x", (unsigned int)character);
+            } else {
+                wprintf(L"%lc", character);
+            }
+            break;
+        }
+    }
+}
+
+static int get_map_numeric_value(
+    USHORT in_type,
+    const BYTE *value,
+    ULONG value_size,
+    ULONG *number
+)
+{
+    if (value == NULL || number == NULL) {
+        return 0;
+    }
+
+    switch (in_type) {
+    case TDH_INTYPE_INT8: {
+        signed char number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = (ULONG)(LONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_UINT8: {
+        BYTE number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = (ULONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_INT16: {
+        SHORT number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = (ULONG)(LONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_UINT16: {
+        USHORT number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = (ULONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_INT32: {
+        LONG number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = (ULONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_UINT32:
+    case TDH_INTYPE_HEXINT32:
+    case TDH_INTYPE_BOOLEAN: {
+        ULONG number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        *number = number_value;
+        return 1;
+    }
+    case TDH_INTYPE_INT64: {
+        LONGLONG number_value;
+        if (value_size != sizeof(number_value)) return 0;
+        CopyMemory(&number_value, value, sizeof(number_value));
+        if (number_value < (LONGLONG)LONG_MIN ||
+            number_value > (LONGLONG)LONG_MAX) {
+            return 0;
+        }
+        *number = (ULONG)(LONG)number_value;
+        return 1;
+    }
+    case TDH_INTYPE_UINT64:
+    case TDH_INTYPE_HEXINT64:
+    case TDH_INTYPE_SIZET:
+    case TDH_INTYPE_POINTER: {
+        ULONGLONG number_value = 0ULL;
+        if ((value_size != sizeof(ULONG) &&
+             value_size != sizeof(ULONGLONG)) ||
+            (in_type == TDH_INTYPE_SIZET && value_size != 4U && value_size != 8U) ||
+            (in_type == TDH_INTYPE_POINTER && value_size != 4U && value_size != 8U)) {
+            return 0;
+        }
+        CopyMemory(&number_value, value, value_size);
+        if (number_value > (ULONGLONG)ULONG_MAX) {
+            return 0;
+        }
+        *number = (ULONG)number_value;
+        return 1;
+    }
+    default:
+        return 0;
+    }
+}
+
+static int map_string_matches(
+    USHORT in_type,
+    USHORT out_type,
+    const BYTE *value,
+    ULONG value_size,
+    const wchar_t *map_value,
+    ULONG map_value_length
+)
+{
+    wchar_t *converted = NULL;
+    const wchar_t *input;
+    ULONG input_length;
+    int converted_length;
+    UINT code_page;
+
+    if (value == NULL || map_value == NULL) {
+        return 0;
+    }
+
+    if (in_type == TDH_INTYPE_UNICODESTRING) {
+        if ((value_size % sizeof(wchar_t)) != 0U) {
+            return 0;
+        }
+        input = (const wchar_t *)value;
+        input_length = value_size / (ULONG)sizeof(wchar_t);
+        while (input_length != 0U && input[input_length - 1U] == L'\0') {
+            --input_length;
+        }
+    } else if (in_type == TDH_INTYPE_ANSISTRING) {
+        if (value_size > (ULONG)INT_MAX) {
+            return 0;
+        }
+        code_page = (out_type == TDH_OUTTYPE_UTF8 ||
+            out_type == TDH_OUTTYPE_XML ||
+            out_type == TDH_OUTTYPE_JSON)
+            ? CP_UTF8
+            : CP_ACP;
+        converted_length = MultiByteToWideChar(
+            code_page,
+            code_page == CP_UTF8 ? MB_ERR_INVALID_CHARS : 0U,
+            (LPCCH)value,
+            (int)value_size,
+            NULL,
+            0
+        );
+        if (converted_length <= 0) {
+            return 0;
+        }
+        converted = (wchar_t *)malloc(
+            ((size_t)converted_length + 1U) * sizeof(wchar_t)
+        );
+        if (converted == NULL) {
+            return 0;
+        }
+        if (MultiByteToWideChar(
+                code_page,
+                code_page == CP_UTF8 ? MB_ERR_INVALID_CHARS : 0U,
+                (LPCCH)value,
+                (int)value_size,
+                converted,
+                converted_length
+            ) != converted_length) {
+            free(converted);
+            return 0;
+        }
+        converted[converted_length] = L'\0';
+        input = converted;
+        input_length = (ULONG)converted_length;
+        while (input_length != 0U && input[input_length - 1U] == L'\0') {
+            --input_length;
+        }
+    } else {
+        return 0;
+    }
+
+    if (input_length == map_value_length &&
+        wmemcmp(input, map_value, input_length) == 0) {
+        free(converted);
+        return 1;
+    }
+
+    free(converted);
+    return 0;
+}
+
 int comtrace_etl_print_mapped_property_value(
     const EVENT_RECORD *event_record,
     const BYTE *metadata_buffer,
@@ -239,26 +486,32 @@ int comtrace_etl_print_mapped_property_value(
     ULONG name_length = 0U;
     ULONG map_size = 0U;
     ULONG allocated_map_size;
-    ULONG formatted_size = 0U;
-    ULONG allocated_formatted_size;
     ULONG status;
     ULONG available_entries;
-    ULONG character_count;
     ULONG index;
-    USHORT property_length;
-    USHORT user_data_length;
-    USHORT consumed = 0U;
+    ULONG numeric_value = 0U;
+    ULONG matched_bits = 0U;
+    ULONG matched_count = 0U;
+    ULONG string_length;
+    ULONG input_offset;
+    ULONG output_offset;
+    ULONG flags;
+    ULONG map_value_length;
+    int is_value_map;
+    int is_bitmap;
+    int matched = 0;
     const wchar_t *map_name;
+    const wchar_t *map_string;
     EVENT_MAP_INFO *map_info;
     BYTE *map_buffer = NULL;
-    wchar_t *formatted = NULL;
+
+    (void)pointer_size;
 
     if (event_record == NULL ||
         metadata_buffer == NULL ||
         property == NULL ||
         value == NULL ||
         value_size == 0U ||
-        value_size > USHRT_MAX ||
         metadata_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray)) {
         return 0;
     }
@@ -306,7 +559,8 @@ int comtrace_etl_print_mapped_property_value(
     if (status != ERROR_SUCCESS ||
         map_size < offsetof(EVENT_MAP_INFO, MapEntryArray) ||
         map_size > allocated_map_size) {
-        goto cleanup;
+        free(map_buffer);
+        return 0;
     }
 
     map_info = (EVENT_MAP_INFO *)map_buffer;
@@ -314,112 +568,147 @@ int comtrace_etl_print_mapped_property_value(
         (ULONG)offsetof(EVENT_MAP_INFO, MapEntryArray)) /
         (ULONG)sizeof(EVENT_MAP_ENTRY);
     if (map_info->EntryCount > available_entries) {
-        goto cleanup;
+        free(map_buffer);
+        return 0;
     }
 
-    property_length = property->length;
-    if (property_length == 0U || property_length > value_size) {
-        property_length = (USHORT)value_size;
-    }
-    user_data_length = (USHORT)value_size;
-
-    status = TdhFormatProperty(
-        (PTRACE_EVENT_INFO)metadata_buffer,
-        map_info,
-        pointer_size,
-        in_type,
-        out_type,
-        property_length,
-        user_data_length,
-        (PBYTE)value,
-        &formatted_size,
-        NULL,
-        &consumed
-    );
-    if (status != ERROR_INSUFFICIENT_BUFFER ||
-        formatted_size < sizeof(wchar_t) ||
-        formatted_size > 65536U) {
-        goto cleanup;
+    flags = (ULONG)map_info->Flag;
+    if ((flags & EVENTMAP_INFO_FLAG_MANIFEST_PATTERNMAP) != 0U) {
+        wprintf(L"map_type=pattern_map message_only=true ");
+        free(map_buffer);
+        return 0;
     }
 
-    allocated_formatted_size = formatted_size;
-    formatted = (wchar_t *)malloc(formatted_size);
-    if (formatted == NULL) {
-        goto cleanup;
+    is_bitmap =
+        (flags & EVENTMAP_INFO_FLAG_MANIFEST_BITMAP) != 0U ||
+        (flags & EVENTMAP_INFO_FLAG_WBEM_BITMAP) != 0U ||
+        ((flags & EVENTMAP_INFO_FLAG_WBEM_VALUEMAP) != 0U &&
+         (flags & EVENTMAP_INFO_FLAG_WBEM_FLAG) != 0U);
+    is_value_map =
+        (flags & EVENTMAP_INFO_FLAG_MANIFEST_VALUEMAP) != 0U ||
+        ((flags & EVENTMAP_INFO_FLAG_WBEM_VALUEMAP) != 0U &&
+         (flags & EVENTMAP_INFO_FLAG_WBEM_FLAG) == 0U);
+
+    if (!is_value_map && !is_bitmap) {
+        free(map_buffer);
+        return 0;
     }
 
-    status = TdhFormatProperty(
-        (PTRACE_EVENT_INFO)metadata_buffer,
-        map_info,
-        pointer_size,
-        in_type,
-        out_type,
-        property_length,
-        user_data_length,
-        (PBYTE)value,
-        &formatted_size,
-        formatted,
-        &consumed
-    );
-    if (status != ERROR_SUCCESS ||
-        formatted_size > allocated_formatted_size) {
-        goto cleanup;
-    }
-
-    character_count = formatted_size / (ULONG)sizeof(wchar_t);
-    for (index = 0U; index < character_count; ++index) {
-        if (formatted[index] == L'\0') {
-            break;
-        }
-    }
-    while (index != 0U && formatted[index - 1U] == L' ') {
-        --index;
-    }
-
-    wprintf(L"value=\"");
-    for (character_count = 0U; character_count < index; ++character_count) {
-        wchar_t character = formatted[character_count];
-        switch (character) {
-        case L'\\':
-            wprintf(L"\\\\");
-            break;
-        case L'"':
-            wprintf(L"\\\"");
-            break;
-        case L'\n':
-            wprintf(L"\\n");
-            break;
-        case L'\r':
-            wprintf(L"\\r");
-            break;
-        case L'\t':
-            wprintf(L"\\t");
-            break;
-        default:
-            if ((unsigned int)character < 0x20U ||
-                (unsigned int)character == 0x7FU) {
-                wprintf(L"\\u%04x", (unsigned int)character);
-            } else {
-                wprintf(L"%lc", character);
+    if (is_value_map &&
+        map_info->MapEntryValueType == EVENTMAP_ENTRY_VALUETYPE_STRING) {
+        for (index = 0U; index < map_info->EntryCount; ++index) {
+            input_offset = map_info->MapEntryArray[index].InputOffset;
+            output_offset = map_info->MapEntryArray[index].OutputOffset;
+            map_string = get_map_string(map_info, map_size, input_offset, &map_value_length);
+            if (map_string == NULL) {
+                continue;
             }
+            if (!map_string_matches(
+                    in_type,
+                    out_type,
+                    value,
+                    value_size,
+                    map_string,
+                    map_value_length)) {
+                continue;
+            }
+            map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+            if (map_string == NULL) {
+                continue;
+            }
+            wprintf(L"value=\"");
+            print_escaped_map_string(map_string, string_length);
+            matched = 1;
             break;
         }
-    }
-    wprintf(L"\" raw=hex:");
-    for (index = 0U; index < value_size; ++index) {
-        wprintf(L"%02x", (unsigned int)value[index]);
-    }
-    wprintf(L"\n");
-    free(formatted);
-    free(map_buffer);
-    return 1;
+    } else if (get_map_numeric_value(in_type, value, value_size, &numeric_value)) {
+        if (is_value_map) {
+            if ((flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) != 0U) {
+                if (numeric_value < map_info->EntryCount) {
+                    output_offset = map_info->MapEntryArray[numeric_value].OutputOffset;
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                    if (map_string != NULL) {
+                        wprintf(L"value=\"");
+                        print_escaped_map_string(map_string, string_length);
+                        matched = 1;
+                    }
+                }
+            } else {
+                for (index = 0U; index < map_info->EntryCount; ++index) {
+                    if (map_info->MapEntryArray[index].Value != numeric_value) {
+                        continue;
+                    }
+                    output_offset = map_info->MapEntryArray[index].OutputOffset;
+                    map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                    if (map_string == NULL) {
+                        continue;
+                    }
+                    wprintf(L"value=\"");
+                    print_escaped_map_string(map_string, string_length);
+                    matched = 1;
+                    break;
+                }
+            }
+        } else if (is_bitmap) {
+            wprintf(L"value=\"");
+            for (index = 0U; index < map_info->EntryCount; ++index) {
+                ULONG mask;
+                if ((flags & EVENTMAP_INFO_FLAG_WBEM_NO_MAP) != 0U) {
+                    if (index >= 32U) {
+                        break;
+                    }
+                    mask = 1UL << index;
+                } else {
+                    mask = map_info->MapEntryArray[index].Value;
+                }
 
-cleanup:
-    free(formatted);
+                if ((numeric_value & mask) != mask ||
+                    (mask == 0U && numeric_value != 0U)) {
+                    continue;
+                }
+
+                output_offset = map_info->MapEntryArray[index].OutputOffset;
+                map_string = get_map_string(map_info, map_size, output_offset, &string_length);
+                if (map_string == NULL) {
+                    continue;
+                }
+
+                if (matched_count != 0U) {
+                    wprintf(L" | ");
+                }
+                print_escaped_map_string(map_string, string_length);
+                matched_bits |= mask;
+                ++matched_count;
+            }
+
+            if (matched_bits != numeric_value) {
+                if (matched_count != 0U) {
+                    wprintf(L" | ");
+                }
+                wprintf(L"0x%lx", (unsigned long)(numeric_value & ~matched_bits));
+            }
+            matched = 1;
+        }
+    }
+
+    if (matched) {
+        wprintf(L"\" raw=hex:");
+        for (index = 0U; index < value_size; ++index) {
+            wprintf(L"%02x", (unsigned int)value[index]);
+        }
+        wprintf(L"\n");
+    } else if (is_value_map && get_map_numeric_value(in_type, value, value_size, &numeric_value)) {
+        wprintf(L"value=\"0x%lx\" raw=hex:", (unsigned long)numeric_value);
+        for (index = 0U; index < value_size; ++index) {
+            wprintf(L"%02x", (unsigned int)value[index]);
+        }
+        wprintf(L"\"\n");
+        matched = 1;
+    }
+
     free(map_buffer);
-    return 0;
+    return matched;
 }
-
 
 void comtrace_etl_print_custom_schema_metadata(
     const BYTE *metadata_buffer,
