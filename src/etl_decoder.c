@@ -15,7 +15,7 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
     COMTRACE_ETL_PROPERTY_VALUE *value
 )
 {
-    PROPERTY_DATA_DESCRIPTOR descriptors[9];
+    PROPERTY_DATA_DESCRIPTOR descriptors[COMTRACE_ETL_MAX_PROPERTY_DEPTH + 1U];
     ULONG descriptor_count;
     ULONG index;
     ULONG status;
@@ -28,7 +28,7 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
         property == NULL ||
         name == NULL ||
         value == NULL ||
-        parent_count > 8U ||
+        parent_count > COMTRACE_ETL_MAX_PROPERTY_DEPTH ||
         (parent_count != 0U &&
             (parent_names == NULL || parent_indices == NULL))) {
         return COMTRACE_ETL_PROPERTY_READ_INVALID_ARGUMENT;
@@ -68,6 +68,10 @@ COMTRACE_ETL_PROPERTY_READ_STATUS comtrace_etl_read_property_value(
 
     if (value->size == 0U) {
         return COMTRACE_ETL_PROPERTY_READ_ZERO_SIZE;
+    }
+    if (value->size > COMTRACE_ETL_MAX_PROPERTY_BYTES) {
+        value->tdh_status = ERROR_FILE_TOO_LARGE;
+        return COMTRACE_ETL_PROPERTY_READ_SIZE_LIMIT;
     }
 
     value->data = (BYTE *)malloc(value->size);
@@ -214,7 +218,7 @@ int comtrace_etl_read_property_count(
     }
 
     CopyMemory(&count_value, value, value_size);
-    if (count_value > 4096ULL) {
+    if (count_value > (ULONGLONG)COMTRACE_ETL_MAX_ARRAY_ELEMENTS) {
         return 0;
     }
 
