@@ -384,3 +384,48 @@ COMTRACE_PROCESS_LIFECYCLE_STATUS comtrace_process_lifecycle_catalog_add(
         return COMTRACE_PROCESS_LIFECYCLE_INVALID_ARGUMENT;
     }
 }
+
+
+BOOL comtrace_process_lifecycle_resolve_generation(
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *catalog,
+    DWORD process_id,
+    LONGLONG timestamp,
+    ULONGLONG *generation
+)
+{
+    ULONGLONG match_generation = 0ULL;
+    size_t index;
+    size_t match_count = 0U;
+
+    if (catalog == NULL || generation == NULL) {
+        return FALSE;
+    }
+
+    for (index = 0U; index < catalog->count; ++index) {
+        const COMTRACE_PROCESS_LIFETIME *lifetime =
+            &catalog->items[index];
+
+        if (lifetime->process_id != process_id ||
+            !lifetime->has_first_seen_timestamp ||
+            lifetime->first_seen_timestamp > timestamp ||
+            (lifetime->has_end_timestamp &&
+             lifetime->end_timestamp < timestamp) ||
+            (lifetime->has_trace_end_timestamp &&
+             lifetime->trace_end_timestamp < timestamp)) {
+            continue;
+        }
+
+        match_generation = lifetime->generation;
+        ++match_count;
+        if (match_count > 1U) {
+            return FALSE;
+        }
+    }
+
+    if (match_count != 1U) {
+        return FALSE;
+    }
+
+    *generation = match_generation;
+    return TRUE;
+}
