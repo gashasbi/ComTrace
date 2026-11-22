@@ -7,6 +7,7 @@
 
 #include <evntrace.h>
 #include <evntcons.h>
+#include <tdh.h>
 
 #include "archive_reader.h"
 #include "com_event.h"
@@ -26,6 +27,7 @@ static void trace_summary_init(COMTRACE_TRACE_SUMMARY *summary)
     comtrace_timeline_init(&summary->com_timeline);
     comtrace_ole_timeline_init(&summary->ole_timeline);
     comtrace_process_lifecycle_catalog_init(&summary->process_lifecycle);
+    comtrace_lifetime_analysis_init(&summary->lifetime_analysis);
 }
 
 static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
@@ -35,12 +37,232 @@ static void trace_summary_destroy(COMTRACE_TRACE_SUMMARY *summary)
     }
 
     free(summary->operation_timings);
+    comtrace_lifetime_analysis_destroy(&summary->lifetime_analysis);
     comtrace_process_lifecycle_catalog_destroy(&summary->process_lifecycle);
     comtrace_ole_timeline_destroy(&summary->ole_timeline);
     comtrace_timeline_destroy(&summary->com_timeline);
     comtrace_relationship_graph_destroy(&summary->relationship_graph);
     comtrace_event_catalog_destroy(&summary->event_catalog);
     ZeroMemory(summary, sizeof(*summary));
+}
+
+static int get_trace_event_name(
+    const EVENT_RECORD *event_record,
+    wchar_t *name,
+    size_t name_capacity
+)
+{
+    ULONG required_size = 0U;
+    ULONG status;
+    TRACE_EVENT_INFO *event_info = NULL;
+    const wchar_t *event_name;
+    size_t offset;
+    size_t available_chars;
+    size_t length = 0U;
+
+    if (event_record == NULL || name == NULL || name_capacity < 2U) {
+        return 0;
+    }
+
+    name[0] = L'\\0';
+    status = TdhGetEventInformation(event_record, 0U, NULL, NULL, &required_size);
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        required_size < sizeof(TRACE_EVENT_INFO)) {
+        return 0;
+    }
+
+    event_info = (TRACE_EVENT_INFO *)malloc(required_size);
+    if (event_info == NULL) {
+        return 0;
+    }
+
+    status = TdhGetEventInformation(
+        event_record, 0U, NULL, event_info, &required_size
+    );
+    if (status != ERROR_SUCCESS ||
+        event_info->EventNameOffset == 0U ||
+        event_info->EventNameOffset >= required_size) {
+        free(event_info);
+        return 0;
+    }
+
+    offset = (size_t)event_info->EventNameOffset;
+    if ((required_size - offset) < sizeof(wchar_t)) {
+        free(event_info);
+        return 0;
+    }
+
+    event_name = (const wchar_t *)((const BYTE *)event_info + offset);
+    available_chars = (required_size - offset) / sizeof(wchar_t);
+    while (length < available_chars && event_name[length] != L'\\0') {
+        ++length;
+    }
+
+    if (length == 0U || length >= name_capacity || length == available_chars) {
+        free(event_info);
+        return 0;
+    }
+
+    wmemcpy(name, event_name, length);
+    name[length] = L'\\0';
+    free(event_info);
+    return 1;
+}
+
+static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
+    COMTRACE_TRACE_SUMMARY *summary,
+    const EVENT_RECORD *event_record
+)
+{
+    wchar_t trace_event_name[128];
+    const wchar_t *event_name = NULL;
+    COMTRACE_LIFETIME_EVENT lifetime_event;
+    COMTRACE_LIFETIME_STATUS lifetime_status;
+    GUID empty_ipid = {0};
+
+    if (!get_trace_event_name(
+            event_record,
+            trace_event_name,
+            sizeof(trace_event_name) / sizeof(trace_event_name[0])) ||
+        !comtrace_classify_com_lifetime_event(
+            &event_record->EventHeader.ProviderId,
+            trace_event_name,
+            &event_name)) {
+        return COMTRACE_TRACE_COMPARE_SUCCESS;
+    }
+
+    ZeroMemory(&lifetime_event, sizeof(lifetime_event));
+
+    if (wcscmp(event_name, L"ComObjectCreated") == 0) {
+        lifetime_event.type = COMTRACE_LIFETIME_EVENT_CREATED;
+    } else if (wcscmp(event_name, L"ComAddRef") == 0) {
+        lifetime_event.type = COMTRACE_LIFETIME_EVENT_ADD_REF;
+    } else if (wcscmp(event_name, L"ComRelease") == 0) {
+        lifetime_event.type = COMTRACE_LIFETIME_EVENT_RELEASE;
+    } else if (wcscmp(event_name, L"ComObjectDestroyed") == 0) {
+        lifetime_event.type = COMTRACE_LIFETIME_EVENT_DESTROYED;
+    } else if (wcscmp(event_name, L"ComObjectNativeIdentityBound") == 0) {
+        lifetime_event.type = COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND;
+    } else {
+        return COMTRACE_TRACE_COMPARE_SUCCESS;
+    }
+
+    lifetime_event.process_id = event_record->EventHeader.ProcessId;
+    lifetime_event.thread_id = event_record->EventHeader.ThreadId;
+    lifetime_event.timestamp =
+        (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    if (lifetime_event.process_id != 0U &&
+        comtrace_process_lifecycle_resolve_generation(
+            &summary->process_lifecycle,
+            lifetime_event.process_id,
+            event_record->EventHeader.TimeStamp.QuadPart,
+            &lifetime_event.process_generation)) {
+        lifetime_event.has_process_generation = TRUE;
+    }
+
+    if (comtrace_extract_uint64_property(
+            event_record,
+            L"ObjectInstanceId",
+            &lifetime_event.object_instance_id
+        ) != COMTRACE_IDENTITY_SUCCESS ||
+        lifetime_event.object_instance_id == 0ULL) {
+        return COMTRACE_TRACE_COMPARE_SUCCESS;
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceId",
+            &lifetime_event.interface_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        lifetime_event.has_interface_id = TRUE;
+    }
+
+    if (lifetime_event.type == COMTRACE_LIFETIME_EVENT_CREATED &&
+        comtrace_extract_guid_property(
+            event_record,
+            L"ClassId",
+            &lifetime_event.class_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        lifetime_event.has_class_id = TRUE;
+    }
+
+    if (lifetime_event.type == COMTRACE_LIFETIME_EVENT_CREATED &&
+        comtrace_extract_uint32_property(
+            event_record,
+            L"InitialReferenceCount",
+            &lifetime_event.initial_reference_count
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        lifetime_event.has_initial_reference_count = TRUE;
+    }
+
+    if ((lifetime_event.type == COMTRACE_LIFETIME_EVENT_ADD_REF ||
+         lifetime_event.type == COMTRACE_LIFETIME_EVENT_RELEASE) &&
+        comtrace_extract_uint32_property(
+            event_record,
+            L"ReferenceCountResult",
+            &lifetime_event.reference_count_result
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        lifetime_event.has_reference_count_result = TRUE;
+    }
+
+    if (lifetime_event.type == COMTRACE_LIFETIME_EVENT_NATIVE_IDENTITY_BOUND) {
+        if (comtrace_extract_uint64_property(
+                event_record,
+                L"NativeObjectId",
+                &lifetime_event.native_object_id
+            ) != COMTRACE_IDENTITY_SUCCESS ||
+            lifetime_event.native_object_id == 0ULL ||
+            !lifetime_event.has_interface_id) {
+            return COMTRACE_TRACE_COMPARE_SUCCESS;
+        }
+        lifetime_event.has_native_object_id = TRUE;
+
+        if (comtrace_extract_guid_property(
+                event_record,
+                L"Ipid",
+                &lifetime_event.native_ipid
+            ) == COMTRACE_IDENTITY_SUCCESS &&
+            memcmp(&lifetime_event.native_ipid, &empty_ipid, sizeof(GUID)) != 0) {
+            lifetime_event.has_native_ipid = TRUE;
+        }
+    }
+
+    lifetime_status = comtrace_lifetime_analysis_add_event(
+        &summary->lifetime_analysis,
+        &lifetime_event,
+        NULL
+    );
+
+    if (lifetime_status == COMTRACE_LIFETIME_ALLOCATION_FAILED) {
+        return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+    }
+
+    return COMTRACE_TRACE_COMPARE_SUCCESS;
+}
+
+static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_graph_records(
+    COMTRACE_TRACE_SUMMARY *summary
+)
+{
+    size_t index;
+
+    for (index = 0U;
+         index < comtrace_lifetime_analysis_count(&summary->lifetime_analysis);
+         ++index) {
+        const COMTRACE_LIFETIME_RECORD *record =
+            comtrace_lifetime_analysis_get(&summary->lifetime_analysis, index);
+
+        if (record != NULL &&
+            comtrace_relationship_graph_add_lifetime_record(
+                &summary->relationship_graph,
+                record
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            return COMTRACE_TRACE_COMPARE_ALLOCATION_FAILED;
+        }
+    }
+
+    return COMTRACE_TRACE_COMPARE_SUCCESS;
 }
 
 static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
@@ -65,6 +287,15 @@ static COMTRACE_TRACE_COMPARE_STATUS add_summary_event(
 
     if (summary->total_events == ULLONG_MAX) {
         return COMTRACE_TRACE_COMPARE_COUNT_OVERFLOW;
+    }
+
+    {
+        COMTRACE_TRACE_COMPARE_STATUS lifetime_status =
+            add_lifetime_summary_event(summary, event_record);
+
+        if (lifetime_status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+            return lifetime_status;
+        }
     }
 
     catalog_status = comtrace_event_catalog_add(
@@ -822,6 +1053,18 @@ COMTRACE_TRACE_COMPARE_STATUS comtrace_trace_compare(
     }
 
     status = load_trace(right_path, &comparison->right);
+    if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+        comtrace_trace_comparison_destroy(comparison);
+        return status;
+    }
+
+    status = add_lifetime_graph_records(&comparison->left);
+    if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
+        comtrace_trace_comparison_destroy(comparison);
+        return status;
+    }
+
+    status = add_lifetime_graph_records(&comparison->right);
     if (status != COMTRACE_TRACE_COMPARE_SUCCESS) {
         comtrace_trace_comparison_destroy(comparison);
         return status;

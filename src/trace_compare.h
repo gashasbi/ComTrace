@@ -7,6 +7,7 @@
 #include "ole_timeline.h"
 #include "object_identity_compare.h"
 #include "process_lifecycle.h"
+#include "com_lifetime_analysis.h"
 
 typedef enum {
     COMTRACE_TRACE_COMPARE_SUCCESS = 0,
@@ -51,6 +52,7 @@ typedef struct {
     COMTRACE_TIMELINE com_timeline;
     COMTRACE_OLE_TIMELINE ole_timeline;
     COMTRACE_PROCESS_LIFECYCLE_CATALOG process_lifecycle;
+    COMTRACE_COM_LIFETIME_ANALYSIS lifetime_analysis;
     ULONGLONG process_lifecycle_failures;
     COMTRACE_OPERATION_TIMING *operation_timings;
     size_t operation_timing_count;
