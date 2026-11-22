@@ -79,93 +79,6 @@ static void print_guid(const GUID *guid)
     );
 }
 
-static int normalize_property_payload(
-    USHORT *in_type,
-    BYTE **value,
-    ULONG *value_size,
-    ULONG pointer_size
-)
-{
-    size_t payload_offset;
-    size_t payload_size;
-    int reverse_order = 0;
-    size_t prefix_size = 0U;
-
-    if (in_type == NULL || value == NULL || *value == NULL ||
-        value_size == NULL) {
-        return 0;
-    }
-
-    switch (*in_type) {
-    case TDH_INTYPE_MANIFEST_COUNTEDSTRING:
-    case TDH_INTYPE_COUNTEDSTRING:
-        prefix_size = 2U;
-        *in_type = TDH_INTYPE_UNICODESTRING;
-        break;
-    case TDH_INTYPE_REVERSEDCOUNTEDSTRING:
-        prefix_size = 2U;
-        reverse_order = 1;
-        *in_type = TDH_INTYPE_UNICODESTRING;
-        break;
-    case TDH_INTYPE_NONNULLTERMINATEDSTRING:
-        *in_type = TDH_INTYPE_UNICODESTRING;
-        break;
-    case TDH_INTYPE_MANIFEST_COUNTEDANSISTRING:
-    case TDH_INTYPE_COUNTEDANSISTRING:
-        prefix_size = 2U;
-        *in_type = TDH_INTYPE_ANSISTRING;
-        break;
-    case TDH_INTYPE_REVERSEDCOUNTEDANSISTRING:
-        prefix_size = 2U;
-        reverse_order = 1;
-        *in_type = TDH_INTYPE_ANSISTRING;
-        break;
-    case TDH_INTYPE_NONNULLTERMINATEDANSISTRING:
-        *in_type = TDH_INTYPE_ANSISTRING;
-        break;
-    case TDH_INTYPE_MANIFEST_COUNTEDBINARY:
-        prefix_size = 2U;
-        *in_type = TDH_INTYPE_BINARY;
-        break;
-    case TDH_INTYPE_HEXDUMP:
-        prefix_size = 4U;
-        *in_type = TDH_INTYPE_BINARY;
-        break;
-    case TDH_INTYPE_WBEMSID:
-        if (!comtrace_decode_wbem_sid_payload(
-                (size_t)*value_size,
-                (size_t)pointer_size,
-                &payload_offset,
-                &payload_size)) {
-            return 0;
-        }
-        *value += payload_offset;
-        *value_size = (ULONG)payload_size;
-        *in_type = TDH_INTYPE_SID;
-        return 1;
-    default:
-        return 1;
-    }
-
-    if (prefix_size == 0U) {
-        return 1;
-    }
-
-    if (!comtrace_decode_length_prefixed_payload(
-            *value,
-            (size_t)*value_size,
-            prefix_size,
-            reverse_order,
-            &payload_offset,
-            &payload_size)) {
-        return 0;
-    }
-
-    *value += payload_offset;
-    *value_size = (ULONG)payload_size;
-    return 1;
-}
-
 static void print_binary_value(const BYTE *value, ULONG value_size)
 {
     ULONG offset;
@@ -652,7 +565,7 @@ static void print_event_property_value_element(
     value_size = decoded_value.size;
 
     if ((flags & PropertyHasCustomSchema) == 0U &&
-        !normalize_property_payload(
+        !comtrace_etl_normalize_property_payload(
             &in_type,
             &value,
             &value_size,
@@ -4214,7 +4127,7 @@ static int event_property_value_matches(
         return matched;
     }
 
-    if (normalize_property_payload(
+    if (comtrace_etl_normalize_property_payload(
             &in_type,
             &value,
             &value_size,
