@@ -1027,6 +1027,8 @@ static int test_multiple_lifetime_interfaces_and_native_link(void)
     COMTRACE_LIFETIME_INTERFACE_ID interfaces[2];
     COMTRACE_LIFETIME_NATIVE_IDENTITY native_identity;
     COMTRACE_LIFETIME_ACTIVITY_ID activity;
+    COMTRACE_COM_OBJECT_IDENTITY event_identity;
+    COMTRACE_ACTIVITY_IDS event_activity_ids;
     size_t index;
     int found_native_object = 0;
 
@@ -1035,6 +1037,8 @@ static int test_multiple_lifetime_interfaces_and_native_link(void)
     ZeroMemory(interfaces, sizeof(interfaces));
     ZeroMemory(&native_identity, sizeof(native_identity));
     ZeroMemory(&activity, sizeof(activity));
+    ZeroMemory(&event_identity, sizeof(event_identity));
+    ZeroMemory(&event_activity_ids, sizeof(event_activity_ids));
 
     interfaces[0].interface_id = class_id;
     interfaces[1].interface_id = interface_id;
@@ -1057,6 +1061,17 @@ static int test_multiple_lifetime_interfaces_and_native_link(void)
     record.activity_ids = &activity;
     record.activity_id_count = 1U;
 
+    event_identity.process_id = 401U;
+    event_identity.thread_id = 402U;
+    event_identity.timestamp = 100LL;
+    event_identity.has_process_id = TRUE;
+    event_identity.has_thread_id = TRUE;
+    event_identity.has_timestamp = TRUE;
+    event_activity_ids.has_activity_id = TRUE;
+    event_activity_ids.activity_id = activity_id;
+    event_activity_ids.has_related_activity_id = TRUE;
+    event_activity_ids.related_activity_id = related_activity_id;
+
     if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
             COMTRACE_GRAPH_SUCCESS ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_IID) != 2U ||
@@ -1067,7 +1082,10 @@ static int test_multiple_lifetime_interfaces_and_native_link(void)
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID) != 1U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_ACTIVITY) != 2U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_ACTIVITY) != 1U ||
-        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO) != 1U) {
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO) != 1U ||
+        comtrace_relationship_graph_add_event(&graph, &event_identity, &event_activity_ids) != COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_ACTIVITY) != 2U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_HAS_ACTIVITY) != 1U) {
         comtrace_relationship_graph_destroy(&graph);
         return 0;
     }
