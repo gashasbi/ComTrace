@@ -25,6 +25,13 @@ typedef struct {
 } COMTRACE_LIFETIME_NATIVE_IDENTITY;
 
 typedef struct {
+    BOOL has_activity_id;
+    GUID activity_id;
+    BOOL has_related_activity_id;
+    GUID related_activity_id;
+} COMTRACE_LIFETIME_ACTIVITY_ID;
+
+typedef struct {
     COMTRACE_LIFETIME_EVENT_TYPE type;
     DWORD process_id;
     DWORD thread_id;
@@ -44,6 +51,10 @@ typedef struct {
     ULONGLONG native_object_id;
     BOOL has_native_ipid;
     GUID native_ipid;
+    BOOL has_activity_id;
+    GUID activity_id;
+    BOOL has_related_activity_id;
+    GUID related_activity_id;
 } COMTRACE_LIFETIME_EVENT;
 
 typedef struct {
@@ -65,6 +76,9 @@ typedef struct {
     COMTRACE_LIFETIME_NATIVE_IDENTITY *native_identities;
     size_t native_identity_count;
     size_t native_identity_capacity;
+    COMTRACE_LIFETIME_ACTIVITY_ID *activity_ids;
+    size_t activity_id_count;
+    size_t activity_id_capacity;
     BOOL has_native_object_id;
     ULONGLONG native_object_id;
     BOOL has_native_ipid;
