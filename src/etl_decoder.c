@@ -297,6 +297,15 @@ int comtrace_etl_read_property_count(
     case TDH_INTYPE_HEXINT64:
         expected_size = 8U;
         break;
+    case TDH_INTYPE_SIZET:
+        if ((event_record->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0U) {
+            expected_size = 4U;
+        } else if ((event_record->EventHeader.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0U) {
+            expected_size = 8U;
+        } else {
+            expected_size = (ULONG)sizeof(void *);
+        }
+        break;
     default:
         return 0;
     }
