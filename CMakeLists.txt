@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21)
 
 cmake_policy(SET CMP0091 NEW)
 
@@ -67,6 +67,20 @@ if(MSVC)
     target_compile_options(ComTraceComLifetimeFixture PRIVATE /W4 /WX /wd5105 /utf-8)
 else()
     target_compile_options(ComTraceComLifetimeFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+add_library(ComTraceComServerFixture SHARED tests/com_server_fixture_dll.c)
+target_include_directories(ComTraceComServerFixture PRIVATE include tests)
+target_link_libraries(ComTraceComServerFixture PRIVATE ComTraceLifetimeInstrumentation Ole32)
+add_executable(ComTraceComServerClient tests/com_server_fixture_client.c)
+target_include_directories(ComTraceComServerClient PRIVATE tests)
+target_link_libraries(ComTraceComServerClient PRIVATE Ole32 Advapi32)
+if(MSVC)
+    target_compile_options(ComTraceComServerFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+    target_compile_options(ComTraceComServerClient PRIVATE /W4 /WX /wd5105 /utf-8)
+else()
+    target_compile_options(ComTraceComServerFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(ComTraceComServerClient PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 add_executable(ComTraceArchive
@@ -138,6 +152,17 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_lifetime_case.cmake"
     )
     set_tests_properties(comtrace_com_lifetime_capture PROPERTIES RUN_SERIAL TRUE)
+
+    add_test(
+        NAME comtrace_com_server_activation
+        COMMAND cmake
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DCLIENT_EXE=$<TARGET_FILE:ComTraceComServerClient>"
+            "-DSERVER_DLL=$<TARGET_FILE:ComTraceComServerFixture>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/com-server-activation-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_server_activation_case.cmake"
+    )
+    set_tests_properties(comtrace_com_server_activation PROPERTIES RUN_SERIAL TRUE)
 
     add_executable(ComTraceTimelineTests
         tests/test_com_timeline.c
