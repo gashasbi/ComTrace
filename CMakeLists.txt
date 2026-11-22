@@ -44,6 +44,30 @@ else()
     target_compile_options(ComTrace PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+add_library(ComTraceLifetimeInstrumentation STATIC
+    src/com_lifetime.c
+)
+target_include_directories(ComTraceLifetimeInstrumentation PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(ComTraceLifetimeInstrumentation PUBLIC Advapi32)
+
+if(MSVC)
+    target_compile_options(ComTraceLifetimeInstrumentation PRIVATE /W4 /WX /wd5105 /utf-8)
+else()
+    target_compile_options(ComTraceLifetimeInstrumentation PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+add_executable(ComTraceComLifetimeFixture tests/com_lifetime_fixture.c)
+target_link_libraries(ComTraceComLifetimeFixture PRIVATE ComTraceLifetimeInstrumentation)
+
+if(MSVC)
+    target_compile_options(ComTraceComLifetimeFixture PRIVATE /W4 /WX /wd5105 /utf-8)
+else()
+    target_compile_options(ComTraceComLifetimeFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 add_executable(ComTraceArchive
     src/archive_main.c
     src/etl_archive.c
@@ -88,6 +112,16 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_com_event COMMAND ComTraceComEventTests)
+
+    add_test(
+        NAME comtrace_com_lifetime_capture
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCOMTRACE_EXE=$<TARGET_FILE:ComTrace>"
+            "-DFIXTURE_EXE=$<TARGET_FILE:ComTraceComLifetimeFixture>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/com-lifetime-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/com_lifetime_case.cmake"
+    )
+    set_tests_properties(comtrace_com_lifetime_capture PROPERTIES RUN_SERIAL TRUE)
 
     add_executable(ComTraceTimelineTests
         tests/test_com_timeline.c
@@ -528,7 +562,11 @@ endif()
 
 install(TARGETS ComTrace ComTraceArchive
     RUNTIME DESTINATION .
- )
+)
+install(TARGETS ComTraceLifetimeInstrumentation
+    ARCHIVE DESTINATION lib
+)
+install(FILES include/comtrace_lifetime.h DESTINATION include)
 install(FILES README.md LICENSE DESTINATION .)
 install(DIRECTORY docs DESTINATION .)
 install(DIRECTORY scripts DESTINATION .)
