@@ -14,6 +14,28 @@ if(NOT fixture_status EQUAL 0)
     message(FATAL_ERROR "Fixture failed with status ${fixture_status}: ${fixture_output} ${fixture_error}")
 endif()
 execute_process(COMMAND "${COMTRACE_EXE}" --inspect "${ETL_FILE}" RESULT_VARIABLE inspect_status OUTPUT_VARIABLE inspect_output ERROR_VARIABLE inspect_error)
+foreach(search_case IN ITEMS "Outer.Code|equals|287454020|1" "Outer.Inner.NestedCode|equals|1432778632|1" "Outer.Inner.NestedStatus|greater-than|39337|1" "Outer.Inner.NestedStatus|equals|1|0" "Outer.Missing|equals|1|0")
+    string(REPLACE "|" ";" search_fields "${search_case}")
+    list(GET search_fields 0 property_name)
+    list(GET search_fields 1 operator)
+    list(GET search_fields 2 expected_value)
+    list(GET search_fields 3 expected_count)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "${property_name}" "--${operator}" "${expected_value}" --max-events 10
+        RESULT_VARIABLE search_status
+        OUTPUT_VARIABLE search_output
+        ERROR_VARIABLE search_error
+    )
+    if(NOT search_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Nested property search failed for ${property_name}: ${search_error}${search_output}")
+    endif()
+    string(FIND "${search_output}" "Events matching filters: ${expected_count}" search_match)
+    if(search_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Nested property search returned an unexpected result for ${property_name}: ${search_output}")
+    endif()
+endforeach()
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
 if(NOT inspect_status EQUAL 0)
     message(FATAL_ERROR "Inspect failed: ${inspect_error}")

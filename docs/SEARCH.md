@@ -9,6 +9,7 @@ one indexed element of a top-level array property.
 ComTrace.exe --search trace.etl --property Text --equals Hello
 ComTrace.exe --search trace.etl --property Text --contains ell
 ComTrace.exe --search trace.etl --property Values[1] --equals 22
+ComTrace.exe --search trace.etl --property Outer.Inner.NestedCode --equals 1432778632
 ComTrace.exe --search trace.etl --property ProcessId --equals 1234 --provider {GUID}
 ```
 
@@ -32,9 +33,11 @@ lifetime ID, and Activity ID filters using AND semantics.
 
 ## Supported scalar values
 
-The property must be a top-level scalar or an indexed element of a top-level
-array that TDH can read from the event. An array property without an index is
-not matched.
+The property can be a top-level scalar, an indexed element of a top-level
+array, or a scalar member reached through dot notation in a non-array struct.
+For example, `Outer.Inner.Code` selects a nested member. Struct arrays and array
+members inside struct parents are not currently supported. An array property
+without an index is not matched.
 Supported values include:
 
 - ANSI and Unicode strings and characters

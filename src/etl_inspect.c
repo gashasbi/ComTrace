@@ -3221,6 +3221,232 @@ static int search_binary_property_matches(
     return 1;
 }
 
+static int get_event_property_name(
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
+    const EVENT_PROPERTY_INFO *property,
+    const wchar_t **name
+)
+{
+    ULONG name_offset;
+    ULONG remaining;
+    ULONG name_length = 0U;
+
+    if (metadata_buffer == NULL || property == NULL || name == NULL) {
+        return 0;
+    }
+
+    name_offset = property->NameOffset;
+    if (name_offset >= metadata_size ||
+        (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        return 0;
+    }
+
+    *name = (const wchar_t *)(metadata_buffer + name_offset);
+    remaining = (metadata_size - name_offset) / (ULONG)sizeof(wchar_t);
+    while (name_length < remaining && (*name)[name_length] != L'\0') {
+        ++name_length;
+    }
+
+    return name_length < remaining;
+}
+
+static int event_property_value_matches(
+    const EVENT_RECORD *event_record,
+    const EVENT_PROPERTY_INFO *property,
+    const wchar_t *name,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
+    const COMTRACE_ETL_FILTERS *filters,
+    ULONG pointer_size
+)
+{
+    COMTRACE_ETL_PROPERTY_VALUE property_value;
+    COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
+    USHORT in_type;
+    BYTE *value;
+    ULONG value_size;
+    wchar_t actual[1024];
+    int matched = 0;
+
+    if (property == NULL ||
+        name == NULL ||
+        filters == NULL ||
+        (property->Flags & (
+            PropertyStruct |
+            PropertyWBEMXmlFragment |
+            PropertyHasCustomSchema
+        )) != 0U) {
+        return 0;
+    }
+
+    if ((property->Flags & (
+            PropertyParamCount |
+            PropertyParamFixedCount
+        )) != 0U) {
+        if (!filters->has_property_index) {
+            return 0;
+        }
+    } else if (filters->has_property_index) {
+        return 0;
+    }
+
+    in_type = property->nonStructType.InType;
+    ZeroMemory(&property_value, sizeof(property_value));
+    read_status = comtrace_etl_read_property_value(
+        event_record,
+        property,
+        name,
+        parent_names,
+        parent_indices,
+        parent_count,
+        filters->has_property_index
+            ? filters->property_index
+            : 0xFFFFFFFFUL,
+        &property_value
+    );
+    if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
+        comtrace_etl_property_value_destroy(&property_value);
+        return 0;
+    }
+
+    value = property_value.data;
+    value_size = property_value.size;
+    if (normalize_property_payload(
+            &in_type,
+            &value,
+            &value_size,
+            pointer_size)) {
+        if (in_type == TDH_INTYPE_BINARY &&
+            filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
+            matched = search_binary_property_matches(
+                value,
+                value_size,
+                filters->property_value
+            );
+        } else if (format_search_property_value(
+                in_type,
+                value,
+                value_size,
+                pointer_size,
+                actual,
+                _countof(actual)
+            )) {
+            matched = search_property_text_matches(in_type, actual, filters);
+        }
+    }
+
+    comtrace_etl_property_value_destroy(&property_value);
+    return matched;
+}
+
+static int event_struct_property_matches(
+    const EVENT_RECORD *event_record,
+    const BYTE *metadata_buffer,
+    ULONG metadata_size,
+    const EVENT_PROPERTY_INFO *properties,
+    ULONG property_count,
+    const EVENT_PROPERTY_INFO *property,
+    const wchar_t *name,
+    const wchar_t *path,
+    const wchar_t *const *parent_names,
+    const ULONG *parent_indices,
+    ULONG parent_count,
+    const COMTRACE_ETL_FILTERS *filters,
+    ULONG pointer_size
+)
+{
+    ULONG member_start;
+    ULONG member_count;
+    ULONG member_index;
+    size_t component_length;
+    const wchar_t *separator;
+    const wchar_t *nested_names[8];
+    ULONG nested_indices[8];
+    ULONG index;
+
+    if (property == NULL || name == NULL || path == NULL ||
+        path[0] == L'\0' ||
+        (property->Flags & PropertyStruct) == 0U ||
+        (property->Flags & (PropertyParamCount | PropertyParamFixedCount)) != 0U ||
+        parent_count >= 8U) {
+        return 0;
+    }
+
+    member_start = property->structType.StructStartIndex;
+    member_count = property->structType.NumOfStructMembers;
+    if (member_start > property_count ||
+        member_count > property_count - member_start) {
+        return 0;
+    }
+
+    for (index = 0U; index < parent_count; ++index) {
+        nested_names[index] = parent_names[index];
+        nested_indices[index] = parent_indices[index];
+    }
+    nested_names[parent_count] = name;
+    nested_indices[parent_count] = 0xFFFFFFFFUL;
+
+    separator = wcschr(path, L'.');
+    component_length = separator == NULL
+        ? wcslen(path)
+        : (size_t)(separator - path);
+
+    for (member_index = member_start;
+         member_index < member_start + member_count;
+         ++member_index) {
+        const EVENT_PROPERTY_INFO *member = &properties[member_index];
+        const wchar_t *member_name;
+        size_t member_name_length;
+
+        if (!get_event_property_name(
+                metadata_buffer,
+                metadata_size,
+                member,
+                &member_name)) {
+            continue;
+        }
+
+        member_name_length = wcslen(member_name);
+        if (member_name_length != component_length ||
+            wmemcmp(member_name, path, component_length) != 0) {
+            continue;
+        }
+
+        if (separator != NULL) {
+            return event_struct_property_matches(
+                event_record,
+                metadata_buffer,
+                metadata_size,
+                properties,
+                property_count,
+                member,
+                member_name,
+                separator + 1,
+                nested_names,
+                nested_indices,
+                parent_count + 1U,
+                filters,
+                pointer_size
+            );
+        }
+
+        return event_property_value_matches(
+            event_record,
+            member,
+            member_name,
+            nested_names,
+            nested_indices,
+            parent_count + 1U,
+            filters,
+            pointer_size
+        );
+    }
+
+    return 0;
+}
+
 static int event_property_matches_filter(
     const EVENT_RECORD *event_record,
     const COMTRACE_ETL_FILTERS *filters,
@@ -3235,6 +3461,10 @@ static int event_property_matches_filter(
     BYTE *buffer = NULL;
     TRACE_EVENT_INFO *event_info;
     size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
+    const wchar_t *const no_parent_names[1] = { NULL };
+    const ULONG no_parent_indices[1] = { 0xFFFFFFFFUL };
+    const wchar_t *separator;
+    size_t root_name_length;
     int matched = 0;
 
     status = TdhGetEventInformation(
@@ -3280,110 +3510,64 @@ static int event_property_matches_filter(
         return 0;
     }
 
+    separator = wcschr(filters->property_name, L'.');
+    root_name_length = separator == NULL
+        ? wcslen(filters->property_name)
+        : (size_t)(separator - filters->property_name);
+
     for (index = 0U; index < event_info->TopLevelPropertyCount; ++index) {
         const EVENT_PROPERTY_INFO *property =
             &event_info->EventPropertyInfoArray[index];
-        ULONG name_offset = property->NameOffset;
-        ULONG remaining;
-        ULONG name_length = 0U;
         const wchar_t *name;
-        USHORT in_type;
-        COMTRACE_ETL_PROPERTY_VALUE property_value;
-        COMTRACE_ETL_PROPERTY_READ_STATUS read_status;
-        BYTE *value;
-        ULONG value_size;
-        wchar_t actual[1024];
 
-        if (name_offset >= buffer_size ||
-            (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        if (!get_event_property_name(
+                buffer,
+                buffer_size,
+                property,
+                &name)) {
             break;
         }
 
-        name = (const wchar_t *)(buffer + name_offset);
-        remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
-        while (name_length < remaining && name[name_length] != L'\0') {
-            ++name_length;
-        }
-        if (name_length == remaining) {
-            break;
-        }
-
-        if (wcscmp(name, filters->property_name) != 0) {
+        if (wcslen(name) != root_name_length ||
+            wmemcmp(name, filters->property_name, root_name_length) != 0) {
             continue;
         }
 
-        if ((property->Flags & (
-                PropertyStruct |
-                PropertyWBEMXmlFragment |
-                PropertyHasCustomSchema
-            )) != 0U) {
-            break;
+        if (separator == NULL) {
+            matched = event_property_value_matches(
+                event_record,
+                property,
+                name,
+                no_parent_names,
+                no_parent_indices,
+                0U,
+                filters,
+                pointer_size
+            );
+        } else if (separator[1] != L'\0') {
+            matched = event_struct_property_matches(
+                event_record,
+                buffer,
+                buffer_size,
+                event_info->EventPropertyInfoArray,
+                event_info->PropertyCount,
+                property,
+                name,
+                separator + 1,
+                no_parent_names,
+                no_parent_indices,
+                0U,
+                filters,
+                pointer_size
+            );
         }
 
-        if ((property->Flags & (
-                PropertyParamCount |
-                PropertyParamFixedCount
-            )) != 0U) {
-            if (!filters->has_property_index) {
-                break;
-            }
-        } else if (filters->has_property_index) {
-            break;
-        }
-
-        in_type = property->nonStructType.InType;
-        ZeroMemory(&property_value, sizeof(property_value));
-        read_status = comtrace_etl_read_property_value(
-            event_record,
-            property,
-            name,
-            NULL,
-            NULL,
-            0U,
-            filters->has_property_index
-                ? filters->property_index
-                : 0xFFFFFFFFUL,
-            &property_value
-        );
-        if (read_status != COMTRACE_ETL_PROPERTY_READ_SUCCESS) {
-            comtrace_etl_property_value_destroy(&property_value);
-            break;
-        }
-
-        value = property_value.data;
-        value_size = property_value.size;
-        if (normalize_property_payload(
-                &in_type,
-                &value,
-                &value_size,
-                pointer_size)) {
-            if (in_type == TDH_INTYPE_BINARY &&
-                filters->property_match_mode == COMTRACE_PROPERTY_MATCH_EQUALS) {
-                matched = search_binary_property_matches(
-                    value,
-                    value_size,
-                    filters->property_value
-                );
-            } else if (format_search_property_value(
-                    in_type,
-                    value,
-                    value_size,
-                    pointer_size,
-                    actual,
-                    _countof(actual)
-                )) {
-                matched = search_property_text_matches(in_type, actual, filters);
-            }
-        }
-
-        comtrace_etl_property_value_destroy(&property_value);
         break;
     }
 
     free(buffer);
     return matched;
 }
-
 static int event_matches_filters(
     const ETL_INSPECT_CONTEXT *context,
     const EVENT_RECORD *event_record
