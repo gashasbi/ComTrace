@@ -76,11 +76,11 @@ static int event_property_metadata_is_valid(
         }
 
         if ((flags & PropertyParamCount) != 0U &&
-            (ULONG)property->countPropertyIndex >= event_info->PropertyCount) {
+            (ULONG)property->countPropertyIndex >= index) {
             return 0;
         }
         if ((flags & PropertyParamLength) != 0U &&
-            (ULONG)property->lengthPropertyIndex >= event_info->PropertyCount) {
+            (ULONG)property->lengthPropertyIndex >= index) {
             return 0;
         }
 
