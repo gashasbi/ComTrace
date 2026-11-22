@@ -847,6 +847,161 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
     free(buffer);
 }
 
+
+static BOOL get_tracelogging_event_name(
+    const EVENT_RECORD *event_record,
+    wchar_t *event_name,
+    size_t event_name_capacity
+)
+{
+    ULONG buffer_size = 0U;
+    ULONG allocated_size;
+    ULONG status;
+    ULONG name_offset;
+    ULONG remaining;
+    ULONG name_length = 0U;
+    BYTE *buffer;
+    TRACE_EVENT_INFO *event_info;
+    const wchar_t *name;
+
+    if (event_record == NULL ||
+        event_name == NULL ||
+        event_name_capacity < 2U) {
+        return FALSE;
+    }
+
+    event_name[0] = L'\0';
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        NULL,
+        &buffer_size
+    );
+
+    if (status != ERROR_INSUFFICIENT_BUFFER ||
+        buffer_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) ||
+        buffer_size > 65536U) {
+        return FALSE;
+    }
+
+    allocated_size = buffer_size;
+    buffer = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_size);
+    if (buffer == NULL) {
+        return FALSE;
+    }
+
+    status = TdhGetEventInformation(
+        (PEVENT_RECORD)event_record,
+        0U,
+        NULL,
+        (PTRACE_EVENT_INFO)buffer,
+        &buffer_size
+    );
+
+    if (status != ERROR_SUCCESS ||
+        buffer_size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) ||
+        buffer_size > allocated_size) {
+        (void)HeapFree(GetProcessHeap(), 0U, buffer);
+        return FALSE;
+    }
+
+    event_info = (TRACE_EVENT_INFO *)buffer;
+    name_offset = event_info->EventNameOffset;
+
+    if (event_info->DecodingSource != DecodingSourceTlg ||
+        name_offset == 0U ||
+        name_offset >= buffer_size ||
+        (name_offset % (ULONG)sizeof(wchar_t)) != 0U) {
+        (void)HeapFree(GetProcessHeap(), 0U, buffer);
+        return FALSE;
+    }
+
+    name = (const wchar_t *)(buffer + name_offset);
+    remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
+
+    while (name_length < remaining && name[name_length] != L'\0') {
+        ++name_length;
+    }
+
+    if (name_length == 0U ||
+        name_length == remaining ||
+        (size_t)name_length >= event_name_capacity ||
+        wcsncpy_s(event_name, event_name_capacity, name, name_length) != 0) {
+        (void)HeapFree(GetProcessHeap(), 0U, buffer);
+        return FALSE;
+    }
+
+    (void)HeapFree(GetProcessHeap(), 0U, buffer);
+    return TRUE;
+}
+
+static void print_com_lifetime_event_classification(
+    const EVENT_RECORD *event_record
+)
+{
+    wchar_t trace_event_name[128];
+    const wchar_t *event_name = NULL;
+    ULONGLONG object_instance_id = 0ULL;
+    ULONG reference_count = 0U;
+    GUID value;
+
+    if (event_record == NULL ||
+        !get_tracelogging_event_name(
+            event_record,
+            trace_event_name,
+            _countof(trace_event_name)
+        ) ||
+        !comtrace_classify_com_lifetime_event(
+            &event_record->EventHeader.ProviderId,
+            trace_event_name,
+            &event_name
+        )) {
+        return;
+    }
+
+    wprintf(L"  com_lifetime_event=%ls\n", event_name);
+
+    if (comtrace_extract_uint64_property(
+            event_record,
+            L"ObjectInstanceId",
+            &object_instance_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_object_instance_id=%llu\n",
+            (unsigned long long)object_instance_id);
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"ClassId",
+            &value
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_clsid=");
+        print_guid(&value);
+        wprintf(L"\n");
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InterfaceId",
+            &value
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_iid=");
+        print_guid(&value);
+        wprintf(L"\n");
+    }
+
+    if (comtrace_extract_uint32_property(
+            event_record,
+            L"ReferenceCountResult",
+            &reference_count
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        wprintf(L"  com_lifetime_reference_count_result=%lu\n",
+            (unsigned long)reference_count);
+    }
+}
+
 static void print_ole_event_classification(const EVENT_RECORD *event_record)
 {
     const wchar_t *operation = NULL;
@@ -2155,6 +2310,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     print_com_runtime_event_classification(owned_event);
     print_rpc_event_classification(owned_event);
     print_rpcss_event_classification(owned_event);
+    print_com_lifetime_event_classification(owned_event);
     print_ole_event_classification(owned_event);
     print_event_properties(owned_event, context->pointer_size);
 
