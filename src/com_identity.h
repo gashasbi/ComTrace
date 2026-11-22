@@ -70,6 +70,8 @@ typedef struct {
     ULONG target_thread_id;
     ULONG source_process_id;
     ULONG source_thread_id;
+    LONGLONG timestamp;
+    BOOL has_timestamp;
     BOOL has_clsid;
     BOOL has_iid;
     BOOL has_ipid;
