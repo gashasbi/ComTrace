@@ -400,9 +400,7 @@ int comtrace_etl_read_property_count(
         return 0;
     }
 
-    in_type = (count_property->Flags & PropertyHasCustomSchema) != 0U
-        ? count_property->customSchemaType.InType
-        : count_property->nonStructType.InType;
+    in_type = count_property->nonStructType.InType;
     switch (in_type) {
     case TDH_INTYPE_INT8:
     case TDH_INTYPE_UINT8:
