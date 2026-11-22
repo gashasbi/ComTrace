@@ -2004,6 +2004,28 @@ static void print_com_lifetime_summary(
             wprintf(L" iid=");
             print_guid(&record->interface_id);
         }
+        if (record->activity_id_count != 0U) {
+            size_t activity_position;
+            size_t activity_display_count = record->activity_id_count > 2U
+                ? 2U
+                : record->activity_id_count;
+            wprintf(L" activity_bindings=%llu",
+                (unsigned long long)record->activity_id_count);
+            for (activity_position = 0U;
+                 activity_position < activity_display_count;
+                 ++activity_position) {
+                const COMTRACE_LIFETIME_ACTIVITY_ID *activity =
+                    &record->activity_ids[activity_position];
+                if (activity->has_activity_id) {
+                    wprintf(L" activity_id=");
+                    print_guid(&activity->activity_id);
+                }
+                if (activity->has_related_activity_id) {
+                    wprintf(L" related_activity_id=");
+                    print_guid(&activity->related_activity_id);
+                }
+            }
+        }
         if (record->has_native_object_id) {
             wprintf(L" native_oid=0x%llx",
                 (unsigned long long)record->native_object_id);
