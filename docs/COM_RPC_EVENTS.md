@@ -51,6 +51,12 @@ These RPC records describe RPC calls and interface/procedure metadata. An RPC in
 
 The RPC manifest also defines Debug and FunctionTrace records with internal pointers and object-like fields. ComTrace does not interpret those pointers as OID, IPID, or COM object identities.
 
+## RPC call timelines
+
+Inspect builds separate timelines for the classified `RpcClientCall`, `RpcServerCall`, and `FunctionTrace` start/stop records. A pair is matched by ActivityId when both records expose the same ActivityId. When both records lack ActivityId, the weaker process/thread/operation match is used and labeled separately. A one-sided or conflicting ActivityId, a different interface UUID, or a different procedure number prevents a match. Client and server records remain separate timelines; ComTrace does not invent a cross-process client/server pairing.
+
+The timeline retains the interface UUID and procedure number when the start record exposes them, and reports raw ETW start/stop ticks, duration ticks, incomplete starts, unmatched stops, and records missing ActivityId. FunctionTraceStart16 is retained as a start observation; the current classifier has no matching stop event for that record, so it may remain incomplete. These timelines describe RPC activity and do not establish COM object lifetime or DCOM object identity.
+
 ## Microsoft-Windows-RPCSS
 
 The Win10 17134 manifest defines two endpoint-mapper registration records:
