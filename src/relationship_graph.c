@@ -223,59 +223,6 @@ static COMTRACE_GRAPH_STATUS add_edge(
     return COMTRACE_GRAPH_SUCCESS;
 }
 
-static COMTRACE_GRAPH_STATUS add_process(
-    COMTRACE_RELATIONSHIP_GRAPH *graph,
-    DWORD process_id,
-    size_t *index
-)
-{
-    return add_node(
-        graph,
-        COMTRACE_GRAPH_NODE_PROCESS,
-        process_id,
-        0U,
-        NULL,
-        0ULL,
-        index
-    );
-}
-
-static COMTRACE_GRAPH_STATUS add_thread(
-    COMTRACE_RELATIONSHIP_GRAPH *graph,
-    DWORD process_id,
-    DWORD thread_id,
-    size_t *index
-)
-{
-    size_t process_index;
-    COMTRACE_GRAPH_STATUS status;
-
-    status = add_process(graph, process_id, &process_index);
-    if (status != COMTRACE_GRAPH_SUCCESS) {
-        return status;
-    }
-
-    status = add_node(
-        graph,
-        COMTRACE_GRAPH_NODE_THREAD,
-        process_id,
-        thread_id,
-        NULL,
-        0ULL,
-        index
-    );
-    if (status != COMTRACE_GRAPH_SUCCESS) {
-        return status;
-    }
-
-    return add_edge(
-        graph,
-        COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
-        process_index,
-        *index
-    );
-}
-
 static COMTRACE_GRAPH_STATUS add_process_with_generation(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     DWORD process_id,
