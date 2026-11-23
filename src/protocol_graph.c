@@ -721,6 +721,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_link_ole_data_objects(
         for (activity_index = 0U; activity_index < graph->node_count; ++activity_index) {
             const COMTRACE_GRAPH_NODE *activity = &graph->nodes[activity_index];
             size_t edge_index;
+            size_t object_index;
 
             if (activity->type != COMTRACE_GRAPH_NODE_ACTIVITY ||
                 !activity->has_guid ||
@@ -729,7 +730,6 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_link_ole_data_objects(
             }
             for (edge_index = 0U; edge_index < graph->edge_count; ++edge_index) {
                 const COMTRACE_GRAPH_EDGE *edge = &graph->edges[edge_index];
-                size_t object_index;
 
                 if (edge->type == COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY &&
                     edge->target_index == activity_index) {
