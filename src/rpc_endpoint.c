@@ -188,7 +188,6 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_add(
             if (record->is_active && record_matches(record, event)) {
                 increment_count(&record->observation_count);
                 increment_count(&catalog->duplicate_registrations);
-                record->register_timestamp = event->timestamp;
                 return COMTRACE_RPC_ENDPOINT_SUCCESS;
             }
         }
