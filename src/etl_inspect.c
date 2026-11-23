@@ -2935,6 +2935,8 @@ static void print_rpc_timeline_summary(
     ULONGLONG ambiguous_endpoints = 0ULL;
     ULONGLONG linked_com_operations = 0ULL;
     ULONGLONG ambiguous_com_operations = 0ULL;
+    ULONGLONG network_rpc_com_links = 0ULL;
+    ULONGLONG local_rpc_com_links = 0ULL;
 
     if (context == NULL) {
         return;
@@ -2981,6 +2983,11 @@ static void print_rpc_timeline_summary(
         }
         if (record->has_com_operation) {
             ++linked_com_operations;
+            if (record->location == COMTRACE_RPC_LOCATION_NETWORK) {
+                ++network_rpc_com_links;
+            } else if (record->location == COMTRACE_RPC_LOCATION_LOCAL) {
+                ++local_rpc_com_links;
+            }
         }
         if (record->com_operation_match_ambiguous) {
             ++ambiguous_com_operations;
@@ -3007,6 +3014,10 @@ static void print_rpc_timeline_summary(
     wprintf(L"  Ambiguous RPCSS endpoint links: %llu\n", (unsigned long long)ambiguous_endpoints);
     wprintf(L"  Linked COM operations: %llu\n", (unsigned long long)linked_com_operations);
     wprintf(L"  Ambiguous COM operation links: %llu\n", (unsigned long long)ambiguous_com_operations);
+    wprintf(L"  Network RPC-to-COM links (DCOM candidates): %llu\n",
+        (unsigned long long)network_rpc_com_links);
+    wprintf(L"  Local RPC-to-COM links: %llu\n",
+        (unsigned long long)local_rpc_com_links);
     wprintf(L"  Ambiguous RPC stop matches: %llu\n",
         (unsigned long long)context->rpc_timeline.ambiguous_stops);
 
