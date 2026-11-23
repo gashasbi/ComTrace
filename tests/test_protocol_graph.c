@@ -286,6 +286,73 @@ static int test_ole_data_object_link(void)
     return 1;
 }
 
+static int test_ole_data_object_link_rejects_ambiguity(void)
+{
+    static const GUID data_object_iid = {
+        0x0000010E, 0x0000, 0x0000,
+        {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+    };
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_OLE_TIMELINE timeline;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    ZeroMemory(&timeline, sizeof(timeline));
+    identity.process_id = 500U;
+    identity.thread_id = 501U;
+    identity.oid = 0x1234ULL;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.has_oid = TRUE;
+    identity.iid = data_object_iid;
+    identity.has_iid = TRUE;
+    identity.call_trace_id = 99ULL;
+    identity.has_call_trace_id = TRUE;
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id.Data1 = 80U;
+
+    timeline.records = (COMTRACE_OLE_TIMELINE_RECORD *)calloc(
+        1U, sizeof(*timeline.records));
+    if (timeline.records == NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    timeline.record_count = 1U;
+    timeline.records[0].process_id = 510U;
+    timeline.records[0].thread_id = 511U;
+    timeline.records[0].has_start = TRUE;
+    timeline.records[0].has_activity_id = TRUE;
+    timeline.records[0].activity_id = activity_ids.activity_id;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+        COMTRACE_GRAPH_SUCCESS) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    identity.oid = 0x5678ULL;
+    identity.call_trace_id = 100ULL;
+    if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_ole_timeline(&graph, &timeline, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_link_ole_data_objects(&graph) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_COM_OBJECT) != 2U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_USES_DATA_OBJECT) != 0U) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    free(timeline.records);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_rpc_com_call_link(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -534,6 +601,10 @@ int main(void)
     }
     if (!test_ole_data_object_link()) {
         fwprintf(stderr, L"OLE DataObject graph link test failed.\n");
+        return 1;
+    }
+    if (!test_ole_data_object_link_rejects_ambiguity()) {
+        fwprintf(stderr, L"Ambiguous OLE DataObject graph test failed.\\n");
         return 1;
     }
     if (!test_rpc_com_call_link()) {
