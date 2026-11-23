@@ -79,7 +79,7 @@ static int copy_operation(
 {
     size_t length;
 
-    if (source == NULL || source[0] == L'\\0') {
+    if (source == NULL || source[0] == L'\0') {
         return 0;
     }
 
@@ -100,7 +100,7 @@ static int copy_optional_string(
 {
     size_t length;
 
-    if (source == NULL || source[0] == L'\\0') {
+    if (source == NULL || source[0] == L'\0') {
         return 1;
     }
 
@@ -167,18 +167,18 @@ static void copy_event_metadata(
         record->procedure_number = event->procedure_number;
         record->has_procedure_number = TRUE;
     }
-    if (record->protocol[0] == L'\\0' &&
+    if (record->protocol[0] == L'\0' &&
         copy_optional_string(record->protocol, _countof(record->protocol), event->protocol)) {
         record->location = get_location(record->protocol);
     }
-    if (record->network_address[0] == L'\\0') {
+    if (record->network_address[0] == L'\0') {
         (void)copy_optional_string(
             record->network_address,
             _countof(record->network_address),
             event->network_address
         );
     }
-    if (record->endpoint[0] == L'\\0') {
+    if (record->endpoint[0] == L'\0') {
         (void)copy_optional_string(
             record->endpoint,
             _countof(record->endpoint),
@@ -254,7 +254,7 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
     if (timeline == NULL ||
         event == NULL ||
         event->operation == NULL ||
-        event->operation[0] == L'\\0' ||
+        event->operation[0] == L'\0' ||
         (event->phase != COMTRACE_RPC_TIMELINE_PHASE_START &&
          event->phase != COMTRACE_RPC_TIMELINE_PHASE_STOP)) {
         return COMTRACE_RPC_TIMELINE_INVALID_ARGUMENT;
