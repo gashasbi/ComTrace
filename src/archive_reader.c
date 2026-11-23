@@ -695,10 +695,9 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     cursor = (size_t)ARCHIVE_EVENT_METADATA_SIZE;
     if ((size_t)extended_count >
         ((size_t)payload_size - cursor) / 8U) {
-        free(payload);
+        comtrace_archive_event_destroy(event);
 
         if (reader->recovery_mode) {
-            ZeroMemory(event, sizeof(*event));
             return finish_recovery(
                 reader,
                 COMTRACE_ARCHIVE_RECOVERY_STOP_RECORD_INVALID,
