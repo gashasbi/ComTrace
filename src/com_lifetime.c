@@ -2,6 +2,7 @@
 #include <evntrace.h>
 #include <winmeta.h>
 #include <TraceLoggingProvider.h>
+#include <objbase.h>
 #include "comtrace_lifetime.h"
 
 #define COMTRACE_LIFETIME_KEYWORD 0x1ULL
@@ -13,9 +14,36 @@ TRACELOGGING_DEFINE_PROVIDER(
 );
 
 static volatile LONG64 g_next_object_instance_id = 0;
+static INIT_ONCE g_instrumentation_id_once = INIT_ONCE_STATIC_INIT;
+static GUID g_instrumentation_id;
+
+static BOOL CALLBACK initialize_instrumentation_id(
+    PINIT_ONCE once,
+    PVOID parameter,
+    PVOID *context
+)
+{
+    (void)once;
+    (void)parameter;
+    (void)context;
+    return SUCCEEDED(CoCreateGuid(&g_instrumentation_id));
+}
+
+static int get_instrumentation_id(void)
+{
+    return InitOnceExecuteOnce(
+        &g_instrumentation_id_once,
+        initialize_instrumentation_id,
+        NULL,
+        NULL
+    ) != FALSE;
+}
 
 ULONG comtrace_lifetime_initialize(void)
 {
+    if (!get_instrumentation_id()) {
+        return (ULONG)E_FAIL;
+    }
     return TraceLoggingRegister(g_comtrace_lifetime_provider);
 }
 
@@ -32,7 +60,7 @@ ULONGLONG comtrace_lifetime_object_created(
 {
     LONGLONG next_id;
 
-    if (class_id == NULL || interface_id == NULL) {
+    if (class_id == NULL || interface_id == NULL || !get_instrumentation_id()) {
         return 0ULL;
     }
 
@@ -46,6 +74,7 @@ ULONGLONG comtrace_lifetime_object_created(
         "ComObjectCreated",
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
         TraceLoggingUInt64((ULONGLONG)next_id, "ObjectInstanceId"),
         TraceLoggingGuid(*class_id, "ClassId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
@@ -61,7 +90,7 @@ void comtrace_lifetime_add_ref(
     ULONG reference_count_result
 )
 {
-    if (object_instance_id == 0ULL || interface_id == NULL) {
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
         return;
     }
 
@@ -70,6 +99,7 @@ void comtrace_lifetime_add_ref(
         "ComAddRef",
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
         TraceLoggingUInt32(reference_count_result, "ReferenceCountResult")
@@ -91,6 +121,7 @@ void comtrace_lifetime_release(
         "ComRelease",
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
         TraceLoggingUInt32(reference_count_result, "ReferenceCountResult")
@@ -108,7 +139,8 @@ void comtrace_lifetime_bind_native_identity(
 
     if (object_instance_id == 0ULL ||
         native_object_id == 0ULL ||
-        interface_id == NULL) {
+        interface_id == NULL ||
+        !get_instrumentation_id()) {
         return;
     }
 
@@ -121,6 +153,7 @@ void comtrace_lifetime_bind_native_identity(
         "ComObjectNativeIdentityBound",
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingUInt64(native_object_id, "NativeObjectId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
@@ -142,6 +175,7 @@ void comtrace_lifetime_object_destroyed(
         "ComObjectDestroyed",
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
+        TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId")
     );
