@@ -182,6 +182,59 @@ static int test_ole_data_object_link(void)
     return 1;
 }
 
+static int test_rpc_com_call_link(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_RPC_TIMELINE timeline;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    ZeroMemory(&timeline, sizeof(timeline));
+    identity.process_id = 600U;
+    identity.thread_id = 601U;
+    identity.oid = 0x2222ULL;
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.has_oid = TRUE;
+    identity.iid.Data1 = 0x12345678U;
+    identity.has_iid = TRUE;
+    identity.call_trace_id = 101ULL;
+    identity.has_call_trace_id = TRUE;
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id.Data1 = 90U;
+    timeline.records = (COMTRACE_RPC_TIMELINE_RECORD *)calloc(1U, sizeof(*timeline.records));
+    if (timeline.records == NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    timeline.record_count = 1U;
+    timeline.records[0].process_id = 600U;
+    timeline.records[0].thread_id = 601U;
+    timeline.records[0].has_start = TRUE;
+    timeline.records[0].has_activity_id = TRUE;
+    timeline.records[0].activity_id = activity_ids.activity_id;
+    timeline.records[0].has_interface_uuid = TRUE;
+    timeline.records[0].interface_uuid = identity.iid;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_rpc_timeline(&graph, &timeline, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_link_rpc_com_calls(&graph) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_COM_CALL) != 1U) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    free(timeline.records);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_rpc_pair()) {
@@ -198,6 +251,10 @@ int main(void)
     }
     if (!test_ole_data_object_link()) {
         fwprintf(stderr, L"OLE DataObject graph link test failed.\n");
+        return 1;
+    }
+    if (!test_rpc_com_call_link()) {
+        fwprintf(stderr, L"RPC to COM graph link test failed.\n");
         return 1;
     }
     wprintf(L"RPC, DDE and OLE relationship graph tests passed.\n");

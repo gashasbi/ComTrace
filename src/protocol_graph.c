@@ -717,3 +717,110 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_link_ole_data_objects(
     }
     return COMTRACE_GRAPH_SUCCESS;
 }
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_link_rpc_com_calls(
+    COMTRACE_RELATIONSHIP_GRAPH *graph
+)
+{
+    size_t rpc_index;
+
+    if (graph == NULL) {
+        return COMTRACE_GRAPH_INVALID_ARGUMENT;
+    }
+    for (rpc_index = 0U; rpc_index < graph->node_count; ++rpc_index) {
+        const COMTRACE_GRAPH_NODE *rpc = &graph->nodes[rpc_index];
+        size_t activity_index = (size_t)-1;
+        size_t interface_index = (size_t)-1;
+        size_t edge_index;
+        size_t match_index = (size_t)-1;
+        size_t match_count = 0U;
+
+        if (rpc->type != COMTRACE_GRAPH_NODE_RPC_CALL) {
+            continue;
+        }
+        for (edge_index = 0U; edge_index < graph->edge_count; ++edge_index) {
+            const COMTRACE_GRAPH_EDGE *edge = &graph->edges[edge_index];
+            if (edge->source_index != rpc_index) {
+                continue;
+            }
+            if (edge->type == COMTRACE_GRAPH_EDGE_RPC_CALL_HAS_ACTIVITY) {
+                activity_index = edge->target_index;
+            } else if (edge->type == COMTRACE_GRAPH_EDGE_RPC_CALL_USES_INTERFACE) {
+                interface_index = edge->target_index;
+            }
+        }
+        if (activity_index == (size_t)-1 || interface_index == (size_t)-1) {
+            continue;
+        }
+        for (edge_index = 0U; edge_index < graph->edge_count; ++edge_index) {
+            const COMTRACE_GRAPH_EDGE *activity_edge = &graph->edges[edge_index];
+            size_t object_edge_index;
+
+            if (activity_edge->type != COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY ||
+                activity_edge->target_index != activity_index) {
+                continue;
+            }
+            for (object_edge_index = 0U;
+                 object_edge_index < graph->edge_count;
+                 ++object_edge_index) {
+                const COMTRACE_GRAPH_EDGE *object_edge = &graph->edges[object_edge_index];
+                size_t iid_edge_index;
+                int interface_matches = 0;
+
+                if (object_edge->type != COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT ||
+                    object_edge->source_index != activity_edge->source_index) {
+                    continue;
+                }
+                for (iid_edge_index = 0U;
+                     iid_edge_index < graph->edge_count;
+                     ++iid_edge_index) {
+                    const COMTRACE_GRAPH_EDGE *iid_edge = &graph->edges[iid_edge_index];
+                    size_t iid_index;
+                    if (iid_edge->source_index != object_edge->target_index) {
+                        continue;
+                    }
+                    if (iid_edge->type == COMTRACE_GRAPH_EDGE_OBJECT_EXPOSES_IID) {
+                        iid_index = iid_edge->target_index;
+                        if (graph->nodes[iid_index].type == COMTRACE_GRAPH_NODE_IID &&
+                            memcmp(&graph->nodes[iid_index].guid,
+                                   &graph->nodes[interface_index].guid,
+                                   sizeof(GUID)) == 0) {
+                            interface_matches = 1;
+                        }
+                    } else if (iid_edge->type == COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID) {
+                        size_t supports_index;
+                        for (supports_index = 0U;
+                             supports_index < graph->edge_count;
+                             ++supports_index) {
+                            const COMTRACE_GRAPH_EDGE *supports = &graph->edges[supports_index];
+                            if (supports->type != COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID ||
+                                supports->source_index != iid_edge->target_index) {
+                                continue;
+                            }
+                            iid_index = supports->target_index;
+                            if (graph->nodes[iid_index].type == COMTRACE_GRAPH_NODE_IID &&
+                                memcmp(&graph->nodes[iid_index].guid,
+                                       &graph->nodes[interface_index].guid,
+                                       sizeof(GUID)) == 0) {
+                                interface_matches = 1;
+                            }
+                        }
+                    }
+                }
+                if (interface_matches) {
+                    match_index = activity_edge->source_index;
+                    ++match_count;
+                }
+            }
+        }
+        if (match_count == 1U) {
+            COMTRACE_GRAPH_STATUS status = add_protocol_edge(graph,
+                COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_COM_CALL,
+                rpc_index, match_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+    return COMTRACE_GRAPH_SUCCESS;
+}
