@@ -5391,7 +5391,7 @@ static int event_property_matches_filter(
                 buffer_size,
                 property,
                 &name)) {
-            break;
+            continue;
         }
 
         if (wcslen(name) != root_name_length ||
