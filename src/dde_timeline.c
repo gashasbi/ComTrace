@@ -104,6 +104,30 @@ static int same_transaction(
         record->transaction_instance_id == event->transaction_instance_id;
 }
 
+static int transaction_metadata_mismatch(
+    const COMTRACE_DDE_TIMELINE_RECORD *record,
+    const COMTRACE_DDE_TIMELINE_EVENT *event
+)
+{
+    if ((record->conversation_correlation_id != 0ULL &&
+         event->conversation_correlation_id != 0ULL &&
+         record->conversation_correlation_id != event->conversation_correlation_id) ||
+        (record->transaction_correlation_id != 0ULL &&
+         event->transaction_correlation_id != 0ULL &&
+         record->transaction_correlation_id != event->transaction_correlation_id) ||
+        (record->dde_transaction_id != 0U && event->dde_transaction_id != 0U &&
+         record->dde_transaction_id != event->dde_transaction_id) ||
+        (record->transaction_type != 0U && event->transaction_type != 0U &&
+         record->transaction_type != event->transaction_type) ||
+        (record->format != 0U && event->format != 0U &&
+         record->format != event->format) ||
+        (record->item[0] != L'\0' && event->item != NULL &&
+         event->item[0] != L'\0' && _wcsicmp(record->item, event->item) != 0)) {
+        return 1;
+    }
+    return 0;
+}
+
 static void copy_transaction_fields(
     COMTRACE_DDE_TIMELINE_RECORD *record,
     const COMTRACE_DDE_TIMELINE_EVENT *event
@@ -125,7 +149,7 @@ static void copy_transaction_fields(
         record->format = event->format;
     }
     if (record->item[0] == L'\0' && event->item != NULL) {
-        (void)copy_text(record->item, (sizeof(record->item) / sizeof(record->item[0])), event->item);
+        (void)copy_text(record->item, _countof(record->item), event->item);
     }
 }
 
@@ -209,35 +233,68 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
     }
 
     if (event->type == COMTRACE_DDE_TIMELINE_CONVERSATION_CLOSED) {
+        size_t match_index = (size_t)-1;
+        size_t match_count = 0U;
+
         for (index = 0U; index < timeline->record_count; ++index) {
             record = &timeline->records[index];
             if (same_conversation(record, event) && record->has_opened &&
                 !record->has_closed) {
-                record->has_closed = TRUE;
-                record->closed_timestamp = event->timestamp;
-                record->close_result = event->result;
-                return COMTRACE_DDE_TIMELINE_SUCCESS;
+                match_index = index;
+                ++match_count;
             }
+        }
+
+        if (match_count == 1U) {
+            record = &timeline->records[match_index];
+            record->has_closed = TRUE;
+            record->closed_timestamp = event->timestamp;
+            record->close_result = event->result;
+            return COMTRACE_DDE_TIMELINE_SUCCESS;
+        }
+        if (match_count == 0U) {
+            increment_count(&timeline->unmatched_closes);
+        } else {
+            increment_count(&timeline->ambiguous_correlations);
         }
     }
 
     if (event->type == COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED) {
+        size_t match_index = (size_t)-1;
+        size_t match_count = 0U;
+
         for (index = 0U; index < timeline->record_count; ++index) {
             record = &timeline->records[index];
             if (record->has_start && !record->has_completion &&
                 same_transaction(record, event)) {
-                record->has_completion = TRUE;
-                record->completion_timestamp = event->timestamp;
-                record->result = event->result;
-                record->data_size = event->data_size;
-                record->succeeded = event->succeeded;
-                copy_transaction_fields(record, event);
-                if (event->timestamp >= record->start_timestamp) {
-                    record->duration_ticks = event->timestamp - record->start_timestamp;
-                    record->has_duration = TRUE;
-                }
-                return COMTRACE_DDE_TIMELINE_SUCCESS;
+                match_index = index;
+                ++match_count;
             }
+        }
+
+        if (match_count == 1U) {
+            record = &timeline->records[match_index];
+            record->has_completion = TRUE;
+            record->completion_timestamp = event->timestamp;
+            record->result = event->result;
+            record->data_size = event->data_size;
+            record->succeeded = event->succeeded;
+            if (transaction_metadata_mismatch(record, event)) {
+                record->metadata_mismatch = TRUE;
+                increment_count(&timeline->metadata_mismatches);
+            }
+            copy_transaction_fields(record, event);
+            if (event->timestamp >= record->start_timestamp) {
+                record->duration_ticks = event->timestamp - record->start_timestamp;
+                record->has_duration = TRUE;
+            } else {
+                record->invalid_duration_order = TRUE;
+                increment_count(&timeline->invalid_duration_orders);
+            }
+            return COMTRACE_DDE_TIMELINE_SUCCESS;
+        }
+        if (match_count > 1U) {
+            increment_count(&timeline->ambiguous_correlations);
         }
     }
 
