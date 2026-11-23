@@ -108,7 +108,15 @@ int main(int argc, char **argv)
             require_large_file = 1;
         } else {
             char *end = NULL;
+            const char *digit;
             unsigned long long parsed;
+
+            for (digit = argv[1]; *digit != '\0'; ++digit) {
+                if (*digit < '0' || *digit > '9') {
+                    fputs("Invalid stress event count.\n", stderr);
+                    return EXIT_FAILURE;
+                }
+            }
 
             errno = 0;
             parsed = strtoull(argv[1], &end, 10);
