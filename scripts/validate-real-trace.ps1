@@ -299,6 +299,46 @@ if ($rpcssActiveRegistrations -gt $rpcssEndpointRecords -or
     throw "RPCSS endpoint registration counters are inconsistent. Review $inspectPath"
 }
 
+$protocolNodeMatch = [regex]::Match(
+    $inspectOutput,
+    "Protocol nodes:\s*rpc_calls=(\d+)\s+rpc_interfaces=(\d+)\s+dde_conversations=(\d+)\s+dde_transactions=(\d+)"
+)
+$oleNodeMatch = [regex]::Match($inspectOutput, "OLE operation nodes:\s*(\d+)")
+$protocolEdgeMatch = [regex]::Match(
+    $inspectOutput,
+    "Protocol edges:\s*rpc_pairs=(\d+)\s+dde_exchanges=(\d+)\s+dde_conversation_links=(\d+)"
+)
+$crossLayerLinkMatch = [regex]::Match(
+    $inspectOutput,
+    "Cross-layer links:\s*rpc_com_calls=(\d+)\s+ole_data_objects=(\d+)"
+)
+if (-not $protocolNodeMatch.Success -or
+    -not $oleNodeMatch.Success -or
+    -not $protocolEdgeMatch.Success -or
+    -not $crossLayerLinkMatch.Success) {
+    throw "The relationship graph summary did not contain all RPC, DDE, OLE, and cross-layer counters. Review $inspectPath"
+}
+
+$rpcGraphCalls = [UInt64]::Parse($protocolNodeMatch.Groups[1].Value)
+$rpcGraphInterfaces = [UInt64]::Parse($protocolNodeMatch.Groups[2].Value)
+$ddeGraphConversations = [UInt64]::Parse($protocolNodeMatch.Groups[3].Value)
+$ddeGraphTransactions = [UInt64]::Parse($protocolNodeMatch.Groups[4].Value)
+$oleGraphOperations = [UInt64]::Parse($oleNodeMatch.Groups[1].Value)
+$rpcGraphPairs = [UInt64]::Parse($protocolEdgeMatch.Groups[1].Value)
+$ddeGraphExchanges = [UInt64]::Parse($protocolEdgeMatch.Groups[2].Value)
+$ddeGraphConversationLinks = [UInt64]::Parse($protocolEdgeMatch.Groups[3].Value)
+$rpcComGraphLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[1].Value)
+$oleDataObjectLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[2].Value)
+
+if ($rpcGraphCalls -gt $rpcTimelineRecords -or
+    $rpcGraphPairs -gt [Math]::Floor($rpcGraphCalls / 2) -or
+    $ddeGraphExchanges -gt [Math]::Floor($ddeGraphTransactions / 2) -or
+    $ddeGraphConversationLinks -gt [Math]::Floor($ddeGraphConversations / 2) -or
+    $rpcComGraphLinks -gt $rpcGraphCalls -or
+    $oleDataObjectLinks -gt $oleGraphOperations) {
+    throw "Relationship graph edge counts exceed their source node counts. Review $inspectPath"
+}
+
 $processProviderGuid = "{3D6FA8D0-FE05-11D0-9DDA-00C04FD7BA7C}"
 $processStartPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*1\s*\|"
 $processEndPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*2\s*\|"
@@ -654,6 +694,16 @@ $summary = [ordered]@{
     rpc_linked_com_operations = $rpcLinkedComOperations
     rpc_ambiguous_com_operation_links = $rpcAmbiguousComLinks
     rpc_ambiguous_stop_matches = $rpcAmbiguousStops
+    rpc_graph_calls = $rpcGraphCalls
+    rpc_graph_interfaces = $rpcGraphInterfaces
+    rpc_graph_pairs = $rpcGraphPairs
+    rpc_com_graph_links = $rpcComGraphLinks
+    dde_graph_conversations = $ddeGraphConversations
+    dde_graph_transactions = $ddeGraphTransactions
+    dde_graph_exchanges = $ddeGraphExchanges
+    dde_graph_conversation_links = $ddeGraphConversationLinks
+    ole_graph_operations = $oleGraphOperations
+    ole_data_object_links = $oleDataObjectLinks
     rpcss_endpoint_records = $rpcssEndpointRecords
     rpcss_registrations = $rpcssRegistrations
     rpcss_unregistrations = $rpcssUnregistrations
@@ -719,6 +769,7 @@ Write-Host "RPC client/server correlations: $rpcClientServerCorrelations ambiguo
 Write-Host "RPC evidence links: RPCSS endpoints=$rpcLinkedEndpoints COM operations=$rpcLinkedComOperations"
 Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations ambiguous_stops=$rpcAmbiguousStops"
 Write-Host "RPCSS endpoint catalog: records=$rpcssEndpointRecords active=$rpcssActiveRegistrations unmatched_unregistrations=$rpcssUnmatchedUnregistrations"
+Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rpc_com_links=$rpcComGraphLinks dde_exchanges=$ddeGraphExchanges ole_data_objects=$oleDataObjectLinks"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
