@@ -2473,6 +2473,16 @@ static void add_rpcss_endpoint_event(
     if (identity_status != COMTRACE_IDENTITY_SUCCESS) {
         return;
     }
+    {
+        GUID empty_interface_uuid = {0};
+        if (memcmp(
+                &endpoint_event.interface_uuid,
+                &empty_interface_uuid,
+                sizeof(GUID)
+            ) == 0) {
+            return;
+        }
+    }
 
     if (comtrace_extract_guid_property(
             event_record,
