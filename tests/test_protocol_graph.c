@@ -526,7 +526,7 @@ int main(void)
         return 1;
     }
     if (!test_ole_related_activity()) {
-        fwprintf(stderr, L"OLE related activity graph test failed.\\n");
+        fwprintf(stderr, L"OLE related activity graph test failed.\n");
         return 1;
     }
     if (!test_ole_data_object_link()) {
