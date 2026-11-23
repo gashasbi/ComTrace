@@ -28,13 +28,13 @@ The API records conversation open and close events, transaction start and comple
 
 Conversation close events are paired within the same process using ConversationId. Transaction completion events are paired within the same process using ConversationId, role, and TransactionInstanceId.
 
-Cross-process exchanges are correlated only when the client and server records have opposite roles and matching nonzero transaction correlation IDs. When supplied, conversation correlation IDs must also agree. Transaction type, format, and item name are checked as consistency fields; item-name matching is case-insensitive. Ambiguous matches are reported and are not guessed.
+Cross-process exchanges are correlated only when the client and server records have opposite roles and matching nonzero transaction correlation IDs. When supplied, conversation correlation IDs must also agree. Transaction type, format, and item name are checked when both sides provide them; item-name matching is case-insensitive. Missing optional metadata does not defeat an otherwise explicit correlation, but conflicting metadata does. Ambiguous matches are reported and are not guessed. Reversed completion timestamps are retained and reported as invalid durations. Unmatched closes, completions, and metadata mismatches are counted separately.
 
 ## Example
 
 The ComTraceDdeInstrumentationFixture target emits a representative client conversation, server conversation, client transaction, server callback, completion, and close sequence. Its ETL is inspected by the comtrace_dde_instrumentation integration test.
 
-The fixture validates the provider and timeline pipeline. It is not a substitute for instrumenting a real application's DDEML call sites.
+The fixture validates the provider and timeline pipeline, including a client transaction correlated with a server callback even when optional callback metadata is absent. The relationship graph represents callback observations as separate nodes and connects them to the originating transaction only through the explicit correlation result. It is not a substitute for instrumenting a real application's DDEML call sites.
 
 ## Limitations
 
