@@ -93,6 +93,8 @@ static int test_dde_exchange(void)
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION_CORRELATION) != 1U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_DDE_CALLBACK_HAS_CORRELATION) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_CALLBACK) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_RECEIVES_DDE_CALLBACK) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH) != 1U) {
         free(timeline.records);
         free(timeline.exchanges);
