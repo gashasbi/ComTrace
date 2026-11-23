@@ -210,6 +210,41 @@ static int test_ambiguous_and_unmatched_events(void)
     return 1;
 }
 
+static int test_ambiguous_completion_count_is_preserved(void)
+{
+    COMTRACE_DDE_TIMELINE timeline;
+    COMTRACE_DDE_TIMELINE_EVENT event;
+
+    comtrace_dde_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.conversation_id = 30ULL;
+    event.transaction_instance_id = 40ULL;
+    event.transaction_correlation_id = 50ULL;
+    event.role = COMTRACE_DDE_ROLE_CLIENT;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) != COMTRACE_DDE_TIMELINE_SUCCESS ||
+        comtrace_dde_timeline_add_event(&timeline, &event) != COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED;
+    event.timestamp = 100ULL;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) != COMTRACE_DDE_TIMELINE_SUCCESS ||
+        timeline.ambiguous_completions != 1ULL ||
+        timeline.unmatched_completions != 1ULL ||
+        comtrace_dde_timeline_correlate(&timeline) != COMTRACE_DDE_TIMELINE_SUCCESS ||
+        timeline.ambiguous_completions != 1ULL) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_dde_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_partial_conversation_correlation_is_rejected(void)
 {
     COMTRACE_DDE_TIMELINE timeline;
@@ -403,6 +438,7 @@ int main(void)
     if (!test_conversation_and_transaction_lifecycle() ||
         !test_explicit_cross_process_exchange() ||
         !test_ambiguous_and_unmatched_events() ||
+        !test_ambiguous_completion_count_is_preserved() ||
         !test_partial_conversation_correlation_is_rejected() ||
         !test_invalid_duration_and_metadata_mismatch() ||
         !test_unmatched_conversation_close() ||
