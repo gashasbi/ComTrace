@@ -195,6 +195,83 @@ assert_identity_property_search(ClassId "{00112233-4455-6677-8899-AABBCCDDEEFF}"
 assert_identity_property_search(TargetInterface "{10213243-5465-7687-98A9-BACBDCEDFE0F}" 1 "Interface GUID property")
 assert_identity_property_search(OID "1234605616436508552" 1 "64-bit integer property")
 
+function(assert_property_operator_search name operator value expected_count label)
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --property "${name}" "${operator}" "${value}" --max-events 10
+        RESULT_VARIABLE property_status
+        OUTPUT_VARIABLE property_output
+        ERROR_VARIABLE property_error
+    )
+    if(NOT property_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search failed: ${property_error}${property_output}")
+    endif()
+    string(FIND "${property_output}" "Events matching filters: ${expected_count}" property_match)
+    if(property_match EQUAL -1)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "${label} property search returned an unexpected count: ${property_output}")
+    endif()
+endfunction()
+
+assert_property_operator_search(DisplayName --contains Trace 1 "String contains")
+assert_property_operator_search(OID --greater-than 1234605616436508551 1 "Numeric greater-than")
+assert_property_operator_search(OID --greater-or-equal 1234605616436508552 1 "Numeric greater-or-equal")
+assert_property_operator_search(OID --less-than 1234605616436508553 1 "Numeric less-than")
+assert_property_operator_search(OID --less-or-equal 1234605616436508552 1 "Numeric less-or-equal")
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --clsid "{00112233-4455-6677-8899-AABBCCDDEEFF}" --iid "{10213243-5465-7687-98A9-BACBDCEDFE0F}" --oid "0x1122334455667788" --activity-id "{20314253-6475-8697-A8B9-CADBECFD0E1F}" --property DisplayName --contains "ComTrace" --max-events 1
+    RESULT_VARIABLE combined_search_status
+    OUTPUT_VARIABLE combined_search_output
+    ERROR_VARIABLE combined_search_error
+)
+if(NOT combined_search_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Combined identity and property search failed: ${combined_search_error}${combined_search_output}")
+endif()
+string(FIND "${combined_search_output}" "Events matching filters: 1" combined_search_count)
+string(FIND "${combined_search_output}" "Event samples printed: 1" combined_search_samples)
+if(combined_search_count EQUAL -1 OR combined_search_samples EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Combined search or sample limit behaved incorrectly: ${combined_search_output}")
+endif()
+
+execute_process(
+    COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --oid "0x1122334455667788" --max-events 1
+    RESULT_VARIABLE limited_search_status
+    OUTPUT_VARIABLE limited_search_output
+    ERROR_VARIABLE limited_search_error
+)
+if(NOT limited_search_status EQUAL 0)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Limited search failed: ${limited_search_error}${limited_search_output}")
+endif()
+string(FIND "${limited_search_output}" "Events matching filters: 2" limited_search_count)
+string(FIND "${limited_search_output}" "Event samples printed: 1" limited_search_samples)
+if(limited_search_count EQUAL -1 OR limited_search_samples EQUAL -1)
+    execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+    message(FATAL_ERROR "Sample limit incorrectly changed the total match count: ${limited_search_output}")
+endif()
+
+foreach(invalid_arguments
+    "--property DisplayName"
+    "--property DisplayName --equals Trace --contains ace"
+    "--equals Trace"
+    "--property Values[1][2] --equals 1"
+)
+    separate_arguments(invalid_argument_list WINDOWS_COMMAND "${invalid_arguments}")
+    execute_process(
+        COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" ${invalid_argument_list}
+        RESULT_VARIABLE invalid_search_status
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+    if(invalid_search_status EQUAL 0)
+        execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
+        message(FATAL_ERROR "Invalid search arguments were accepted: ${invalid_arguments}")
+    endif()
+endforeach()
+
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 3
     RESULT_VARIABLE call_trace_32_status
