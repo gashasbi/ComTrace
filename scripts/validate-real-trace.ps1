@@ -332,7 +332,7 @@ $oleDataObjectLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[2].Value)
 
 if ($rpcGraphCalls -gt $rpcTimelineRecords -or
     $rpcGraphPairs -gt [Math]::Floor($rpcGraphCalls / 2) -or
-    $ddeGraphExchanges -gt [Math]::Floor($ddeGraphTransactions / 2) -or
+    $ddeGraphExchanges -gt ($ddeGraphTransactions + $ddeGraphCallbacks) -or
     $ddeGraphConversationLinks -gt [Math]::Floor($ddeGraphConversations / 2) -or
     $rpcComGraphLinks -gt $rpcGraphCalls -or
     $oleDataObjectLinks -gt $oleGraphOperations) {
@@ -702,6 +702,7 @@ $summary = [ordered]@{
     rpc_com_graph_links = $rpcComGraphLinks
     dde_graph_conversations = $ddeGraphConversations
     dde_graph_transactions = $ddeGraphTransactions
+    dde_graph_callbacks = $ddeGraphCallbacks
     dde_graph_exchanges = $ddeGraphExchanges
     dde_graph_conversation_links = $ddeGraphConversationLinks
     ole_graph_operations = $oleGraphOperations
@@ -773,7 +774,7 @@ Write-Host "RPC client/server correlations: $rpcClientServerCorrelations ambiguo
 Write-Host "RPC evidence links: RPCSS endpoints=$rpcLinkedEndpoints COM operations=$rpcLinkedComOperations"
 Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations ambiguous_stops=$rpcAmbiguousStops"
 Write-Host "RPCSS endpoint catalog: records=$rpcssEndpointRecords active=$rpcssActiveRegistrations unmatched_unregistrations=$rpcssUnmatchedUnregistrations"
-Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rpc_com_links=$rpcComGraphLinks dde_exchanges=$ddeGraphExchanges ole_data_objects=$oleDataObjectLinks"
+Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rpc_com_links=$rpcComGraphLinks dde_exchanges=$ddeGraphExchanges dde_callbacks=$ddeGraphCallbacks ole_data_objects=$oleDataObjectLinks"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
