@@ -145,6 +145,30 @@ static COMTRACE_GRAPH_STATUS add_scoped_node(
     return COMTRACE_GRAPH_SUCCESS;
 }
 
+static void record_protocol_observation(
+    COMTRACE_GRAPH_NODE *node,
+    LONGLONG timestamp
+)
+{
+    if (node == NULL) {
+        return;
+    }
+
+    if (!node->has_observed_timestamp) {
+        node->first_seen_timestamp = timestamp;
+        node->last_seen_timestamp = timestamp;
+        node->has_observed_timestamp = TRUE;
+        return;
+    }
+
+    if (timestamp < node->first_seen_timestamp) {
+        node->first_seen_timestamp = timestamp;
+    }
+    if (timestamp > node->last_seen_timestamp) {
+        node->last_seen_timestamp = timestamp;
+    }
+}
+
 static COMTRACE_GRAPH_STATUS add_protocol_edge(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     COMTRACE_GRAPH_EDGE_TYPE type,
@@ -609,38 +633,16 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             graph->nodes[operation_index].label[label_length] = L'\0';
         }
         if (record->has_start) {
-            LONGLONG timestamp = (LONGLONG)record->start_timestamp;
-            COMTRACE_GRAPH_NODE *operation = &graph->nodes[operation_index];
-
-            if (!operation->has_observed_timestamp) {
-                operation->first_seen_timestamp = timestamp;
-                operation->last_seen_timestamp = timestamp;
-                operation->has_observed_timestamp = TRUE;
-            } else {
-                if (timestamp < operation->first_seen_timestamp) {
-                    operation->first_seen_timestamp = timestamp;
-                }
-                if (timestamp > operation->last_seen_timestamp) {
-                    operation->last_seen_timestamp = timestamp;
-                }
-            }
+            record_protocol_observation(
+                &graph->nodes[operation_index],
+                (LONGLONG)record->start_timestamp
+            );
         }
         if (record->has_stop) {
-            LONGLONG timestamp = (LONGLONG)record->stop_timestamp;
-            COMTRACE_GRAPH_NODE *operation = &graph->nodes[operation_index];
-
-            if (!operation->has_observed_timestamp) {
-                operation->first_seen_timestamp = timestamp;
-                operation->last_seen_timestamp = timestamp;
-                operation->has_observed_timestamp = TRUE;
-            } else {
-                if (timestamp < operation->first_seen_timestamp) {
-                    operation->first_seen_timestamp = timestamp;
-                }
-                if (timestamp > operation->last_seen_timestamp) {
-                    operation->last_seen_timestamp = timestamp;
-                }
-            }
+            record_protocol_observation(
+                &graph->nodes[operation_index],
+                (LONGLONG)record->stop_timestamp
+            );
         }
 
         status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
@@ -658,11 +660,6 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
                 record->process_id, record->thread_id, NULL, 0ULL,
                 generation, has_generation, &thread_index);
-            if (status != COMTRACE_GRAPH_SUCCESS) {
-                return status;
-            }
-            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
-                process_index, thread_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
