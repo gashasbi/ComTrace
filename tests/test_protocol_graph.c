@@ -79,7 +79,8 @@ static int test_dde_exchange(void)
     timeline.records[1].thread_id = 401U;
     timeline.records[1].conversation_id = 41U;
     timeline.records[1].conversation_correlation_id = 70U;
-    timeline.records[1].transaction_instance_id = 61U;
+    timeline.records[1].has_callback = TRUE;
+    timeline.records[1].callback_timestamp = 150U;
     timeline.records[1].transaction_correlation_id = 70U;
     timeline.exchanges[0].client_record_index = 0U;
     timeline.exchanges[0].server_record_index = 1U;
@@ -87,7 +88,8 @@ static int test_dde_exchange(void)
     if (comtrace_relationship_graph_add_dde_timeline(&graph, &timeline, NULL) !=
             COMTRACE_GRAPH_SUCCESS ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION) != 2U ||
-        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION) != 2U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION) != 1U ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_CALLBACK) != 1U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION_CORRELATION) != 1U ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH) != 1U) {
