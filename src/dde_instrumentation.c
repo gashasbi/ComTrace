@@ -170,13 +170,16 @@ ULONGLONG comtrace_dde_transaction_started(
     return (ULONGLONG)transaction_instance_id;
 }
 
-void comtrace_dde_transaction_completed(
+void comtrace_dde_transaction_completed_ex(
     ULONGLONG conversation_id,
     ULONGLONG conversation_correlation_id,
     ULONGLONG transaction_instance_id,
     ULONGLONG transaction_correlation_id,
     BOOL is_client,
     ULONG dde_transaction_id,
+    ULONG transaction_type,
+    ULONG format,
+    const wchar_t *item,
     ULONG result,
     ULONG data_size,
     BOOL succeeded
@@ -203,11 +206,42 @@ void comtrace_dde_transaction_completed(
         TraceLoggingUInt64(transaction_correlation_id, "TransactionCorrelationId"),
         TraceLoggingBool(is_client, "IsClient"),
         TraceLoggingUInt32(dde_transaction_id, "DdeTransactionId"),
+        TraceLoggingUInt32(transaction_type, "TransactionType"),
+        TraceLoggingUInt32(format, "Format"),
+        TraceLoggingWideString(item != NULL ? item : L"", "Item"),
         TraceLoggingUInt32(result, "Result"),
         TraceLoggingUInt32(data_size, "DataSize"),
         TraceLoggingBool(succeeded, "Succeeded")
     );
     ReleaseSRWLockShared(&g_provider_lock);
+}
+
+void comtrace_dde_transaction_completed(
+    ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
+    ULONGLONG transaction_instance_id,
+    ULONGLONG transaction_correlation_id,
+    BOOL is_client,
+    ULONG dde_transaction_id,
+    ULONG result,
+    ULONG data_size,
+    BOOL succeeded
+)
+{
+    comtrace_dde_transaction_completed_ex(
+        conversation_id,
+        conversation_correlation_id,
+        transaction_instance_id,
+        transaction_correlation_id,
+        is_client,
+        dde_transaction_id,
+        0U,
+        0U,
+        NULL,
+        result,
+        data_size,
+        succeeded
+    );
 }
 
 void comtrace_dde_callback_received(
