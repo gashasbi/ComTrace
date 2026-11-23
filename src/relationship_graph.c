@@ -76,6 +76,8 @@ static int same_node(
     BOOL has_process_generation
 )
 {
+    GUID empty_guid = {0};
+
     if (left->type != type) {
         return 0;
     }
@@ -101,12 +103,20 @@ static int same_node(
     case COMTRACE_GRAPH_NODE_CALL:
         return left->value == value;
     case COMTRACE_GRAPH_NODE_COM_OBJECT:
-    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
         return left->process_id == process_id &&
                left->value == value &&
                left->has_process_generation == has_process_generation &&
                (!has_process_generation ||
                 left->process_generation == process_generation);
+    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
+        return left->process_id == process_id &&
+               left->value == value &&
+               left->has_process_generation == has_process_generation &&
+               (!has_process_generation ||
+                left->process_generation == process_generation) &&
+               memcmp(&left->guid,
+                      guid != NULL ? guid : &empty_guid,
+                      sizeof(GUID)) == 0;
     default:
         return 0;
     }
