@@ -774,7 +774,7 @@ static void print_event_property_value_element(
                 wprintf(L"\\\"");
                 break;
             case '\n':
-                wprintf(L"\\n");
+                wprintf(L"\n");
                 break;
             case '\r':
                 wprintf(L"\\r");
@@ -1406,7 +1406,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
             } else if ((property->Flags & PropertyParamFixedLength) != 0U) {
                 wprintf(L" fixed_length=%u", (unsigned int)property->length);
             }
-            wprintf(L"\\n");
+            wprintf(L"\n");
         }
 
         if (index < COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES) {
@@ -1528,7 +1528,7 @@ static void print_com_lifetime_event_classification(
         if (memcmp(&value, &empty_instrumentation_id, sizeof(GUID)) != 0) {
             wprintf(L"  com_lifetime_instrumentation_id=");
             print_guid(&value);
-            wprintf(L"\\n");
+            wprintf(L"\n");
         }
     }
 
