@@ -51,6 +51,7 @@ typedef struct {
     ULONGLONG process_generation;
     BOOL has_process_generation;
     GUID guid;
+    BOOL has_guid;
     ULONGLONG value;
     ULONGLONG observation_count;
     LONGLONG first_seen_timestamp;
