@@ -147,12 +147,14 @@ string(JSON left_ole_related_activity_matches GET "${output}" timeline_summary l
 string(JSON left_ole_fallback_matches GET "${output}" timeline_summary left_ole matched_by_process_thread)
 string(JSON left_ole_missing_activity GET "${output}" timeline_summary left_ole missing_activity_ids)
 string(JSON left_ole_invalid_duration_orders GET "${output}" timeline_summary left_ole invalid_duration_orders)
+string(JSON left_ole_ambiguous_stops GET "${output}" timeline_summary left_ole ambiguous_stops)
 string(JSON right_ole_matched GET "${output}" timeline_summary right_ole matched)
 string(JSON right_ole_activity_matches GET "${output}" timeline_summary right_ole matched_by_activity_id)
 string(JSON right_ole_related_activity_matches GET "${output}" timeline_summary right_ole matched_by_related_activity_id)
 string(JSON right_ole_fallback_matches GET "${output}" timeline_summary right_ole matched_by_process_thread)
 string(JSON right_ole_missing_activity GET "${output}" timeline_summary right_ole missing_activity_ids)
 string(JSON right_ole_invalid_duration_orders GET "${output}" timeline_summary right_ole invalid_duration_orders)
+string(JSON right_ole_ambiguous_stops GET "${output}" timeline_summary right_ole ambiguous_stops)
 if(NOT object_change_count EQUAL 0 OR
    NOT left_object_observation_count EQUAL 0 OR
    NOT right_object_observation_count EQUAL 0 OR
@@ -184,11 +186,13 @@ if(NOT object_change_count EQUAL 0 OR
    NOT left_ole_fallback_matches EQUAL 0 OR
    NOT left_ole_missing_activity EQUAL 0 OR
    NOT left_ole_invalid_duration_orders EQUAL 0 OR
+   NOT left_ole_ambiguous_stops EQUAL 0 OR
    NOT right_ole_matched EQUAL 0 OR
    NOT right_ole_activity_matches EQUAL 0 OR
    NOT right_ole_related_activity_matches EQUAL 0 OR
    NOT right_ole_fallback_matches EQUAL 0 OR
    NOT right_ole_missing_activity EQUAL 0 OR
-   NOT right_ole_invalid_duration_orders EQUAL 0)
+   NOT right_ole_invalid_duration_orders EQUAL 0 OR
+   NOT right_ole_ambiguous_stops EQUAL 0)
     message(FATAL_ERROR "JSON object or timeline sections are incorrect.")
 endif()
