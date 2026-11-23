@@ -62,6 +62,15 @@ static double elapsed_seconds(
         (double)frequency.QuadPart;
 }
 
+static ULONGLONG filetime_value(FILETIME value)
+{
+    ULARGE_INTEGER result;
+
+    result.LowPart = value.dwLowDateTime;
+    result.HighPart = value.dwHighDateTime;
+    return result.QuadPart;
+}
+
 int main(int argc, char **argv)
 {
     COMTRACE_ARCHIVE_WRITER writer;
@@ -79,16 +88,23 @@ int main(int argc, char **argv)
     LARGE_INTEGER read_start;
     LARGE_INTEGER read_end;
     PROCESS_MEMORY_COUNTERS_EX memory;
+    FILETIME process_creation;
+    FILETIME process_exit;
+    FILETIME kernel_time;
+    FILETIME user_time;
     HANDLE file;
     LARGE_INTEGER file_size;
     ULONGLONG index;
     ULONGLONG event_count = STRESS_EVENT_COUNT;
     ULONGLONG records_read = 0ULL;
+    ULONGLONG cpu_start = 0ULL;
+    ULONGLONG cpu_end = 0ULL;
     int require_large_file = 0;
     DWORD failures = 0U;
     int result = EXIT_FAILURE;
     double write_seconds;
     double read_seconds;
+    double cpu_seconds;
 
     ZeroMemory(&writer, sizeof(writer));
     ZeroMemory(&reader, sizeof(reader));
@@ -167,6 +183,15 @@ int main(int argc, char **argv)
     summary.buffers_read = (ULONG)(event_count / 1000ULL);
     summary.buffers_written = summary.buffers_read;
     summary.perf_frequency = 10000000ULL;
+
+    if (GetProcessTimes(
+            GetCurrentProcess(),
+            &process_creation,
+            &process_exit,
+            &kernel_time,
+            &user_time)) {
+        cpu_start = filetime_value(kernel_time) + filetime_value(user_time);
+    }
 
     (void)QueryPerformanceCounter(&write_start);
     for (index = 0ULL; index < event_count; ++index) {
@@ -266,13 +291,27 @@ int main(int argc, char **argv)
     write_seconds = elapsed_seconds(write_start, write_end, frequency);
     read_seconds = elapsed_seconds(read_start, read_end, frequency);
 
+    if (GetProcessTimes(
+            GetCurrentProcess(),
+            &process_creation,
+            &process_exit,
+            &kernel_time,
+            &user_time)) {
+        cpu_end = filetime_value(kernel_time) + filetime_value(user_time);
+    }
+
+    cpu_seconds = cpu_end >= cpu_start
+        ? (double)(cpu_end - cpu_start) / 10000000.0
+        : 0.0;
+
     printf(
-        "archive_stress events=%llu payload_bytes=%u file_bytes=%llu write_seconds=%.3f read_seconds=%.3f write_events_per_second=%.0f read_events_per_second=%.0f peak_working_set_bytes=%llu checksum=valid\n",
+        "archive_stress events=%llu payload_bytes=%u file_bytes=%llu write_seconds=%.3f read_seconds=%.3f cpu_seconds=%.3f write_events_per_second=%.0f read_events_per_second=%.0f peak_working_set_bytes=%llu checksum=valid\n",
         (unsigned long long)records_read,
         (unsigned int)STRESS_PAYLOAD_SIZE,
         (unsigned long long)file_size.QuadPart,
         write_seconds,
         read_seconds,
+        cpu_seconds,
         write_seconds > 0.0 ? (double)records_read / write_seconds : 0.0,
         read_seconds > 0.0 ? (double)records_read / read_seconds : 0.0,
         (unsigned long long)memory.PeakWorkingSetSize
