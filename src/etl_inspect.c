@@ -1519,6 +1519,19 @@ static void print_com_lifetime_event_classification(
 
     wprintf(L"  com_lifetime_event=%ls\n", event_name);
 
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InstrumentationId",
+            &value
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        GUID empty_instrumentation_id = {0};
+        if (memcmp(&value, &empty_instrumentation_id, sizeof(GUID)) != 0) {
+            wprintf(L"  com_lifetime_instrumentation_id=");
+            print_guid(&value);
+            wprintf(L"\\n");
+        }
+    }
+
     if (comtrace_extract_uint64_property(
             event_record,
             L"ObjectInstanceId",
@@ -1885,6 +1898,10 @@ static void print_com_lifetime_summary(
             wprintf(L"%llu", (unsigned long long)record->process_generation);
         } else {
             wprintf(L"unknown");
+        }
+        if (record->has_instrumentation_id) {
+            wprintf(L" instrumentation_id=");
+            print_guid(&record->instrumentation_id);
         }
         wprintf(L" instance=0x%llx observations=%llu create=%ls destroy=%ls",
             (unsigned long long)record->object_instance_id,
