@@ -92,12 +92,14 @@ static int record_matches(
         return 0;
     }
 
-    if (has_protocol &&
-        _wcsicmp(record->protocol, event->protocol) != 0) {
-        return 0;
-    }
-    if (has_endpoint &&
-        _wcsicmp(record->endpoint, event->endpoint) != 0) {
+    if (_wcsicmp(
+            record->protocol,
+            has_protocol ? event->protocol : L""
+        ) != 0 ||
+        _wcsicmp(
+            record->endpoint,
+            has_endpoint ? event->endpoint : L""
+        ) != 0) {
         return 0;
     }
 
