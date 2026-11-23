@@ -187,7 +187,7 @@ function(assert_identity_property_search name value expected_count label)
     string(FIND "${property_output}" "Events matching filters: ${expected_count}" property_match)
     if(property_match EQUAL -1)
         execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
-        message(FATAL_ERROR "${label} property search returned an unexpected count: ${property_output}")
+        message(FATAL_ERROR "${label} property search returned an unexpected count: ${property_error}${property_output}")
     endif()
 endfunction()
 
