@@ -202,7 +202,16 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
         (record->has_interface_uuid && event->has_interface_uuid &&
          memcmp(&record->interface_uuid, &event->interface_uuid, sizeof(GUID)) != 0) ||
         (record->has_procedure_number && event->has_procedure_number &&
-         record->procedure_number != event->procedure_number)) {
+         record->procedure_number != event->procedure_number) ||
+        (record->protocol[0] != L'\0' &&
+         event->protocol != NULL && event->protocol[0] != L'\0' &&
+         _wcsicmp(record->protocol, event->protocol) != 0) ||
+        (record->endpoint[0] != L'\0' &&
+         event->endpoint != NULL && event->endpoint[0] != L'\0' &&
+         _wcsicmp(record->endpoint, event->endpoint) != 0) ||
+        (record->network_address[0] != L'\0' &&
+         event->network_address != NULL && event->network_address[0] != L'\0' &&
+         _wcsicmp(record->network_address, event->network_address) != 0)) {
         return COMTRACE_RPC_TIMELINE_MATCH_NONE;
     }
 
