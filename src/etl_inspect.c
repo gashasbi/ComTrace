@@ -3660,6 +3660,12 @@ static void print_ole_timeline_summary(
     ULONGLONG clipboard_events = 0ULL;
     ULONGLONG drag_drop_events = 0ULL;
     ULONGLONG invalid_duration_orders = 0ULL;
+    ULONGLONG clipboard_get = 0ULL;
+    ULONGLONG clipboard_set = 0ULL;
+    ULONGLONG clipboard_flush = 0ULL;
+    ULONGLONG clipboard_current = 0ULL;
+    ULONGLONG drag_drop_invocations = 0ULL;
+    ULONGLONG drag_drop_registration = 0ULL;
 
     if (context == NULL) {
         return;
@@ -3694,6 +3700,21 @@ static void print_ole_timeline_summary(
             ++invalid_duration_orders;
         }
 
+        if (wcscmp(record->operation, L"OLE_Clipboard_GetClipboard") == 0) {
+            ++clipboard_get;
+        } else if (wcscmp(record->operation, L"OLE_Clipboard_SetClipboard") == 0) {
+            ++clipboard_set;
+        } else if (wcscmp(record->operation, L"OLE_Clipboard_Flush") == 0) {
+            ++clipboard_flush;
+        } else if (wcscmp(record->operation, L"OLE_Clipboard_IsCurrentClipboard") == 0) {
+            ++clipboard_current;
+        } else if (wcscmp(record->operation, L"OLE_DragDrop_DoDragDrop") == 0) {
+            ++drag_drop_invocations;
+        } else if (wcscmp(record->operation, L"OLE_DragDrop_Register") == 0 ||
+                   wcscmp(record->operation, L"OLE_DragDrop_Unregister") == 0) {
+            ++drag_drop_registration;
+        }
+
         if (wcsncmp(record->operation, L"OLE_Clipboard_", 14U) == 0) {
             ++clipboard_events;
         } else if (wcsncmp(record->operation, L"OLE_DragDrop_", 13U) == 0) {
@@ -3705,6 +3726,12 @@ static void print_ole_timeline_summary(
     wprintf(L"Operations tracked: %llu\n", (unsigned long long)count);
     wprintf(L"Clipboard operations: %llu\n", (unsigned long long)clipboard_events);
     wprintf(L"Drag and Drop operations: %llu\n", (unsigned long long)drag_drop_events);
+    wprintf(L"Clipboard GetClipboard: %llu\n", (unsigned long long)clipboard_get);
+    wprintf(L"Clipboard SetClipboard: %llu\n", (unsigned long long)clipboard_set);
+    wprintf(L"Clipboard Flush: %llu\n", (unsigned long long)clipboard_flush);
+    wprintf(L"Clipboard IsCurrentClipboard: %llu\n", (unsigned long long)clipboard_current);
+    wprintf(L"DoDragDrop invocations: %llu\n", (unsigned long long)drag_drop_invocations);
+    wprintf(L"Drag-drop registration operations: %llu\n", (unsigned long long)drag_drop_registration);
     wprintf(L"Matched start/stop: %llu\n", (unsigned long long)matched);
     wprintf(
         L"Matched by ActivityId: %llu\n",
