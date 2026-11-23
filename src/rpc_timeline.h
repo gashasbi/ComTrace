@@ -54,6 +54,8 @@ typedef struct {
     const wchar_t *protocol;
     const wchar_t *network_address;
     const wchar_t *endpoint;
+    BOOL has_status;
+    ULONG status;
 } COMTRACE_RPC_TIMELINE_EVENT;
 
 typedef struct {
@@ -68,6 +70,10 @@ typedef struct {
     BOOL has_start;
     BOOL has_stop;
     BOOL has_duration;
+    BOOL invalid_duration_order;
+    BOOL has_status;
+    ULONG status;
+    BOOL status_is_failure;
     COMTRACE_RPC_TIMELINE_MATCH_TYPE match_type;
     BOOL has_activity_id;
     GUID activity_id;
@@ -104,6 +110,7 @@ typedef struct {
     ULONGLONG missing_activity_ids;
     ULONGLONG correlated_client_server_calls;
     ULONGLONG ambiguous_client_server_calls;
+    ULONGLONG invalid_duration_orders;
 } COMTRACE_RPC_TIMELINE;
 
 void comtrace_rpc_timeline_init(COMTRACE_RPC_TIMELINE *timeline);
