@@ -269,9 +269,11 @@ $rpcTimelineMatchTotal = $rpcTimelineMatchedByActivity +
                          $rpcTimelineMatchedByRelatedActivity +
                          $rpcTimelineMatchedByProcessThread
 if ($rpcTimelineMatchTotal -ne $rpcTimelineMatched -or
+    ($rpcTimelineMatched + $rpcTimelineIncompleteStarts + $rpcTimelineUnmatchedStops) -ne $rpcTimelineRecords -or
     $rpcClientServerCorrelations -gt [Math]::Floor($rpcTimelineMatched / 2) -or
     $rpcLinkedEndpoints -gt $rpcTimelineRecords -or
-    $rpcLinkedComOperations -gt $rpcTimelineRecords) {
+    $rpcLinkedComOperations -gt $rpcTimelineRecords -or
+    $rpcTimelineRecords -gt $rpcClassifiedEventCount) {
     throw "RPC timeline match, cross-process, or evidence-link counters are inconsistent. Review $inspectPath"
 }
 
@@ -292,7 +294,8 @@ $rpcssDuplicateRegistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[6].Val
 
 if ($rpcssActiveRegistrations -gt $rpcssEndpointRecords -or
     $rpcssRegistrations -gt ($rpcssEndpointRecords + $rpcssDuplicateRegistrations) -or
-    $rpcssUnregistrations -gt $rpcssEndpointRecords) {
+    $rpcssUnregistrations -gt $rpcssEndpointRecords -or
+    $rpcssEndpointRecords -gt $rpcssClassifiedEventCount) {
     throw "RPCSS endpoint registration counters are inconsistent. Review $inspectPath"
 }
 
