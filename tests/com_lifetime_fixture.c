@@ -247,6 +247,7 @@ int wmain(int argc, wchar_t **argv)
     BOOL activity_id_set = FALSE;
     GUID previous_activity_id;
     GUID current_activity_id;
+    GUID empty_activity_id = {0};
     const wchar_t *first_etl_path = NULL;
     const wchar_t *second_etl_path = NULL;
 
@@ -385,7 +386,7 @@ int wmain(int argc, wchar_t **argv)
             &current_activity_id
         );
         if (status != ERROR_SUCCESS ||
-            memcmp(&current_activity_id, &(GUID){0}, sizeof(GUID)) == 0) {
+            memcmp(&current_activity_id, &empty_activity_id, sizeof(GUID)) == 0) {
             fwprintf(stderr, L"Activity ID was not set. Error: %lu\n",
                 (unsigned long)status);
             goto cleanup;
