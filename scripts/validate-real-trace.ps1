@@ -208,6 +208,9 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     if ($oleFixtureOutput -notmatch "OLE clipboard activity succeeded") {
         throw "The OLE activity fixture did not report success. Review $oleFixturePath"
     }
+    if ($oleFixtureOutput -notmatch "OLE DoDragDrop cancellation succeeded") {
+        throw "The OLE activity fixture did not execute DoDragDrop successfully. Review $oleFixturePath"
+    }
 
     if (-not $captureProcess.WaitForExit(($CaptureSeconds + 30) * 1000)) {
         throw "ETW capture did not finish within the expected time. Process ID: $($captureProcess.Id)"
