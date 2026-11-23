@@ -728,6 +728,7 @@ cleanup:
     if (exit_code == 0) {
         puts("OLE clipboard activity succeeded.");
         puts("OLE drag-drop registration succeeded.");
+        puts("OLE DoDragDrop cancellation succeeded.");
     }
 
     return exit_code;
