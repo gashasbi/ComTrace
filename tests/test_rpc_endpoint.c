@@ -226,12 +226,53 @@ static int test_ambiguous_binding_is_not_selected(void)
     return 1;
 }
 
+static int test_out_of_order_unregistration_stays_unmatched(void)
+{
+    COMTRACE_RPC_ENDPOINT_CATALOG catalog;
+    COMTRACE_RPC_ENDPOINT_EVENT event;
+    const COMTRACE_RPC_ENDPOINT_RECORD *record;
+
+    comtrace_rpc_endpoint_catalog_init(&catalog);
+    ZeroMemory(&event, sizeof(event));
+    event.phase = COMTRACE_RPC_ENDPOINT_REGISTER;
+    event.interface_uuid = interface_id;
+    event.protocol = L"ncalrpc";
+    event.endpoint = L"LRPC-777";
+    event.timestamp = 200ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_ENDPOINT_UNREGISTER;
+    event.timestamp = 100ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    record = comtrace_rpc_endpoint_catalog_get(&catalog, 0U);
+    if (record == NULL || !record->is_active ||
+        record->has_unregistration ||
+        catalog.unmatched_unregistrations != 1ULL ||
+        comtrace_rpc_endpoint_catalog_count(&catalog) != 2U) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_rpc_endpoint_catalog_destroy(&catalog);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_registration_lifecycle_and_protocol_scope() ||
         !test_unmatched_unregistration_does_not_close_other_endpoint() ||
         !test_time_aware_endpoint_lookup() ||
-        !test_ambiguous_binding_is_not_selected()) {
+        !test_ambiguous_binding_is_not_selected() ||
+        !test_out_of_order_unregistration_stays_unmatched()) {
         fputs("RPC endpoint tests failed.\n", stderr);
         return 1;
     }
