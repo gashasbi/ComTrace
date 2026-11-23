@@ -185,29 +185,6 @@ static int start_trace_session(
         return 0;
     }
 
-    status = EnableTraceEx2(
-        *trace_handle,
-        &lifetime_provider_guid,
-        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        TRACE_LEVEL_INFORMATION,
-        0x1ULL,
-        0U,
-        0U,
-        NULL
-    );
-    if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
-        (void)ControlTraceW(
-            *trace_handle,
-            trace_session_name,
-            properties,
-            EVENT_TRACE_CONTROL_STOP
-        );
-        (void)HeapFree(GetProcessHeap(), 0U, properties);
-        *trace_handle = 0U;
-        return 0;
-    }
-
     *properties_out = properties;
     return 1;
 }
