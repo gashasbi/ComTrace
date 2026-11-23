@@ -185,8 +185,8 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
     BOOL *value
 )
 {
-    BYTE byte_value;
-    ULONG dword_value;
+    ULONG candidate32 = 0U;
+    BYTE candidate8 = 0U;
     COMTRACE_IDENTITY_STATUS status;
 
     if (value == NULL) {
@@ -197,14 +197,11 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
         event_record,
         property_name,
         TDH_INTYPE_BOOLEAN,
-        &byte_value,
-        (ULONG)sizeof(byte_value)
+        (BYTE *)&candidate32,
+        (ULONG)sizeof(candidate32)
     );
     if (status == COMTRACE_IDENTITY_SUCCESS) {
-        *value = byte_value != 0U;
-        return status;
-    }
-    if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        *value = candidate32 != 0U;
         return status;
     }
 
@@ -212,11 +209,11 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
         event_record,
         property_name,
         TDH_INTYPE_UINT8,
-        &byte_value,
-        (ULONG)sizeof(byte_value)
+        &candidate8,
+        (ULONG)sizeof(candidate8)
     );
     if (status == COMTRACE_IDENTITY_SUCCESS) {
-        *value = byte_value != 0U;
+        *value = candidate8 != 0U;
         return status;
     }
     if (status != COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
@@ -227,11 +224,11 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_boolean_property(
         event_record,
         property_name,
         TDH_INTYPE_UINT32,
-        (BYTE *)&dword_value,
-        (ULONG)sizeof(dword_value)
+        (BYTE *)&candidate32,
+        (ULONG)sizeof(candidate32)
     );
     if (status == COMTRACE_IDENTITY_SUCCESS) {
-        *value = dword_value != 0U;
+        *value = candidate32 != 0U;
     }
 
     return status;
