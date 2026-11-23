@@ -16,6 +16,7 @@ add_executable(ComTrace
     src/etl_inspect.c
     src/etl_decoder.c
     src/etl_property_format.c
+    src/etl_property_print.c
     src/etl_value.c
     src/com_event.c
     src/com_lifetime_analysis.c
