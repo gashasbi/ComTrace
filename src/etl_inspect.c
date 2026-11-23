@@ -4022,6 +4022,10 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"process_observes_ole_operation";
     case COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_OLE_OPERATION:
         return L"thread_completes_ole_operation";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_CALLBACK:
+        return L"process_owns_dde_callback";
+    case COMTRACE_GRAPH_EDGE_THREAD_RECEIVES_DDE_CALLBACK:
+        return L"thread_receives_dde_callback";
     default:
         return L"unknown";
     }
@@ -4150,6 +4154,11 @@ static void print_relationship_graph_node(
         break;
     case COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION:
         wprintf(L"dde-transaction-correlation:%llu", (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_DDE_CALLBACK:
+        wprintf(L"dde-callback:%lu/%llu",
+            (unsigned long)node->process_id,
+            (unsigned long long)node->value);
         break;
     case COMTRACE_GRAPH_NODE_OLE_OPERATION:
         wprintf(L"ole-operation:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
