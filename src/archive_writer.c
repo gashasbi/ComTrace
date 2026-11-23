@@ -110,26 +110,19 @@ static int writer_has_open_file(const COMTRACE_ARCHIVE_WRITER *writer)
         writer->file != NULL &&
         writer->file != INVALID_HANDLE_VALUE;
 }
-static COMTRACE_ARCHIVE_STATUS write_bytes(
-    COMTRACE_ARCHIVE_WRITER *writer,
-    const BYTE *data,
-    size_t size
+static COMTRACE_ARCHIVE_STATUS flush_write_buffer(
+    COMTRACE_ARCHIVE_WRITER *writer
 )
 {
-    if (!writer_has_open_file(writer) ||
-        (size != 0U && data == NULL)) {
-        return COMTRACE_ARCHIVE_INVALID_ARGUMENT;
-    }
+    ULONG offset = 0U;
 
-    while (size != 0U) {
-        DWORD requested = size > (size_t)MAXDWORD
-            ? MAXDWORD
-            : (DWORD)size;
+    while (offset < writer->write_buffer_size) {
+        DWORD requested = writer->write_buffer_size - offset;
         DWORD written = 0U;
 
         if (!archive_write_file(
                 writer->file,
-                data,
+                writer->write_buffer + offset,
                 requested,
                 &written,
                 NULL)) {
@@ -148,16 +141,55 @@ static COMTRACE_ARCHIVE_STATUS write_bytes(
             );
         }
 
+        offset += written;
+    }
+
+    writer->write_buffer_size = 0U;
+    return COMTRACE_ARCHIVE_SUCCESS;
+}
+
+static COMTRACE_ARCHIVE_STATUS write_bytes(
+    COMTRACE_ARCHIVE_WRITER *writer,
+    const BYTE *data,
+    size_t size
+)
+{
+    if (!writer_has_open_file(writer) ||
+        (size != 0U && data == NULL)) {
+        return COMTRACE_ARCHIVE_INVALID_ARGUMENT;
+    }
+
+    while (size != 0U) {
+        ULONG available;
+        size_t count;
+
+        if (writer->write_buffer_size == sizeof(writer->write_buffer)) {
+            COMTRACE_ARCHIVE_STATUS status = flush_write_buffer(writer);
+            if (status != COMTRACE_ARCHIVE_SUCCESS) {
+                return status;
+            }
+        }
+
+        available = (ULONG)sizeof(writer->write_buffer) -
+            writer->write_buffer_size;
+        count = size < (size_t)available ? size : (size_t)available;
+
         if (writer->checksum_enabled) {
             writer->checksum_state = comtrace_archive_checksum_update(
                 writer->checksum_state,
                 data,
-                (size_t)written
+                count
             );
         }
 
-        data += written;
-        size -= (size_t)written;
+        memcpy(
+            writer->write_buffer + writer->write_buffer_size,
+            data,
+            count
+        );
+        writer->write_buffer_size += (ULONG)count;
+        data += count;
+        size -= count;
     }
 
     return COMTRACE_ARCHIVE_SUCCESS;
@@ -697,6 +729,9 @@ COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_finalize(
     writer->checksum_enabled = FALSE;
 
     status = write_u32(writer, checksum);
+    if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
+
+    status = flush_write_buffer(writer);
     if (status != COMTRACE_ARCHIVE_SUCCESS) return status;
 
     if (!archive_flush_file_buffers(writer->file)) {
