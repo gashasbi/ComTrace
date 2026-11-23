@@ -278,6 +278,21 @@ int wmain(int argc, wchar_t **argv)
     }
     provider_registered = TRUE;
 
+    status = EnableTraceEx2(
+        trace_handle,
+        &lifetime_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        0x1ULL,
+        0U,
+        0U,
+        NULL
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
     object = (COMTRACE_FIXTURE_OBJECT *)HeapAlloc(
         GetProcessHeap(),
         HEAP_ZERO_MEMORY,
@@ -334,6 +349,22 @@ int wmain(int argc, wchar_t **argv)
             goto cleanup;
         }
         provider_registered = TRUE;
+
+    status = EnableTraceEx2(
+        trace_handle,
+        &lifetime_provider_guid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        0x1ULL,
+        0U,
+        0U,
+        NULL
+    );
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
     }
 
     if (alternate) {
