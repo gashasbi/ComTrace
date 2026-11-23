@@ -274,6 +274,7 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
     ULONGLONG candidate;
     ULONG candidate32;
     LONG signed_candidate;
+    LONGLONG signed_candidate64;
     COMTRACE_IDENTITY_STATUS status;
 
     if (value == NULL) {
@@ -337,6 +338,23 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_uint64_property(
                 status = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
             } else {
                 candidate = (ULONGLONG)(ULONG)signed_candidate;
+            }
+        }
+    }
+
+    if (status == COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED) {
+        status = extract_property_value(
+            event_record,
+            property_name,
+            TDH_INTYPE_INT64,
+            (BYTE *)&signed_candidate64,
+            (ULONG)sizeof(signed_candidate64)
+        );
+        if (status == COMTRACE_IDENTITY_SUCCESS) {
+            if (signed_candidate64 < 0) {
+                status = COMTRACE_IDENTITY_PROPERTY_UNSUPPORTED;
+            } else {
+                candidate = (ULONGLONG)signed_candidate64;
             }
         }
     }
