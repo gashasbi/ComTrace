@@ -380,10 +380,7 @@ int wmain(int argc, wchar_t **argv)
             goto cleanup;
         }
 
-        status = EventActivityIdControl(
-            EVENT_ACTIVITY_CTRL_CREATE_ID,
-            &current_activity_id
-        );
+        status = (ULONG)CoCreateGuid(&current_activity_id);
         if (status != ERROR_SUCCESS) {
             fwprintf(stderr, L"Unable to create ETW activity ID: %lu\\n",
                 (unsigned long)status);
