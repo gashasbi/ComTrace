@@ -78,7 +78,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG win32_error_value = ERROR_ACCESS_DENIED;
     ULONG mapped_status_value = 1U;
     ULONG mapped_flags_value = 3U;
-    SHORT signed_count = 2;
+    USHORT signed_count = 2U;
     int signed_values[2] = { -13, 27 };
     CHAR signed_byte_value = -42;
     LONGLONG signed_wide_value = -9007199254740993LL;
