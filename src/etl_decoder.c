@@ -76,6 +76,10 @@ static int event_property_metadata_is_valid(
             continue;
         }
 
+        if ((flags & PropertyHasCustomSchema) != 0U) {
+            continue;
+        }
+
         if ((flags & PropertyParamCount) != 0U &&
             (ULONG)property->countPropertyIndex >= index) {
             return 0;
@@ -85,19 +89,7 @@ static int event_property_metadata_is_valid(
             return 0;
         }
 
-        if ((flags & PropertyHasCustomSchema) != 0U) {
-            ULONG offset = property->customSchemaType.CustomSchemaOffset;
-            USHORT schema_size;
-
-            if (offset > buffer_size ||
-                buffer_size - offset < 4U) {
-                return 0;
-            }
-            CopyMemory(&schema_size, buffer + offset + 2U, sizeof(schema_size));
-            if ((ULONG)schema_size > buffer_size - offset - 4U) {
-                return 0;
-            }
-        } else if (property->nonStructType.MapNameOffset != 0U &&
+        if (property->nonStructType.MapNameOffset != 0U &&
             !metadata_string_is_valid(
                 buffer,
                 buffer_size,
