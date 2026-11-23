@@ -407,6 +407,11 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
 
     timeline->correlated_client_server_calls = 0ULL;
     timeline->ambiguous_client_server_calls = 0ULL;
+    for (client_index = 0U; client_index < timeline->record_count; ++client_index) {
+        timeline->records[client_index].has_correlated_record = FALSE;
+        timeline->records[client_index].correlated_record_index = 0U;
+        timeline->records[client_index].correlation_type = COMTRACE_RPC_CORRELATION_NONE;
+    }
 
     for (client_index = 0U; client_index < timeline->record_count; ++client_index) {
         COMTRACE_RPC_TIMELINE_RECORD *client = &timeline->records[client_index];
