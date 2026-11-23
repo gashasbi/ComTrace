@@ -43,6 +43,8 @@ typedef struct {
     ULONGLONG process_generation;
     BOOL has_process_generation;
     ULONGLONG object_instance_id;
+    BOOL has_instrumentation_id;
+    GUID instrumentation_id;
     BOOL present_in_left;
     BOOL present_in_right;
     ULONG changed_fields;
