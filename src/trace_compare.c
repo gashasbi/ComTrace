@@ -167,6 +167,19 @@ static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     lifetime_event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InstrumentationId",
+            &lifetime_event.instrumentation_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        GUID empty_instrumentation_id = {0};
+        if (memcmp(&lifetime_event.instrumentation_id,
+                   &empty_instrumentation_id,
+                   sizeof(GUID)) != 0) {
+            lifetime_event.has_instrumentation_id = TRUE;
+        }
+    }
+
     if (lifetime_event.process_id != 0U &&
         comtrace_process_lifecycle_resolve_generation(
             &summary->process_lifecycle,
@@ -919,6 +932,9 @@ static int lifetime_records_match(
 {
     return left->process_id == right->process_id &&
         left->object_instance_id == right->object_instance_id &&
+        left->has_instrumentation_id == right->has_instrumentation_id &&
+        (!left->has_instrumentation_id ||
+         memcmp(&left->instrumentation_id, &right->instrumentation_id, sizeof(GUID)) == 0) &&
         left->has_process_generation == right->has_process_generation &&
         (!left->has_process_generation ||
          left->process_generation == right->process_generation);
@@ -1090,6 +1106,8 @@ static COMTRACE_TRACE_COMPARE_STATUS append_lifetime_object_diff(
     diff->process_generation = record->process_generation;
     diff->has_process_generation = record->has_process_generation;
     diff->object_instance_id = record->object_instance_id;
+    diff->has_instrumentation_id = record->has_instrumentation_id;
+    diff->instrumentation_id = record->instrumentation_id;
     diff->present_in_left = present_in_left;
     diff->present_in_right = present_in_right;
     diff->changed_fields = changed_fields;
@@ -2012,6 +2030,14 @@ static void write_json_lifetime_object_diffs(
         );
         if (diff->has_process_generation) {
             wprintf(L"%llu", (unsigned long long)diff->process_generation);
+        } else {
+            wprintf(L"null");
+        }
+        wprintf(L", \"instrumentation_id\": ");
+        if (diff->has_instrumentation_id) {
+            putwchar(L'"');
+            print_guid_text(&diff->instrumentation_id);
+            putwchar(L'"');
         } else {
             wprintf(L"null");
         }
