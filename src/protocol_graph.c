@@ -335,7 +335,6 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
     size_t index;
     size_t *transaction_nodes;
 
-    (void)process_lifecycle;
     if (graph == NULL || timeline == NULL) {
         return COMTRACE_GRAPH_INVALID_ARGUMENT;
     }
@@ -366,8 +365,9 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
         }
         timestamp = (LONGLONG)(record->has_start ? record->start_timestamp :
             (record->has_opened ? record->opened_timestamp :
+            (record->has_closed ? record->closed_timestamp :
             (record->has_completion ? record->completion_timestamp :
-             record->callback_timestamp)));
+             record->callback_timestamp))));
         if (process_lifecycle != NULL) {
             has_generation = comtrace_process_lifecycle_resolve_generation(
                 process_lifecycle, record->process_id, timestamp, &generation);
@@ -378,6 +378,22 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
         if (status != COMTRACE_GRAPH_SUCCESS) {
             free(transaction_nodes);
             return status;
+        }
+        if (record->thread_id != 0U) {
+            size_t thread_index;
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                record->process_id, record->thread_id, NULL, 0ULL,
+                generation, has_generation, &thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                free(transaction_nodes);
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                process_index, thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                free(transaction_nodes);
+                return status;
+            }
         }
         if (record->conversation_id != 0ULL) {
             status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION,
