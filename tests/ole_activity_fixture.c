@@ -29,6 +29,11 @@ static const IID COMTRACE_IID_IDROPTARGET = {
     { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
 };
 
+static const IID COMTRACE_IID_IDROPSOURCE = {
+    0x00000121, 0x0000, 0x0000,
+    { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
+};
+
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     IDataObject *data_object_iface,
     REFIID interface_id,
@@ -529,7 +534,7 @@ static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
     }
     *result = NULL;
     if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
-        IsEqualGUID(interface_id, &IID_IDropSource)) {
+        IsEqualGUID(interface_id, &COMTRACE_IID_IDROPSOURCE)) {
         *result = drop_source_iface;
         drop_source_iface->lpVtbl->AddRef(drop_source_iface);
         return S_OK;
