@@ -135,6 +135,54 @@ static int test_lifetime_sequence(void)
     return 1;
 }
 
+static int test_instrumentation_identity_separation(void)
+{
+    COMTRACE_COM_LIFETIME_ANALYSIS analysis;
+    COMTRACE_LIFETIME_EVENT event;
+    const COMTRACE_LIFETIME_RECORD *record = NULL;
+    GUID first_id = {0x12345678, 0x1234, 0x5678, {1, 2, 3, 4, 5, 6, 7, 8}};
+    GUID second_id = {0x87654321, 0x4321, 0x8765, {8, 7, 6, 5, 4, 3, 2, 1}};
+
+    comtrace_lifetime_analysis_init(&analysis);
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_LIFETIME_EVENT_CREATED;
+    event.process_id = 100U;
+    event.object_instance_id = 1ULL;
+    event.has_instrumentation_id = TRUE;
+    event.instrumentation_id = first_id;
+
+    if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
+        COMTRACE_LIFETIME_SUCCESS) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    event.instrumentation_id = second_id;
+    if (comtrace_lifetime_analysis_add_event(&analysis, &event, NULL) !=
+            COMTRACE_LIFETIME_SUCCESS ||
+        comtrace_lifetime_analysis_count(&analysis) != 2U) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    record = comtrace_lifetime_analysis_get(&analysis, 0U);
+    if (record == NULL || !record->has_instrumentation_id ||
+        memcmp(&record->instrumentation_id, &first_id, sizeof(GUID)) != 0) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    record = comtrace_lifetime_analysis_get(&analysis, 1U);
+    if (record == NULL || !record->has_instrumentation_id ||
+        memcmp(&record->instrumentation_id, &second_id, sizeof(GUID)) != 0) {
+        comtrace_lifetime_analysis_destroy(&analysis);
+        return 0;
+    }
+
+    comtrace_lifetime_analysis_destroy(&analysis);
+    return 1;
+}
+
 static int test_process_identity_separation(void)
 {
     COMTRACE_COM_LIFETIME_ANALYSIS analysis;
@@ -295,7 +343,8 @@ static int test_lifetime_anomalies(void)
 
 int main(void)
 {
-    if (!test_lifetime_sequence() ||
+    if (!test_instrumentation_identity_separation() ||
+        !test_lifetime_sequence() ||
         !test_process_identity_separation() ||
         !test_multiple_interfaces_and_native_identity() ||
         !test_lifetime_anomalies()) {
