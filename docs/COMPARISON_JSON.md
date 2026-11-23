@@ -162,7 +162,7 @@ The report includes a lifetime_summary, object_lifetimes.left,
 object_lifetimes.right, and object_lifetime_changes.
 
 Each lifetime record is keyed by process ID, process generation when available,
-module `InstrumentationId` when present, and the application-level object instance ID. It records explicit creation and
+module `InstrumentationId` when present, and the application-level object instance ID. The module GUID is intentionally trace-local and is not a cross-run identity. It records explicit creation and
 destruction observations, AddRef/Release event counts, zero-valued Release
 observations, raw ETW timestamps, CLSID, all observed interface IDs, initial
 and last observed reference counts when available, and any native identity
@@ -194,7 +194,7 @@ as proof of a leak or invalid COM behavior.
 |---|---|---|
 | `process_id` | number | Process ID that emitted the instrumentation events |
 | `process_generation` | number or null | Resolved process generation, when available |
-| `instrumentation_id` | string or null | GUID identifying the linked instrumentation module instance; null for older traces |
+| `instrumentation_id` | string or null | GUID identifying the linked instrumentation module instance; null for older traces and not stable across separate module loads or process runs |
 | `object_instance_id` | string | Application-level object ID in hexadecimal |
 | `created` / `destroyed` | boolean | Whether explicit creation/destruction events were observed in this trace |
 | `create_events`, `add_ref_events`, `release_events`, `destroy_events` | number | Count of each observed lifecycle event |
