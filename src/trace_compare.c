@@ -1497,6 +1497,7 @@ typedef struct {
     ULONGLONG matched_by_process_thread;
     ULONGLONG incomplete;
     ULONGLONG unmatched;
+    ULONGLONG ambiguous_stops;
     ULONGLONG activity_sequences;
     ULONGLONG missing_activity_ids;
     ULONGLONG invalid_duration_orders;
@@ -1534,6 +1535,7 @@ static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
         }
     }
 
+    counts.ambiguous_stops = summary->ole_timeline.ambiguous_stops;
     counts.activity_sequences =
         (ULONGLONG)comtrace_ole_timeline_sequence_count(&summary->ole_timeline);
     counts.missing_activity_ids = summary->ole_timeline.missing_activity_ids;
@@ -1657,13 +1659,14 @@ void comtrace_trace_comparison_write_text(
     );
 
     wprintf(
-        L"OLE Timeline: left matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu; right matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu\n",
+        L"OLE Timeline: left matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu ambiguous_stops=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu; right matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu ambiguous_stops=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu\n",
         (unsigned long long)left_ole_timeline.matched,
         (unsigned long long)left_ole_timeline.matched_by_activity_id,
         (unsigned long long)left_ole_timeline.matched_by_related_activity_id,
         (unsigned long long)left_ole_timeline.matched_by_process_thread,
         (unsigned long long)left_ole_timeline.incomplete,
         (unsigned long long)left_ole_timeline.unmatched,
+        (unsigned long long)left_ole_timeline.ambiguous_stops,
         (unsigned long long)left_ole_timeline.activity_sequences,
         (unsigned long long)left_ole_timeline.missing_activity_ids,
         (unsigned long long)left_ole_timeline.invalid_duration_orders,
@@ -1673,6 +1676,7 @@ void comtrace_trace_comparison_write_text(
         (unsigned long long)right_ole_timeline.matched_by_process_thread,
         (unsigned long long)right_ole_timeline.incomplete,
         (unsigned long long)right_ole_timeline.unmatched,
+        (unsigned long long)right_ole_timeline.ambiguous_stops,
         (unsigned long long)right_ole_timeline.activity_sequences,
         (unsigned long long)right_ole_timeline.missing_activity_ids,
         (unsigned long long)right_ole_timeline.invalid_duration_orders
@@ -2180,8 +2184,8 @@ void comtrace_trace_comparison_write_json(
         L"  \"timeline_summary\": {"
         L"\"left_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
         L"\"right_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
-        L"\"left_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}, "
-        L"\"right_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}},\n",
+        L"\"left_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"ambiguous_stops\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}, "
+        L"\"right_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"ambiguous_stops\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}},\n",
         (unsigned long long)left_com.matched,
         (unsigned long long)left_com.matched_by_call_trace_id,
         (unsigned long long)left_com.matched_by_activity_id,
@@ -2206,6 +2210,7 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)left_ole.matched_by_process_thread,
         (unsigned long long)left_ole.incomplete,
         (unsigned long long)left_ole.unmatched,
+        (unsigned long long)left_ole.ambiguous_stops,
         (unsigned long long)left_ole.activity_sequences,
         (unsigned long long)left_ole.missing_activity_ids,
         (unsigned long long)left_ole.invalid_duration_orders,
@@ -2215,6 +2220,7 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)right_ole.matched_by_process_thread,
         (unsigned long long)right_ole.incomplete,
         (unsigned long long)right_ole.unmatched,
+        (unsigned long long)right_ole.ambiguous_stops,
         (unsigned long long)right_ole.activity_sequences,
         (unsigned long long)right_ole.missing_activity_ids,
         (unsigned long long)right_ole.invalid_duration_orders
