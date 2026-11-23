@@ -1632,6 +1632,7 @@ static void add_com_lifetime_analysis_event(
     const wchar_t *event_name = NULL;
     COMTRACE_LIFETIME_EVENT event;
     COMTRACE_LIFETIME_STATUS status;
+    COMTRACE_IDENTITY_STATUS instrumentation_status;
     COMTRACE_ACTIVITY_IDS activity_ids;
     ULONGLONG process_generation = 0ULL;
     ULONG reference_count = 0U;
@@ -1672,17 +1673,27 @@ static void add_com_lifetime_analysis_event(
     event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
-    if (comtrace_extract_guid_property(
-            event_record,
-            L"InstrumentationId",
-            &event.instrumentation_id
-        ) == COMTRACE_IDENTITY_SUCCESS) {
+    instrumentation_status = comtrace_extract_guid_property(
+        event_record,
+        L"InstrumentationId",
+        &event.instrumentation_id
+    );
+    if (instrumentation_status == COMTRACE_IDENTITY_SUCCESS) {
         GUID empty_instrumentation_id = {0};
         if (memcmp(&event.instrumentation_id,
                    &empty_instrumentation_id,
-                   sizeof(GUID)) != 0) {
-            event.has_instrumentation_id = TRUE;
+                   sizeof(GUID)) == 0) {
+            if (context->lifetime_decode_failures != ULLONG_MAX) {
+                ++context->lifetime_decode_failures;
+            }
+            return;
         }
+        event.has_instrumentation_id = TRUE;
+    } else if (instrumentation_status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        if (context->lifetime_decode_failures != ULLONG_MAX) {
+            ++context->lifetime_decode_failures;
+        }
+        return;
     }
 
     if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
