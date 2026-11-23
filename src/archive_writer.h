@@ -52,6 +52,8 @@ typedef struct {
     COMTRACE_ARCHIVE_STATUS status;
     ULONG checksum_state;
     BOOL checksum_enabled;
+    ULONG write_buffer_size;
+    BYTE write_buffer[65536U];
 } COMTRACE_ARCHIVE_WRITER;
 
 COMTRACE_ARCHIVE_STATUS comtrace_archive_writer_open(
