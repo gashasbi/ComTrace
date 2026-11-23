@@ -513,11 +513,82 @@ static IDataObject *create_data_object(void)
     return &object->data_object_iface;
 }
 
+typedef struct {
+    IDropSource drop_source_iface;
+    LONG references;
+} COMTRACE_TEST_DROP_SOURCE;
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
+    IDropSource *drop_source_iface,
+    REFIID interface_id,
+    void **result
+)
+{
+    if (result == NULL || interface_id == NULL) {
+        return E_POINTER;
+    }
+    *result = NULL;
+    if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
+        IsEqualGUID(interface_id, &IID_IDropSource)) {
+        *result = drop_source_iface;
+        drop_source_iface->lpVtbl->AddRef(drop_source_iface);
+        return S_OK;
+    }
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source =
+        (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    return (ULONG)InterlockedIncrement(&source->references);
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source =
+        (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    LONG references = InterlockedDecrement(&source->references);
+    return references < 0 ? 0U : (ULONG)references;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_continue_drag(
+    IDropSource *drop_source_iface,
+    BOOL escape_pressed,
+    DWORD key_state
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(escape_pressed);
+    UNREFERENCED_PARAMETER(key_state);
+    return DRAGDROP_S_CANCEL;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
+    IDropSource *drop_source_iface,
+    DWORD effect
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(effect);
+    return DRAGDROP_S_USEDEFAULTCURSORS;
+}
+
+static IDropSourceVtbl drop_source_vtable = {
+    drop_source_query_interface,
+    drop_source_add_ref,
+    drop_source_release,
+    drop_source_query_continue_drag,
+    drop_source_give_feedback
+};
+
 int main(void)
 {
     IDataObject *data_object = NULL;
     IDataObject *clipboard_object = NULL;
     IDropTarget *drop_target = NULL;
+    COMTRACE_TEST_DROP_SOURCE drop_source;
+    DWORD drop_effect = DROPEFFECT_NONE;
     HWND drop_window = NULL;
     FORMATETC format;
     STGMEDIUM medium;
@@ -606,6 +677,21 @@ int main(void)
     result = RegisterDragDrop(drop_window, drop_target);
     if (FAILED(result)) {
         printf("RegisterDragDrop failed: 0x%08lx\n", (unsigned long)result);
+        goto cleanup;
+    }
+
+    ZeroMemory(&drop_source, sizeof(drop_source));
+    drop_source.drop_source_iface.lpVtbl = &drop_source_vtable;
+    drop_source.references = 1;
+    result = DoDragDrop(
+        data_object,
+        &drop_source.drop_source_iface,
+        DROPEFFECT_COPY,
+        &drop_effect
+    );
+    if (result != DRAGDROP_S_CANCEL) {
+        printf("DoDragDrop returned unexpected status: 0x%08lx\n",
+            (unsigned long)result);
         goto cleanup;
     }
 
