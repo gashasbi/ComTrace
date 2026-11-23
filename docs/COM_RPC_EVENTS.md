@@ -102,7 +102,7 @@ ComTrace.exe --search trace.etl --provider {6AD52B32-D609-4BE9-AE07-CE8DAE937E39
 ComTrace.exe --search trace.etl --provider {D8975F88-7DDB-4ED0-91BF-3ADF48C48E0C} --max-events 10000
 ```
 
-The real-trace validation script records total and classified event counts for all three providers. Missing events are reported as observations and do not fail validation. Provider registration or enablement does not prove that events were emitted.
+The real-trace validation script records total and classified event counts for all three providers, requires client and server RPC activity during a fresh capture, and parses the RPC pairing, cross-process correlation, duration/status, COM-operation link, and RPCSS endpoint lifecycle counters from the inspect report. It checks that the reported match-source and evidence-link totals are internally consistent. Missing optional-provider events remain observations and do not fail validation. Provider registration or enablement does not prove that events were emitted.
 
 ## COM object lifetime boundary
 
