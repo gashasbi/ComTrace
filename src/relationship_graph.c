@@ -76,8 +76,6 @@ static int same_node(
     BOOL has_process_generation
 )
 {
-    GUID empty_guid = {0};
-
     if (left->type != type) {
         return 0;
     }
@@ -114,9 +112,9 @@ static int same_node(
                left->has_process_generation == has_process_generation &&
                (!has_process_generation ||
                 left->process_generation == process_generation) &&
-               memcmp(&left->guid,
-                      guid != NULL ? guid : &empty_guid,
-                      sizeof(GUID)) == 0;
+               left->has_guid == (guid != NULL) &&
+               (!left->has_guid ||
+                memcmp(&left->guid, guid, sizeof(GUID)) == 0);
     default:
         return 0;
     }
@@ -168,6 +166,7 @@ static COMTRACE_GRAPH_STATUS add_node_with_generation(
 
     if (guid != NULL) {
         node->guid = *guid;
+        node->has_guid = TRUE;
     }
 
     ++graph->node_count;
