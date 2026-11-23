@@ -127,6 +127,14 @@ string(JSON left_process_decode_failures GET "${output}" process_lifecycle_summa
 string(JSON right_process_start_events GET "${output}" process_lifecycle_summary right start_events)
 string(JSON right_process_end_events GET "${output}" process_lifecycle_summary right end_events)
 string(JSON right_process_decode_failures GET "${output}" process_lifecycle_summary right decode_failures)
+string(JSON left_lifetime_objects GET "${output}" lifetime_summary left_objects)
+string(JSON right_lifetime_objects GET "${output}" lifetime_summary right_objects)
+string(JSON lifetime_added GET "${output}" lifetime_summary added)
+string(JSON lifetime_removed GET "${output}" lifetime_summary removed)
+string(JSON lifetime_changed GET "${output}" lifetime_summary changed)
+string(JSON left_object_lifetime_count LENGTH "${output}" object_lifetimes left)
+string(JSON right_object_lifetime_count LENGTH "${output}" object_lifetimes right)
+string(JSON object_lifetime_change_count LENGTH "${output}" object_lifetime_changes)
 string(JSON left_timeline_count LENGTH "${output}" timeline left)
 string(JSON right_timeline_count LENGTH "${output}" timeline right)
 string(JSON left_com_matched GET "${output}" timeline_summary left_com matched)
@@ -166,6 +174,14 @@ if(NOT object_change_count EQUAL 0 OR
    NOT right_process_start_events EQUAL 0 OR
    NOT right_process_end_events EQUAL 0 OR
    NOT right_process_decode_failures EQUAL 0 OR
+   NOT left_lifetime_objects EQUAL 0 OR
+   NOT right_lifetime_objects EQUAL 0 OR
+   NOT lifetime_added EQUAL 0 OR
+   NOT lifetime_removed EQUAL 0 OR
+   NOT lifetime_changed EQUAL 0 OR
+   NOT left_object_lifetime_count EQUAL 0 OR
+   NOT right_object_lifetime_count EQUAL 0 OR
+   NOT object_lifetime_change_count EQUAL 0 OR
    NOT left_timeline_count EQUAL 0 OR
    NOT right_timeline_count EQUAL 0 OR
    NOT left_com_matched EQUAL 0 OR
