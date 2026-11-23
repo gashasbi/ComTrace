@@ -662,7 +662,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     }
 
     allocation_size = descriptor_size + (size_t)payload_size;
-    allocation = calloc(1U, allocation_size);
+    allocation = malloc(allocation_size);
     if (allocation == NULL) {
         return set_failure(
             reader,
