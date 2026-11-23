@@ -56,7 +56,7 @@ target_include_directories(ComTraceLifetimeInstrumentation PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(ComTraceLifetimeInstrumentation PUBLIC Advapi32)
+target_link_libraries(ComTraceLifetimeInstrumentation PUBLIC Advapi32 Ole32)
 
 if(MSVC)
     target_compile_options(ComTraceLifetimeInstrumentation PRIVATE /W4 /WX /wd5105 /utf-8)
