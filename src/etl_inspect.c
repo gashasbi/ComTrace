@@ -1157,7 +1157,7 @@ static void print_event_property_value(
                 : property->nonStructType.OutType;
 
         wprintf(
-            L"  property_type name=%ls in_type=%u in_type_name=%ls out_type=%u out_type_name=%ls\\n",
+            L"  property_type name=%ls in_type=%u in_type_name=%ls out_type=%u out_type_name=%ls\n",
             display_name,
             (unsigned int)input_type,
             comtrace_etl_input_type_name(input_type),
@@ -1200,7 +1200,7 @@ static void print_event_property_value(
             return;
         }
         wprintf(
-            L"  property_value[%lu] name=%ls type=struct elements=%lu\\n",
+            L"  property_value[%lu] name=%ls type=struct elements=%lu\n",
             (unsigned long)index,
             display_name,
             (unsigned long)struct_count
@@ -1354,7 +1354,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
         name = (const wchar_t *)(buffer + name_offset);
         remaining = (buffer_size - name_offset) / (ULONG)sizeof(wchar_t);
 
-        while (name_length < remaining && name[name_length] != L'\\0') {
+        while (name_length < remaining && name[name_length] != L'\0') {
             ++name_length;
         }
 
@@ -1433,7 +1433,7 @@ static void print_event_properties(const EVENT_RECORD *event_record, ULONG point
 
     if (decoded_info.top_level_property_count > top_level_property_count) {
         wprintf(
-            L"  payload_value_limit=%lu remaining=%lu\\n",
+            L"  payload_value_limit=%lu remaining=%lu\n",
             (unsigned long)COMTRACE_MAX_DISPLAYED_EVENT_PROPERTIES,
             (unsigned long)(decoded_info.top_level_property_count - top_level_property_count)
         );
@@ -1463,7 +1463,7 @@ static BOOL get_tracelogging_event_name(
         return FALSE;
     }
 
-    event_name[0] = L'\\0';
+    event_name[0] = L'\0';
     ZeroMemory(&decoded_info, sizeof(decoded_info));
     info_status = comtrace_etl_event_info_open(event_record, &decoded_info);
     if (info_status != COMTRACE_ETL_EVENT_INFO_SUCCESS) {
@@ -1479,7 +1479,7 @@ static BOOL get_tracelogging_event_name(
         name = (const wchar_t *)(decoded_info.buffer + name_offset);
         remaining = (decoded_info.size - name_offset) / (ULONG)sizeof(wchar_t);
 
-        while (name_length < remaining && name[name_length] != L'\\0') {
+        while (name_length < remaining && name[name_length] != L'\0') {
             ++name_length;
         }
 
@@ -2534,9 +2534,9 @@ static void print_rpc_endpoint_summary(
         return;
     }
 
-    wprintf(L"\\nRPCSS endpoint registration summary\\n");
+    wprintf(L"\nRPCSS endpoint registration summary\n");
     if (context->rpc_endpoint_status != COMTRACE_RPC_ENDPOINT_SUCCESS) {
-        wprintf(L"  status=unavailable reason=allocation_failed\\n");
+        wprintf(L"  status=unavailable reason=allocation_failed\n");
         return;
     }
 
@@ -2558,13 +2558,13 @@ static void print_rpc_endpoint_summary(
         }
     }
 
-    wprintf(L"  Endpoint records: %llu\\n", (unsigned long long)count);
-    wprintf(L"  Registrations observed: %llu\\n", (unsigned long long)registered);
-    wprintf(L"  Unregistrations observed: %llu\\n", (unsigned long long)unregistered);
-    wprintf(L"  Active registrations: %llu\\n", (unsigned long long)active);
-    wprintf(L"  Unmatched unregistrations: %llu\\n",
+    wprintf(L"  Endpoint records: %llu\n", (unsigned long long)count);
+    wprintf(L"  Registrations observed: %llu\n", (unsigned long long)registered);
+    wprintf(L"  Unregistrations observed: %llu\n", (unsigned long long)unregistered);
+    wprintf(L"  Active registrations: %llu\n", (unsigned long long)active);
+    wprintf(L"  Unmatched unregistrations: %llu\n",
         (unsigned long long)context->rpc_endpoint_catalog.unmatched_unregistrations);
-    wprintf(L"  Duplicate registrations: %llu\\n",
+    wprintf(L"  Duplicate registrations: %llu\n",
         (unsigned long long)context->rpc_endpoint_catalog.duplicate_registrations);
 
     for (index = 0U; index < count && index < 100U; ++index) {
@@ -2581,9 +2581,9 @@ static void print_rpc_endpoint_summary(
             print_guid(&record->object_uuid);
         }
         wprintf(
-            L" protocol=%ls endpoint=%ls location=%ls state=%ls observer_pid=%lu\\n",
-            record->protocol[0] == L'\\0' ? L"unknown" : record->protocol,
-            record->endpoint[0] == L'\\0' ? L"unknown" : record->endpoint,
+            L" protocol=%ls endpoint=%ls location=%ls state=%ls observer_pid=%lu\n",
+            record->protocol[0] == L'\0' ? L"unknown" : record->protocol,
+            record->endpoint[0] == L'\0' ? L"unknown" : record->endpoint,
             rpc_endpoint_location_name(record->location),
             record->is_active ? L"registered" :
                 (record->has_registration ? L"unregistered" : L"unmatched-unregister"),
@@ -2591,7 +2591,7 @@ static void print_rpc_endpoint_summary(
         );
     }
     if (count > 100U) {
-        wprintf(L"  endpoint_display_limit=100 remaining=%llu\\n",
+        wprintf(L"  endpoint_display_limit=100 remaining=%llu\n",
             (unsigned long long)(count - 100U));
     }
 }
@@ -2776,9 +2776,9 @@ static void print_rpc_timeline_summary(
         return;
     }
 
-    wprintf(L"\\nRPC call timeline summary\\n");
+    wprintf(L"\nRPC call timeline summary\n");
     if (context->rpc_timeline_status != COMTRACE_RPC_TIMELINE_SUCCESS) {
-        wprintf(L"  status=unavailable reason=allocation_failed\\n");
+        wprintf(L"  status=unavailable reason=allocation_failed\n");
         return;
     }
 
@@ -2802,16 +2802,16 @@ static void print_rpc_timeline_summary(
         }
     }
 
-    wprintf(L"  RPC timeline records: %llu\\n", (unsigned long long)count);
-    wprintf(L"  Matched RPC calls: %llu\\n", (unsigned long long)matched);
-    wprintf(L"  Matched by ActivityId: %llu\\n", (unsigned long long)matched_by_activity_id);
-    wprintf(L"  Matched by process/thread/operation: %llu\\n", (unsigned long long)matched_by_process_thread);
-    wprintf(L"  Incomplete RPC starts: %llu\\n", (unsigned long long)incomplete_starts);
-    wprintf(L"  Unmatched RPC stops: %llu\\n", (unsigned long long)context->rpc_timeline.unmatched_stops);
-    wprintf(L"  RPC events without ActivityId: %llu\\n", (unsigned long long)context->rpc_timeline.missing_activity_ids);
-    wprintf(L"  Correlated client/server calls: %llu\\n",
+    wprintf(L"  RPC timeline records: %llu\n", (unsigned long long)count);
+    wprintf(L"  Matched RPC calls: %llu\n", (unsigned long long)matched);
+    wprintf(L"  Matched by ActivityId: %llu\n", (unsigned long long)matched_by_activity_id);
+    wprintf(L"  Matched by process/thread/operation: %llu\n", (unsigned long long)matched_by_process_thread);
+    wprintf(L"  Incomplete RPC starts: %llu\n", (unsigned long long)incomplete_starts);
+    wprintf(L"  Unmatched RPC stops: %llu\n", (unsigned long long)context->rpc_timeline.unmatched_stops);
+    wprintf(L"  RPC events without ActivityId: %llu\n", (unsigned long long)context->rpc_timeline.missing_activity_ids);
+    wprintf(L"  Correlated client/server calls: %llu\n",
         (unsigned long long)context->rpc_timeline.correlated_client_server_calls);
-    wprintf(L"  Ambiguous client/server candidates: %llu\\n",
+    wprintf(L"  Ambiguous client/server candidates: %llu\n",
         (unsigned long long)context->rpc_timeline.ambiguous_client_server_calls);
 
     for (index = 0U; index < count && index < 100U; ++index) {
@@ -2855,13 +2855,13 @@ static void print_rpc_timeline_summary(
         if (record->has_procedure_number) {
             wprintf(L" proc_num=%lu", (unsigned long)record->procedure_number);
         }
-        if (record->protocol[0] != L'\\0') {
+        if (record->protocol[0] != L'\0') {
             wprintf(L" protocol=%ls", record->protocol);
         }
-        if (record->network_address[0] != L'\\0') {
+        if (record->network_address[0] != L'\0') {
             wprintf(L" network_address=%ls", record->network_address);
         }
-        if (record->endpoint[0] != L'\\0') {
+        if (record->endpoint[0] != L'\0') {
             wprintf(L" endpoint=%ls", record->endpoint);
         }
         if (record->has_correlated_record) {
@@ -2877,11 +2877,11 @@ static void print_rpc_timeline_summary(
             wprintf(L" related_activity_id=");
             print_guid(&record->related_activity_id);
         }
-        wprintf(L" match=%ls\\n", rpc_timeline_match_name(record->match_type));
+        wprintf(L" match=%ls\n", rpc_timeline_match_name(record->match_type));
     }
 
     if (count > 100U) {
-        wprintf(L"  timeline_display_limit=100 remaining=%llu\\n",
+        wprintf(L"  timeline_display_limit=100 remaining=%llu\n",
             (unsigned long long)(count - 100U));
     }
 }
@@ -5062,7 +5062,7 @@ static int event_property_matches_filter(
                     pointer_size
                 );
             }
-        } else if (separator[1] != L'\\0') {
+        } else if (separator[1] != L'\0') {
             matched = event_struct_property_matches(
                 event_record,
                 buffer,
