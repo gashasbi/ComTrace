@@ -3934,6 +3934,10 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"thread_initiates_ole_operation";
     case COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY:
         return L"ole_operation_has_activity";
+    case COMTRACE_GRAPH_EDGE_OBJECT_EXPOSES_IID:
+        return L"object_exposes_iid";
+    case COMTRACE_GRAPH_EDGE_OLE_OPERATION_USES_DATA_OBJECT:
+        return L"ole_operation_uses_data_object";
     default:
         return L"unknown";
     }
@@ -5752,6 +5756,11 @@ static int inspect_etl_internal(
     link_rpc_records_to_endpoints(&context);
     link_rpc_records_to_com_operations(&context);
     add_lifetime_records_to_graph(&context);
+    if (comtrace_relationship_graph_link_ole_data_objects(
+            &context.relationship_graph
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+    }
     if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
         COMTRACE_DDE_TIMELINE_SUCCESS) {
         context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;

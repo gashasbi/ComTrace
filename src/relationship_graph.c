@@ -877,6 +877,17 @@ static COMTRACE_GRAPH_STATUS add_event_internal(
                 return status;
             }
         }
+        if (iid_index != (size_t)-1) {
+            status = add_edge(
+                graph,
+                COMTRACE_GRAPH_EDGE_OBJECT_EXPOSES_IID,
+                object_index,
+                iid_index
+            );
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
 
         if (ipid_index != (size_t)-1) {
             status = add_edge(

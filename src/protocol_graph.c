@@ -449,8 +449,9 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
                 process_lifecycle, record->process_id, timestamp, &generation);
         }
         status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION,
-            record->process_id, 0U, NULL, (ULONGLONG)index + 1ULL,
-            &operation_index);
+            record->process_id, 0U,
+            record->has_activity_id ? &record->activity_id : NULL,
+            (ULONGLONG)index + 1ULL, &operation_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
@@ -492,6 +493,144 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             }
             status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY,
                 operation_index, activity_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+    return COMTRACE_GRAPH_SUCCESS;
+}
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_link_ole_data_objects(
+    COMTRACE_RELATIONSHIP_GRAPH *graph
+)
+{
+    static const GUID data_object_iid = {
+        0x0000010E, 0x0000, 0x0000,
+        {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+    };
+    size_t operation_index;
+
+    if (graph == NULL) {
+        return COMTRACE_GRAPH_INVALID_ARGUMENT;
+    }
+    for (operation_index = 0U; operation_index < graph->node_count; ++operation_index) {
+        const COMTRACE_GRAPH_NODE *operation = &graph->nodes[operation_index];
+        size_t activity_index;
+        size_t match_index = (size_t)-1;
+        size_t match_count = 0U;
+
+        if (operation->type != COMTRACE_GRAPH_NODE_OLE_OPERATION ||
+            !operation->has_guid) {
+            continue;
+        }
+        for (activity_index = 0U; activity_index < graph->node_count; ++activity_index) {
+            const COMTRACE_GRAPH_NODE *activity = &graph->nodes[activity_index];
+            size_t edge_index;
+
+            if (activity->type != COMTRACE_GRAPH_NODE_ACTIVITY ||
+                !activity->has_guid ||
+                memcmp(&activity->guid, &operation->guid, sizeof(GUID)) != 0) {
+                continue;
+            }
+            for (edge_index = 0U; edge_index < graph->edge_count; ++edge_index) {
+                const COMTRACE_GRAPH_EDGE *edge = &graph->edges[edge_index];
+                size_t object_index;
+
+                if (edge->type == COMTRACE_GRAPH_EDGE_CALL_HAS_ACTIVITY &&
+                    edge->target_index == activity_index) {
+                    size_t object_edge_index;
+                    for (object_edge_index = 0U;
+                         object_edge_index < graph->edge_count;
+                         ++object_edge_index) {
+                        const COMTRACE_GRAPH_EDGE *object_edge =
+                            &graph->edges[object_edge_index];
+                        int is_data_object = 0;
+
+                        if (object_edge->type != COMTRACE_GRAPH_EDGE_CALL_USES_OBJECT ||
+                            object_edge->source_index != edge->source_index) {
+                            continue;
+                        }
+                        object_index = object_edge->target_index;
+                        {
+                            size_t iid_edge_index;
+                            for (iid_edge_index = 0U;
+                                 iid_edge_index < graph->edge_count;
+                                 ++iid_edge_index) {
+                                const COMTRACE_GRAPH_EDGE *iid_edge =
+                                    &graph->edges[iid_edge_index];
+                                const COMTRACE_GRAPH_NODE *iid_node;
+                                if (iid_edge->source_index != object_index ||
+                                    (iid_edge->type != COMTRACE_GRAPH_EDGE_OBJECT_EXPOSES_IID &&
+                                     iid_edge->type != COMTRACE_GRAPH_EDGE_OBJECT_HAS_IPID)) {
+                                    continue;
+                                }
+                                if (iid_edge->type == COMTRACE_GRAPH_EDGE_OBJECT_EXPOSES_IID) {
+                                    iid_node = &graph->nodes[iid_edge->target_index];
+                                    if (iid_node->type == COMTRACE_GRAPH_NODE_IID &&
+                                        memcmp(&iid_node->guid, &data_object_iid, sizeof(GUID)) == 0) {
+                                        is_data_object = 1;
+                                    }
+                                } else {
+                                    size_t supports_index;
+                                    for (supports_index = 0U;
+                                         supports_index < graph->edge_count;
+                                         ++supports_index) {
+                                        const COMTRACE_GRAPH_EDGE *supports =
+                                            &graph->edges[supports_index];
+                                        if (supports->type != COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID ||
+                                            supports->source_index != iid_edge->target_index) {
+                                            continue;
+                                        }
+                                        iid_node = &graph->nodes[supports->target_index];
+                                        if (iid_node->type == COMTRACE_GRAPH_NODE_IID &&
+                                            memcmp(&iid_node->guid, &data_object_iid, sizeof(GUID)) == 0) {
+                                            is_data_object = 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (is_data_object) {
+                            match_index = object_index;
+                            ++match_count;
+                        }
+                    }
+                }
+            }
+            for (edge_index = 0U; edge_index < graph->edge_count; ++edge_index) {
+                const COMTRACE_GRAPH_EDGE *edge = &graph->edges[edge_index];
+                const COMTRACE_GRAPH_NODE *object;
+                size_t iid_edge_index;
+                int is_data_object = 0;
+
+                if (edge->type != COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_HAS_ACTIVITY ||
+                    edge->target_index != activity_index) {
+                    continue;
+                }
+                object_index = edge->source_index;
+                for (iid_edge_index = 0U; iid_edge_index < graph->edge_count; ++iid_edge_index) {
+                    const COMTRACE_GRAPH_EDGE *iid_edge = &graph->edges[iid_edge_index];
+                    if (iid_edge->type != COMTRACE_GRAPH_EDGE_LIFETIME_OBJECT_EXPOSES_IID ||
+                        iid_edge->source_index != object_index) {
+                        continue;
+                    }
+                    object = &graph->nodes[iid_edge->target_index];
+                    if (object->type == COMTRACE_GRAPH_NODE_IID &&
+                        memcmp(&object->guid, &data_object_iid, sizeof(GUID)) == 0) {
+                        is_data_object = 1;
+                    }
+                }
+                if (is_data_object) {
+                    match_index = object_index;
+                    ++match_count;
+                }
+            }
+        }
+        if (match_count == 1U) {
+            COMTRACE_GRAPH_STATUS status = add_protocol_edge(graph,
+                COMTRACE_GRAPH_EDGE_OLE_OPERATION_USES_DATA_OBJECT,
+                operation_index, match_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
