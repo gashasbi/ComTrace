@@ -281,8 +281,14 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 {
     size_t position;
     size_t record_index;
+    size_t selected_pending_index = (size_t)-1;
+    size_t cross_candidate_index = (size_t)-1;
+    size_t cross_candidate_count = 0U;
+    size_t same_thread_candidate_count = 0U;
+    BOOL ambiguous_match = FALSE;
     COMTRACE_RPC_TIMELINE_RECORD *record;
     COMTRACE_RPC_TIMELINE_MATCH_TYPE match_type;
+    COMTRACE_RPC_TIMELINE_MATCH_TYPE selected_match_type = COMTRACE_RPC_TIMELINE_MATCH_NONE;
 
     if (timeline == NULL ||
         event == NULL ||
@@ -328,14 +334,51 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 
     for (position = timeline->pending_count; position > 0U; --position) {
         size_t pending_index = position - 1U;
-        record_index = timeline->pending_indices[pending_index];
-        record = &timeline->records[record_index];
-        match_type = get_match_type(record, event);
+        size_t candidate_record_index = timeline->pending_indices[pending_index];
+        const COMTRACE_RPC_TIMELINE_RECORD *candidate =
+            &timeline->records[candidate_record_index];
+
+        match_type = get_match_type(candidate, event);
         if (match_type == COMTRACE_RPC_TIMELINE_MATCH_NONE) {
             continue;
         }
 
-        record->match_type = match_type;
+        if (match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
+            selected_pending_index = pending_index;
+            selected_match_type = match_type;
+            break;
+        }
+
+        if (candidate->process_id == event->process_id &&
+            candidate->thread_id == event->thread_id) {
+            if (same_thread_candidate_count == 0U) {
+                selected_pending_index = pending_index;
+                selected_match_type = match_type;
+            }
+            ++same_thread_candidate_count;
+        } else {
+            if (cross_candidate_count == 0U) {
+                cross_candidate_index = pending_index;
+            }
+            ++cross_candidate_count;
+        }
+    }
+
+    if (same_thread_candidate_count == 0U &&
+        selected_pending_index == (size_t)-1) {
+        if (cross_candidate_count == 1U) {
+            selected_pending_index = cross_candidate_index;
+            record_index = timeline->pending_indices[selected_pending_index];
+            selected_match_type = get_match_type(&timeline->records[record_index], event);
+        } else if (cross_candidate_count > 1U) {
+            ambiguous_match = TRUE;
+        }
+    }
+
+    if (selected_pending_index != (size_t)-1) {
+        record_index = timeline->pending_indices[selected_pending_index];
+        record = &timeline->records[record_index];
+        record->match_type = selected_match_type;
         record->has_stop = TRUE;
         record->stop_process_id = event->process_id;
         record->stop_thread_id = event->thread_id;
@@ -364,11 +407,11 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
             copy_event_metadata(record, event);
         }
 
-        if (pending_index + 1U < timeline->pending_count) {
+        if (selected_pending_index + 1U < timeline->pending_count) {
             memmove(
-                &timeline->pending_indices[pending_index],
-                &timeline->pending_indices[pending_index + 1U],
-                (timeline->pending_count - pending_index - 1U) *
+                &timeline->pending_indices[selected_pending_index],
+                &timeline->pending_indices[selected_pending_index + 1U],
+                (timeline->pending_count - selected_pending_index - 1U) *
                     sizeof(timeline->pending_indices[0])
             );
         }
@@ -401,6 +444,10 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
     record->stop_thread_id = event->thread_id;
     record->stop_timestamp = event->timestamp;
     record->has_stop = TRUE;
+    record->ambiguous_match = ambiguous_match;
+    if (ambiguous_match) {
+        increment_count(&timeline->ambiguous_stops);
+    }
     record->has_status = event->has_status;
     record->status = event->status;
     record->status_is_failure = event->has_status && event->status != 0U;
