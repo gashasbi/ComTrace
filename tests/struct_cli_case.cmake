@@ -33,7 +33,7 @@ foreach(search_case IN ITEMS "Outer.Code|equals|287454020|1" "Outer.Inner.Nested
     string(FIND "${search_output}" "Events matching filters: ${expected_count}" search_match)
     if(search_match EQUAL -1)
         execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" OUTPUT_QUIET ERROR_QUIET)
-        message(FATAL_ERROR "Nested property search returned an unexpected result for ${property_name}: ${search_output}")
+        message(FATAL_ERROR "Nested property search returned an unexpected result for ${property_name}: ${search_output}\nUnfiltered inspection: ${inspect_output}")
     endif()
 endforeach()
 execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE cleanup_status OUTPUT_QUIET ERROR_QUIET)
