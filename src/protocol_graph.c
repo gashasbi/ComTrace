@@ -608,6 +608,40 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             );
             graph->nodes[operation_index].label[label_length] = L'\0';
         }
+        if (record->has_start) {
+            LONGLONG timestamp = (LONGLONG)record->start_timestamp;
+            COMTRACE_GRAPH_NODE *operation = &graph->nodes[operation_index];
+
+            if (!operation->has_observed_timestamp) {
+                operation->first_seen_timestamp = timestamp;
+                operation->last_seen_timestamp = timestamp;
+                operation->has_observed_timestamp = TRUE;
+            } else {
+                if (timestamp < operation->first_seen_timestamp) {
+                    operation->first_seen_timestamp = timestamp;
+                }
+                if (timestamp > operation->last_seen_timestamp) {
+                    operation->last_seen_timestamp = timestamp;
+                }
+            }
+        }
+        if (record->has_stop) {
+            LONGLONG timestamp = (LONGLONG)record->stop_timestamp;
+            COMTRACE_GRAPH_NODE *operation = &graph->nodes[operation_index];
+
+            if (!operation->has_observed_timestamp) {
+                operation->first_seen_timestamp = timestamp;
+                operation->last_seen_timestamp = timestamp;
+                operation->has_observed_timestamp = TRUE;
+            } else {
+                if (timestamp < operation->first_seen_timestamp) {
+                    operation->first_seen_timestamp = timestamp;
+                }
+                if (timestamp > operation->last_seen_timestamp) {
+                    operation->last_seen_timestamp = timestamp;
+                }
+            }
+        }
 
         status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
             record->process_id, 0U, NULL, 0ULL,
