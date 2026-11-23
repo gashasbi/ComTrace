@@ -475,7 +475,11 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
 )
 {
     BYTE frame[ARCHIVE_RECORD_HEADER_SIZE];
+    BYTE metadata[ARCHIVE_EVENT_METADATA_SIZE];
     BYTE *payload = NULL;
+    void *allocation = NULL;
+    size_t descriptor_size;
+    size_t allocation_size;
     ULONGLONG record_offset;
     ULONGLONG sequence;
     ULONGLONG payload_size;
@@ -640,8 +644,26 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
-    payload = (BYTE *)malloc((size_t)payload_size);
-    if (payload == NULL) {
+    if (!read_exact(reader, metadata, sizeof(metadata))) {
+        return reader->status;
+    }
+
+    extended_count = decode_u16(metadata + 84U);
+    user_data_length = decode_u16(metadata + 86U);
+    descriptor_size = (size_t)extended_count *
+        sizeof(EVENT_HEADER_EXTENDED_DATA_ITEM);
+
+    if ((size_t)payload_size > SIZE_MAX - descriptor_size) {
+        return set_failure(
+            reader,
+            COMTRACE_ARCHIVE_READER_INVALID_FORMAT,
+            ERROR_ARITHMETIC_OVERFLOW
+        );
+    }
+
+    allocation_size = descriptor_size + (size_t)payload_size;
+    allocation = calloc(1U, allocation_size);
+    if (allocation == NULL) {
         return set_failure(
             reader,
             COMTRACE_ARCHIVE_READER_ALLOCATION_FAILED,
@@ -649,8 +671,19 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
-    if (!read_exact(reader, payload, (size_t)payload_size)) {
-        free(payload);
+    event->allocation = allocation;
+    event->extended_data =
+        (EVENT_HEADER_EXTENDED_DATA_ITEM *)allocation;
+    payload = (BYTE *)allocation + descriptor_size;
+    event->payload = payload;
+    memcpy(payload, metadata, sizeof(metadata));
+
+    if (payload_size > sizeof(metadata) &&
+        !read_exact(
+            reader,
+            payload + sizeof(metadata),
+            (size_t)payload_size - sizeof(metadata))) {
+        comtrace_archive_event_destroy(event);
         return reader->status;
     }
 
@@ -658,8 +691,6 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     event->record.BufferContext.ProcessorNumber = payload[80U];
     event->record.BufferContext.Alignment = payload[81U];
     event->record.BufferContext.LoggerId = decode_u16(payload + 82U);
-    extended_count = decode_u16(payload + 84U);
-    user_data_length = decode_u16(payload + 86U);
 
     cursor = (size_t)ARCHIVE_EVENT_METADATA_SIZE;
     if ((size_t)extended_count >
@@ -684,22 +715,6 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         );
     }
 
-    if (extended_count != 0U) {
-        event->extended_data = (EVENT_HEADER_EXTENDED_DATA_ITEM *)calloc(
-            (size_t)extended_count,
-            sizeof(*event->extended_data)
-        );
-
-        if (event->extended_data == NULL) {
-            free(payload);
-            return set_failure(
-                reader,
-                COMTRACE_ARCHIVE_READER_ALLOCATION_FAILED,
-                ERROR_NOT_ENOUGH_MEMORY
-            );
-        }
-    }
-
     for (index = 0U; index < extended_count; ++index) {
         EVENT_HEADER_EXTENDED_DATA_ITEM *item = &event->extended_data[index];
         USHORT data_size;
@@ -711,9 +726,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
         cursor += 8U;
 
         if ((size_t)data_size > (size_t)payload_size - cursor) {
-            free(event->extended_data);
-            free(payload);
-            ZeroMemory(event, sizeof(*event));
+            comtrace_archive_event_destroy(event);
 
             if (reader->recovery_mode) {
                 return finish_recovery(
@@ -740,9 +753,7 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     }
 
     if ((size_t)user_data_length != (size_t)payload_size - cursor) {
-        free(event->extended_data);
-        free(payload);
-        ZeroMemory(event, sizeof(*event));
+        comtrace_archive_event_destroy(event);
 
         if (reader->recovery_mode) {
             return finish_recovery(
@@ -785,8 +796,7 @@ void comtrace_archive_event_destroy(COMTRACE_ARCHIVE_EVENT *event)
         return;
     }
 
-    free(event->extended_data);
-    free(event->payload);
+    free(event->allocation != NULL ? event->allocation : event->payload);
     ZeroMemory(event, sizeof(*event));
 }
 
