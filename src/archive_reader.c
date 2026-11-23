@@ -672,8 +672,9 @@ COMTRACE_ARCHIVE_READER_STATUS comtrace_archive_reader_next(
     }
 
     event->allocation = allocation;
-    event->extended_data =
-        (EVENT_HEADER_EXTENDED_DATA_ITEM *)allocation;
+    event->extended_data = extended_count == 0U
+        ? NULL
+        : (EVENT_HEADER_EXTENDED_DATA_ITEM *)allocation;
     payload = (BYTE *)allocation + descriptor_size;
     event->payload = payload;
     memcpy(payload, metadata, sizeof(metadata));
