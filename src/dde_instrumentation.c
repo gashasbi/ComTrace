@@ -1,6 +1,7 @@
 #include "comtrace_dde.h"
 
 #include <TraceLoggingProvider.h>
+#include <winmeta.h>
 
 #include <limits.h>
 

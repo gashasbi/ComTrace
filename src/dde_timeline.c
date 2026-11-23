@@ -379,8 +379,6 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_correlate(
         {
             const COMTRACE_DDE_TIMELINE_RECORD *left =
                 &timeline->records[left_index];
-            const COMTRACE_DDE_TIMELINE_RECORD *right =
-                &timeline->records[candidate_indices[left_index]];
             COMTRACE_DDE_EXCHANGE *exchange =
                 &timeline->exchanges[timeline->exchange_count];
 

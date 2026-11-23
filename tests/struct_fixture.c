@@ -175,7 +175,8 @@ int wmain(int argc, wchar_t **argv)
         TraceLoggingUInt32(
             0xCAFEBABEUL,
             "TaggedValue",
-            TraceLoggingTag(0x123U)
+            "",
+            0x123U
         )
     );
 

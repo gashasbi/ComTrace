@@ -21,7 +21,7 @@ static COMTRACE_IDENTITY_STATUS extract_property_value(
 
     if (event_record == NULL ||
         property_name == NULL ||
-        property_name[0] == L'\\0' ||
+        property_name[0] == L'\0' ||
         value == NULL ||
         expected_size == 0U ||
         expected_size > sizeof(GUID)) {

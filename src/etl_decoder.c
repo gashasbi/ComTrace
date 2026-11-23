@@ -26,7 +26,7 @@ static int metadata_string_is_valid(
     value = (const wchar_t *)(buffer + offset);
     remaining = (buffer_size - offset) / (ULONG)sizeof(wchar_t);
     for (index = 0U; index < remaining; ++index) {
-        if (value[index] == L'\\0') {
+        if (value[index] == L'\0') {
             return index != 0U;
         }
     }
