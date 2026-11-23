@@ -3590,9 +3590,23 @@ static void add_dde_timeline_event(
         &context->dde_timeline,
         &timeline_event
     );
-    if (timeline_status != COMTRACE_DDE_TIMELINE_SUCCESS &&
-        context->dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
-        context->dde_timeline_status = timeline_status;
+    if (timeline_status != COMTRACE_DDE_TIMELINE_SUCCESS) {
+        fwprintf(
+            stderr,
+            L"DDE event rejected: type=%u pid=%lu conversation=%llu transaction=%llu role=%u service=%ls topic=%ls item=%ls status=%u\\n",
+            (unsigned int)timeline_event.type,
+            (unsigned long)timeline_event.process_id,
+            (unsigned long long)timeline_event.conversation_id,
+            (unsigned long long)timeline_event.transaction_instance_id,
+            (unsigned int)timeline_event.role,
+            timeline_event.service,
+            timeline_event.topic,
+            timeline_event.item,
+            (unsigned int)timeline_status
+        );
+        if (context->dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
+            context->dde_timeline_status = timeline_status;
+        }
     }
 }
 
