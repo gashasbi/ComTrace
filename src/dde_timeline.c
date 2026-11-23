@@ -258,7 +258,7 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
         if (match_count == 0U) {
             increment_count(&timeline->unmatched_closes);
         } else {
-            increment_count(&timeline->ambiguous_correlations);
+            increment_count(&timeline->ambiguous_closes);
         }
     }
 
