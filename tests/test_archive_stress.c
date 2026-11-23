@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <psapi.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,7 +62,7 @@ static double elapsed_seconds(
         (double)frequency.QuadPart;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     COMTRACE_ARCHIVE_WRITER writer;
     COMTRACE_ARCHIVE_READER reader;
@@ -81,7 +82,9 @@ int main(void)
     HANDLE file;
     LARGE_INTEGER file_size;
     ULONGLONG index;
+    ULONGLONG event_count = STRESS_EVENT_COUNT;
     ULONGLONG records_read = 0ULL;
+    int require_large_file = 0;
     DWORD failures = 0U;
     int result = EXIT_FAILURE;
     double write_seconds;
@@ -93,6 +96,31 @@ int main(void)
     ZeroMemory(&summary, sizeof(summary));
     ZeroMemory(&source, sizeof(source));
     ZeroMemory(&memory, sizeof(memory));
+
+    if (argc > 2) {
+        fputs("Usage: ComTraceArchiveStressTests [event-count|--large].\n", stderr);
+        return EXIT_FAILURE;
+    }
+
+    if (argc == 2) {
+        if (strcmp(argv[1], "--large") == 0) {
+            event_count = 9000000ULL;
+            require_large_file = 1;
+        } else {
+            char *end = NULL;
+            unsigned long long parsed;
+
+            errno = 0;
+            parsed = strtoull(argv[1], &end, 10);
+            if (errno == ERANGE || argv[1][0] == '\0' ||
+                end == argv[1] || *end != '\0' || parsed == 0ULL) {
+                fputs("Invalid stress event count.\n", stderr);
+                return EXIT_FAILURE;
+            }
+
+            event_count = (ULONGLONG)parsed;
+        }
+    }
 
     if (!create_test_path(path, _countof(path)) ||
         !QueryPerformanceFrequency(&frequency) ||
@@ -128,12 +156,12 @@ int main(void)
     summary.process_trace_status = ERROR_SUCCESS;
     summary.trace_clock_type = 1U;
     summary.pointer_size = (ULONG)sizeof(void *);
-    summary.buffers_read = (ULONG)(STRESS_EVENT_COUNT / 1000ULL);
+    summary.buffers_read = (ULONG)(event_count / 1000ULL);
     summary.buffers_written = summary.buffers_read;
     summary.perf_frequency = 10000000ULL;
 
     (void)QueryPerformanceCounter(&write_start);
-    for (index = 0ULL; index < STRESS_EVENT_COUNT; ++index) {
+    for (index = 0ULL; index < event_count; ++index) {
         fill_payload(payload, index);
         source.EventHeader.ProcessId = (ULONG)(1000ULL + (index % 16ULL));
         source.EventHeader.ThreadId = (ULONG)(2000ULL + (index % 64ULL));
@@ -209,10 +237,11 @@ int main(void)
     }
     (void)QueryPerformanceCounter(&read_end);
 
-    if (records_read != STRESS_EVENT_COUNT ||
-        reader.footer.records_written != STRESS_EVENT_COUNT ||
+    if (records_read != event_count ||
+        reader.footer.records_written != event_count ||
         !reader.footer.checksum_present ||
-        !reader.footer.checksum_valid) {
+        !reader.footer.checksum_valid ||
+        (require_large_file && (ULONGLONG)file_size.QuadPart <= 0x100000000ULL)) {
         fputs("Archive stress count or checksum validation failed.\n", stderr);
         ++failures;
         goto cleanup;
