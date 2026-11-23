@@ -208,11 +208,176 @@ static int test_activity_id_pair_across_process_and_thread(void)
     return 1;
 }
 
+static int test_cross_process_client_server_correlation(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    const COMTRACE_RPC_TIMELINE_RECORD *client;
+    const COMTRACE_RPC_TIMELINE_RECORD *server;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ids.activity_id = activity_id;
+    ids.has_activity_id = TRUE;
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcClientCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 10U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &ids;
+    event.has_interface_uuid = TRUE;
+    event.interface_uuid = interface_id;
+    event.has_procedure_number = TRUE;
+    event.procedure_number = 4U;
+    event.protocol = L"ncalrpc";
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.operation = L"RpcServerCall";
+    event.process_id = 200U;
+    event.thread_id = 20U;
+    event.timestamp = 110ULL;
+    event.protocol = L"ncacn_ip_tcp";
+    event.network_address = L"192.0.2.10";
+    event.endpoint = L"49664";
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.timestamp = 130ULL;
+    event.protocol = NULL;
+    event.network_address = NULL;
+    event.endpoint = NULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.operation = L"RpcClientCall";
+    event.process_id = 100U;
+    event.thread_id = 10U;
+    event.timestamp = 140ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_correlate_calls(&timeline);
+    client = comtrace_rpc_timeline_get(&timeline, 0U);
+    server = comtrace_rpc_timeline_get(&timeline, 1U);
+    if (client == NULL || server == NULL ||
+        client->role != COMTRACE_RPC_ROLE_CLIENT ||
+        server->role != COMTRACE_RPC_ROLE_SERVER ||
+        client->location != COMTRACE_RPC_LOCATION_LOCAL ||
+        server->location != COMTRACE_RPC_LOCATION_NETWORK ||
+        wcscmp(server->network_address, L"192.0.2.10") != 0 ||
+        wcscmp(server->endpoint, L"49664") != 0 ||
+        !client->has_correlated_record ||
+        !server->has_correlated_record ||
+        client->correlated_record_index != 1U ||
+        server->correlated_record_index != 0U ||
+        client->correlation_type != COMTRACE_RPC_CORRELATION_ACTIVITY_ID ||
+        timeline.correlated_client_server_calls != 1ULL ||
+        timeline.ambiguous_client_server_calls != 0ULL) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_ambiguous_client_server_correlation_is_not_guessed(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    size_t index;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ids.activity_id = activity_id;
+    ids.has_activity_id = TRUE;
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcClientCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 1U;
+    event.timestamp = 10ULL;
+    event.activity_ids = &ids;
+    event.has_interface_uuid = TRUE;
+    event.interface_uuid = interface_id;
+    event.has_procedure_number = TRUE;
+    event.procedure_number = 3U;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.operation = L"RpcClientCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.timestamp = 20ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    for (index = 0U; index < 2U; ++index) {
+        event.operation = L"RpcServerCall";
+        event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+        event.process_id = 20U + (DWORD)index;
+        event.thread_id = 2U + (DWORD)index;
+        event.timestamp = 30ULL + (ULONGLONG)index;
+        if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+        event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+        event.timestamp = 40ULL + (ULONGLONG)index;
+        if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    comtrace_rpc_timeline_correlate_calls(&timeline);
+    if (timeline.correlated_client_server_calls != 0ULL ||
+        timeline.ambiguous_client_server_calls != 1ULL) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+    for (index = 0U; index < timeline.record_count; ++index) {
+        if (timeline.records[index].has_correlated_record) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_activity_pair() ||
         !test_fallback_and_one_sided_identifiers() ||
-        !test_activity_id_pair_across_process_and_thread()) {
+        !test_activity_id_pair_across_process_and_thread() ||
+        !test_cross_process_client_server_correlation() ||
+        !test_ambiguous_client_server_correlation_is_not_guessed()) {
         fputs("RPC timeline tests failed.\n", stderr);
         return 1;
     }
