@@ -39,6 +39,12 @@ static int get_instrumentation_id(void)
     ) != FALSE;
 }
 
+static int get_current_activity_id(GUID *activity_id)
+{
+    return activity_id != NULL &&
+        EventActivityIdControl(EVENT_ACTIVITY_CTRL_GET_ID, activity_id) == ERROR_SUCCESS;
+}
+
 ULONG comtrace_lifetime_initialize(void)
 {
     if (!get_instrumentation_id()) {
@@ -59,8 +65,10 @@ ULONGLONG comtrace_lifetime_object_created(
 )
 {
     LONGLONG next_id;
+    GUID activity_id;
 
-    if (class_id == NULL || interface_id == NULL || !get_instrumentation_id()) {
+    if (class_id == NULL || interface_id == NULL || !get_instrumentation_id() ||
+        !get_current_activity_id(&activity_id)) {
         return 0ULL;
     }
 
@@ -69,9 +77,11 @@ ULONGLONG comtrace_lifetime_object_created(
         return 0ULL;
     }
 
-    TraceLoggingWrite(
+    TraceLoggingWriteActivity(
         g_comtrace_lifetime_provider,
         "ComObjectCreated",
+        &activity_id,
+        NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
@@ -90,13 +100,18 @@ void comtrace_lifetime_add_ref(
     ULONG reference_count_result
 )
 {
-    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
+    GUID activity_id;
+
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id() ||
+        !get_current_activity_id(&activity_id)) {
         return;
     }
 
-    TraceLoggingWrite(
+    TraceLoggingWriteActivity(
         g_comtrace_lifetime_provider,
         "ComAddRef",
+        &activity_id,
+        NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
@@ -112,13 +127,18 @@ void comtrace_lifetime_release(
     ULONG reference_count_result
 )
 {
-    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
+    GUID activity_id;
+
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id() ||
+        !get_current_activity_id(&activity_id)) {
         return;
     }
 
-    TraceLoggingWrite(
+    TraceLoggingWriteActivity(
         g_comtrace_lifetime_provider,
         "ComRelease",
+        &activity_id,
+        NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
@@ -136,11 +156,13 @@ void comtrace_lifetime_bind_native_identity(
 )
 {
     GUID ipid_value = {0};
+    GUID activity_id;
 
     if (object_instance_id == 0ULL ||
         native_object_id == 0ULL ||
         interface_id == NULL ||
-        !get_instrumentation_id()) {
+        !get_instrumentation_id() ||
+        !get_current_activity_id(&activity_id)) {
         return;
     }
 
@@ -148,9 +170,11 @@ void comtrace_lifetime_bind_native_identity(
         ipid_value = *native_ipid;
     }
 
-    TraceLoggingWrite(
+    TraceLoggingWriteActivity(
         g_comtrace_lifetime_provider,
         "ComObjectNativeIdentityBound",
+        &activity_id,
+        NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
@@ -166,13 +190,18 @@ void comtrace_lifetime_object_destroyed(
     const GUID *interface_id
 )
 {
-    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
+    GUID activity_id;
+
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id() ||
+        !get_current_activity_id(&activity_id)) {
         return;
     }
 
-    TraceLoggingWrite(
+    TraceLoggingWriteActivity(
         g_comtrace_lifetime_provider,
         "ComObjectDestroyed",
+        &activity_id,
+        NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
