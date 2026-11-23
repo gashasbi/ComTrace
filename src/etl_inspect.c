@@ -4348,10 +4348,11 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_CALLBACK)
     );
     wprintf(
-        L"Protocol edges: rpc_pairs=%llu dde_exchanges=%llu dde_conversation_links=%llu\n",
+        L"Protocol edges: rpc_pairs=%llu dde_exchanges=%llu dde_conversation_links=%llu dde_callback_links=%llu\n",
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_RPC_CALL),
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH),
-        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH)
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_CALLBACK_HAS_CORRELATION)
     );
     wprintf(
         L"Cross-layer links: rpc_com_calls=%llu ole_data_objects=%llu\n",
