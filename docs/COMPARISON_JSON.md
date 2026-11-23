@@ -73,6 +73,7 @@ Each `object_changes` entry contains:
 | `process_id` | number | Process ID associated with the object |
 | `process_generation` | number or null | Resolved one-based Process generation within this trace; null when no unique lifecycle interval matches |
 | `oid` | string | Object ID as a hexadecimal string with a `0x` prefix |
+| `object_generation` | null | Unknown; native COM ETW observations do not provide a verified per-OID lifetime boundary |
 | `left_present` | boolean | Whether the object is present in the left input |
 | `right_present` | boolean | Whether the object is present in the right input |
 | `changed_fields` | string | Hexadecimal bit mask of changed identity fields |
@@ -96,6 +97,7 @@ The `object_observations` object contains `left` and `right` arrays. Each array 
 | `process_id` | number | Process ID associated with the object |
 | `process_generation` | number or null | Resolved one-based Process generation within this trace; null when no unique lifecycle interval matches |
 | `oid` | string | Object ID as a hexadecimal string with a `0x` prefix |
+| `object_generation` | null | Unknown; native COM ETW observations do not provide a verified per-OID lifetime boundary |
 | `observations` | number | Number of event records that exposed this process/OID identity |
 | `first_seen_ticks` | string or null | Minimum raw ETW timestamp observed for the object |
 | `last_seen_ticks` | string or null | Maximum raw ETW timestamp observed for the object |
