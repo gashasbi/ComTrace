@@ -3893,6 +3893,10 @@ static void print_dde_timeline_summary(
         (unsigned long long)context->dde_timeline.unmatched_closes
     );
     wprintf(
+        L"Ambiguous conversation closes: %llu\n",
+        (unsigned long long)context->dde_timeline.ambiguous_closes
+    );
+    wprintf(
         L"Invalid duration timestamp orders: %llu\n",
         (unsigned long long)context->dde_timeline.invalid_duration_orders
     );
