@@ -297,7 +297,7 @@ COMTRACE_DDE_TIMELINE_STATUS comtrace_dde_timeline_add_event(
             return COMTRACE_DDE_TIMELINE_SUCCESS;
         }
         if (match_count > 1U) {
-            increment_count(&timeline->ambiguous_correlations);
+            increment_count(&timeline->ambiguous_completions);
         }
     }
 
