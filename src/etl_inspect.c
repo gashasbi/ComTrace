@@ -3135,6 +3135,7 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     ULONGLONG matched = 0ULL;
     ULONGLONG matched_by_call_trace_id = 0ULL;
     ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_related_activity_id = 0ULL;
     ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete_starts = 0ULL;
     ULONGLONG unmatched_stops = 0ULL;
@@ -3184,6 +3185,10 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
     wprintf(
         L"Matched by ActivityId: %llu\n",
         (unsigned long long)matched_by_activity_id
+    );
+    wprintf(
+        L"Matched by RelatedActivityId: %llu\n",
+        (unsigned long long)matched_by_related_activity_id
     );
     wprintf(
         L"Matched by process/thread/operation: %llu\n",
@@ -3620,6 +3625,8 @@ static const wchar_t *ole_timeline_match_name(
     switch (match_type) {
     case COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID:
         return L"ActivityId";
+    case COMTRACE_OLE_TIMELINE_MATCH_RELATED_ACTIVITY_ID:
+        return L"RelatedActivityId";
     case COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD:
         return L"process_thread_operation";
     default:
@@ -3660,6 +3667,8 @@ static void print_ole_timeline_summary(
             ++matched;
             if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID) {
                 ++matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_RELATED_ACTIVITY_ID) {
+                ++matched_by_related_activity_id;
             } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
                 ++matched_by_process_thread;
             }
