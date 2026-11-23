@@ -120,7 +120,9 @@ static int test_explicit_cross_process_exchange(void)
     event.conversation_id = 11ULL;
     event.transaction_instance_id = 0ULL;
     event.role = COMTRACE_DDE_ROLE_SERVER;
-    event.item = L"document";
+    event.transaction_type = 0U;
+    event.format = 0U;
+    event.item = NULL;
     event.data_size = 128U;
     if (comtrace_dde_timeline_add_event(&timeline, &event) !=
             COMTRACE_DDE_TIMELINE_SUCCESS ||
