@@ -12,6 +12,7 @@ permissions:
 jobs:
   build-and-test:
     runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -21,6 +22,19 @@ jobs:
 
       - name: Build Release
         run: cmake --build --preset windows-vs2022-x64-release --parallel
+
+      - name: Run tests
+        run: ctest --preset windows-vs2022-x64-release
+
+      - name: Run large archive stress validation
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          $stressExecutable = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTraceArchiveStressTests.exe'
+          & $stressExecutable --large
+          if ($LASTEXITCODE -ne 0) {
+            throw "Large archive stress validation failed with exit code $LASTEXITCODE."
+          }
 
       - name: Verify release package contents
         shell: pwsh
@@ -114,6 +128,3 @@ jobs:
             Write-Host "COM-Perf provider schema is not available on this runner."
           }
 
-      - name: Run tests
-        if: always()
-        run: ctest --preset windows-vs2022-x64-release
