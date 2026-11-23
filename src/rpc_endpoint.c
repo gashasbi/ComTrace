@@ -175,6 +175,12 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_add(
          event->phase != COMTRACE_RPC_ENDPOINT_UNREGISTER)) {
         return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
     }
+    {
+        GUID empty_guid = {0};
+        if (memcmp(&event->interface_uuid, &empty_guid, sizeof(GUID)) == 0) {
+            return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
+        }
+    }
 
     if (event->phase == COMTRACE_RPC_ENDPOINT_REGISTER) {
         for (index = catalog->record_count; index > 0U; --index) {
@@ -265,6 +271,12 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
         protocol == NULL || endpoint == NULL ||
         record_index == NULL || found == NULL || ambiguous == NULL) {
         return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
+    }
+    {
+        GUID empty_guid = {0};
+        if (memcmp(interface_uuid, &empty_guid, sizeof(GUID)) == 0) {
+            return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
+        }
     }
 
     for (index = 0U; index < catalog->record_count; ++index) {
