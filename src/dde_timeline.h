@@ -68,6 +68,8 @@ typedef struct {
     BOOL has_completion;
     BOOL has_callback;
     BOOL has_duration;
+    BOOL invalid_duration_order;
+    BOOL metadata_mismatch;
     ULONG result;
     ULONG data_size;
     BOOL succeeded;
@@ -94,8 +96,11 @@ typedef struct {
     size_t exchange_count;
     size_t exchange_capacity;
     ULONGLONG unmatched_completions;
+    ULONGLONG unmatched_closes;
     ULONGLONG missing_transaction_correlation_ids;
     ULONGLONG ambiguous_correlations;
+    ULONGLONG invalid_duration_orders;
+    ULONGLONG metadata_mismatches;
 } COMTRACE_DDE_TIMELINE;
 
 void comtrace_dde_timeline_init(COMTRACE_DDE_TIMELINE *timeline);
