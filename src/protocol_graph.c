@@ -555,6 +555,50 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
                 }
             }
         }
+        if (record->has_callback && transaction_index == (size_t)-1) {
+            size_t callback_index;
+
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_DDE_CALLBACK,
+                record->process_id, record->thread_id, NULL,
+                (ULONGLONG)index + 1ULL, generation, has_generation,
+                &callback_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                free(transaction_nodes);
+                return status;
+            }
+            transaction_nodes[index] = callback_index;
+            status = add_protocol_edge(graph,
+                COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_CALLBACK,
+                process_index, callback_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                free(transaction_nodes);
+                return status;
+            }
+            if (record->thread_id != 0U) {
+                size_t thread_index;
+                status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                    record->process_id, record->thread_id, NULL, 0ULL,
+                    generation, has_generation, &thread_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+                status = add_protocol_edge(graph,
+                    COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                    process_index, thread_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+                status = add_protocol_edge(graph,
+                    COMTRACE_GRAPH_EDGE_THREAD_RECEIVES_DDE_CALLBACK,
+                    thread_index, callback_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+            }
+        }
     }
     for (index = 0U; index < timeline->exchange_count; ++index) {
         const COMTRACE_DDE_EXCHANGE *exchange = &timeline->exchanges[index];
