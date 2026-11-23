@@ -1493,11 +1493,13 @@ static COMTRACE_TIMELINE_COUNTS get_timeline_counts(
 typedef struct {
     ULONGLONG matched;
     ULONGLONG matched_by_activity_id;
+    ULONGLONG matched_by_related_activity_id;
     ULONGLONG matched_by_process_thread;
     ULONGLONG incomplete;
     ULONGLONG unmatched;
     ULONGLONG activity_sequences;
     ULONGLONG missing_activity_ids;
+    ULONGLONG invalid_duration_orders;
 } COMTRACE_OLE_TIMELINE_COUNTS;
 
 static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
@@ -1517,6 +1519,8 @@ static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
             ++counts.matched;
             if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_ACTIVITY_ID) {
                 ++counts.matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_RELATED_ACTIVITY_ID) {
+                ++counts.matched_by_related_activity_id;
             } else if (record->match_type == COMTRACE_OLE_TIMELINE_MATCH_PROCESS_THREAD) {
                 ++counts.matched_by_process_thread;
             }
@@ -1524,6 +1528,9 @@ static COMTRACE_OLE_TIMELINE_COUNTS get_ole_timeline_counts(
             ++counts.incomplete;
         } else if (record->has_stop) {
             ++counts.unmatched;
+        }
+        if (record->invalid_duration_order) {
+            ++counts.invalid_duration_orders;
         }
     }
 
@@ -1650,21 +1657,25 @@ void comtrace_trace_comparison_write_text(
     );
 
     wprintf(
-        L"OLE Timeline: left matched=%llu by_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu; right matched=%llu by_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu\n",
+        L"OLE Timeline: left matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu; right matched=%llu by_activity_id=%llu by_related_activity_id=%llu by_process_thread_operation=%llu incomplete=%llu unmatched=%llu activity_sequences=%llu missing_activity_id=%llu invalid_duration_orders=%llu\n",
         (unsigned long long)left_ole_timeline.matched,
         (unsigned long long)left_ole_timeline.matched_by_activity_id,
+        (unsigned long long)left_ole_timeline.matched_by_related_activity_id,
         (unsigned long long)left_ole_timeline.matched_by_process_thread,
         (unsigned long long)left_ole_timeline.incomplete,
         (unsigned long long)left_ole_timeline.unmatched,
         (unsigned long long)left_ole_timeline.activity_sequences,
         (unsigned long long)left_ole_timeline.missing_activity_ids,
+        (unsigned long long)left_ole_timeline.invalid_duration_orders,
         (unsigned long long)right_ole_timeline.matched,
         (unsigned long long)right_ole_timeline.matched_by_activity_id,
+        (unsigned long long)right_ole_timeline.matched_by_related_activity_id,
         (unsigned long long)right_ole_timeline.matched_by_process_thread,
         (unsigned long long)right_ole_timeline.incomplete,
         (unsigned long long)right_ole_timeline.unmatched,
         (unsigned long long)right_ole_timeline.activity_sequences,
-        (unsigned long long)right_ole_timeline.missing_activity_ids
+        (unsigned long long)right_ole_timeline.missing_activity_ids,
+        (unsigned long long)right_ole_timeline.invalid_duration_orders
     );
 
     wprintf(L"Operation timings\n");
@@ -2169,8 +2180,8 @@ void comtrace_trace_comparison_write_json(
         L"  \"timeline_summary\": {"
         L"\"left_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
         L"\"right_com\": {\"matched\": %llu, \"matched_by_call_trace_id\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"missing_call_trace_ids\": %llu, \"missing_activity_ids\": %llu, \"failed\": %llu}, "
-        L"\"left_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}, "
-        L"\"right_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu}},\n",
+        L"\"left_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}, "
+        L"\"right_ole\": {\"matched\": %llu, \"matched_by_activity_id\": %llu, \"matched_by_related_activity_id\": %llu, \"matched_by_process_thread\": %llu, \"incomplete\": %llu, \"unmatched\": %llu, \"activity_sequences\": %llu, \"missing_activity_ids\": %llu, \"invalid_duration_orders\": %llu}},\n",
         (unsigned long long)left_com.matched,
         (unsigned long long)left_com.matched_by_call_trace_id,
         (unsigned long long)left_com.matched_by_activity_id,
@@ -2191,18 +2202,22 @@ void comtrace_trace_comparison_write_json(
         (unsigned long long)right_com.failed,
         (unsigned long long)left_ole.matched,
         (unsigned long long)left_ole.matched_by_activity_id,
+        (unsigned long long)left_ole.matched_by_related_activity_id,
         (unsigned long long)left_ole.matched_by_process_thread,
         (unsigned long long)left_ole.incomplete,
         (unsigned long long)left_ole.unmatched,
         (unsigned long long)left_ole.activity_sequences,
         (unsigned long long)left_ole.missing_activity_ids,
+        (unsigned long long)left_ole.invalid_duration_orders,
         (unsigned long long)right_ole.matched,
         (unsigned long long)right_ole.matched_by_activity_id,
+        (unsigned long long)right_ole.matched_by_related_activity_id,
         (unsigned long long)right_ole.matched_by_process_thread,
         (unsigned long long)right_ole.incomplete,
         (unsigned long long)right_ole.unmatched,
         (unsigned long long)right_ole.activity_sequences,
-        (unsigned long long)right_ole.missing_activity_ids
+        (unsigned long long)right_ole.missing_activity_ids,
+        (unsigned long long)right_ole.invalid_duration_orders
     );
 
     wprintf(L"  \"event_type_changes\": [");
