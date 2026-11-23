@@ -659,7 +659,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
         size_t operation_index;
         size_t process_index;
         size_t thread_index;
-        size_t activity_index;
+        size_t activity_index = 0U;
         ULONGLONG generation = 0ULL;
         BOOL has_generation = FALSE;
         COMTRACE_GRAPH_STATUS status;
