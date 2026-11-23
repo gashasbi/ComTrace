@@ -26,6 +26,7 @@ add_executable(ComTrace
     src/process_lifecycle.c
     src/com_timeline.c
     src/relationship_graph.c
+    src/protocol_graph.c
     src/ole_timeline.c
     src/rpc_timeline.c
     src/rpc_endpoint.c

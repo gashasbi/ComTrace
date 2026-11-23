@@ -5682,7 +5682,7 @@ static int inspect_etl_internal(
     comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
     link_rpc_records_to_endpoints(&context);
     link_rpc_records_to_com_operations(&context);
-    add_lifetime_records_to_graph(&context);
+    if (comtrace_relationship_graph_add_rpc_timeline(\n            &context.relationship_graph,\n            &context.rpc_timeline,\n            &context.process_lifecycle\n        ) != COMTRACE_GRAPH_SUCCESS ||\n        comtrace_relationship_graph_add_dde_timeline(\n            &context.relationship_graph,\n            &context.dde_timeline,\n            &context.process_lifecycle\n        ) != COMTRACE_GRAPH_SUCCESS) {\n        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;\n    }\n    add_lifetime_records_to_graph(&context);
     if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
         COMTRACE_DDE_TIMELINE_SUCCESS) {
         context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
