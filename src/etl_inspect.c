@@ -3545,6 +3545,23 @@ static void add_dde_timeline_event(
         );
         (void)comtrace_extract_uint32_property(
             event_record,
+            L"TransactionType",
+            &timeline_event.transaction_type
+        );
+        (void)comtrace_extract_uint32_property(
+            event_record,
+            L"Format",
+            &timeline_event.format
+        );
+        (void)comtrace_extract_string_property(
+            event_record,
+            L"Item",
+            item,
+            sizeof(item) / sizeof(item[0])
+        );
+        timeline_event.item = item;
+        (void)comtrace_extract_uint32_property(
+            event_record,
             L"Result",
             &timeline_event.result
         );
