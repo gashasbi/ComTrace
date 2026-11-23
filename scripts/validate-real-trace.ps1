@@ -481,7 +481,7 @@ if ($oleMatchTotal -ne $oleTimelineMatched) {
     throw "OLE match-source counts do not add up to the total matched operations."
 }
 if ($oleTimelineAmbiguousStops -gt $oleTimelineUnmatchedStops -or
-    ($oleTimelineMatched + $oleTimelineIncompleteStarts + $oleTimelineUnmatchedStops) -gt ($oleClipboardOperations + $oleDragDropOperations)) {
+    ($oleTimelineMatched + $oleTimelineIncompleteStarts + $oleTimelineUnmatchedStops) -ne ($oleClipboardOperations + $oleDragDropOperations)) {
     throw "OLE unmatched, ambiguous, or lifecycle counters are inconsistent."
 }
 
