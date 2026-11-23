@@ -1636,7 +1636,6 @@ static void add_com_lifetime_analysis_event(
     COMTRACE_LIFETIME_EVENT event;
     COMTRACE_LIFETIME_STATUS status;
     COMTRACE_IDENTITY_STATUS instrumentation_status;
-    COMTRACE_IDENTITY_STATUS activity_status;
     COMTRACE_ACTIVITY_IDS activity_ids;
     ULONGLONG process_generation = 0ULL;
     ULONG reference_count = 0U;
@@ -1700,25 +1699,12 @@ static void add_com_lifetime_analysis_event(
         return;
     }
 
-    activity_status = comtrace_extract_activity_ids(event_record, &activity_ids);
-    if (activity_status == COMTRACE_IDENTITY_SUCCESS) {
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
         event.has_activity_id = activity_ids.has_activity_id;
         event.activity_id = activity_ids.activity_id;
         event.has_related_activity_id = activity_ids.has_related_activity_id;
         event.related_activity_id = activity_ids.related_activity_id;
-    }
-
-    if (event.type == COMTRACE_LIFETIME_EVENT_ADD_REF) {
-        wprintf(L"DEBUG lifetime header_activity_id=");
-        print_guid(&event_record->EventHeader.ActivityId);
-        wprintf(
-            L" status=%u has_activity=%d has_related=%d extended_data_count=%u extended_data=%p\\n",
-            (unsigned int)activity_status,
-            (int)activity_ids.has_activity_id,
-            (int)activity_ids.has_related_activity_id,
-            (unsigned int)event_record->ExtendedDataCount,
-            (void *)event_record->ExtendedData
-        );
     }
 
     if (event.process_id == 0U ||
