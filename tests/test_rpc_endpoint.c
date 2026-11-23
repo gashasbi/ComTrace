@@ -37,7 +37,8 @@ static int test_registration_lifecycle_and_protocol_scope(void)
     event.timestamp = 105ULL;
     if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
         COMTRACE_RPC_ENDPOINT_SUCCESS ||
-        catalog.duplicate_registrations != 1ULL) {
+        catalog.duplicate_registrations != 1ULL ||
+        comtrace_rpc_endpoint_catalog_get(&catalog, 0U)->register_timestamp != 100ULL) {
         comtrace_rpc_endpoint_catalog_destroy(&catalog);
         return 0;
     }
