@@ -2779,8 +2779,8 @@ static void link_rpc_records_to_endpoints(ETL_INSPECT_CONTEXT *context)
         record->endpoint_record_index = 0U;
         record->endpoint_match_ambiguous = FALSE;
         if (!record->has_interface_uuid ||
-            record->protocol[0] == L'\\0' ||
-            record->endpoint[0] == L'\\0' ||
+            record->protocol[0] == L'\0' ||
+            record->endpoint[0] == L'\0' ||
             !record->has_start) {
             continue;
         }
