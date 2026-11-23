@@ -3710,6 +3710,10 @@ static void print_ole_timeline_summary(
     wprintf(L"Incomplete starts: %llu\n", (unsigned long long)incomplete);
     wprintf(L"Unmatched stops: %llu\n", (unsigned long long)unmatched);
     wprintf(
+        L"Ambiguous stops: %llu\n",
+        (unsigned long long)context->ole_timeline.ambiguous_stops
+    );
+    wprintf(
         L"Activity sequences: %llu\n",
         (unsigned long long)comtrace_ole_timeline_sequence_count(&context->ole_timeline)
     );
@@ -3762,6 +3766,9 @@ static void print_ole_timeline_summary(
         }
         if (record->invalid_duration_order) {
             wprintf(L" duration_order=invalid");
+        }
+        if (record->ambiguous_match) {
+            wprintf(L" match=ambiguous");
         }
         if (record->has_duration) {
             if (context->trace_frequency != 0ULL) {
