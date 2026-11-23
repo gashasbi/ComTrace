@@ -42,7 +42,7 @@ execute_process(COMMAND wevtutil.exe um "${MANIFEST_FILE}" RESULT_VARIABLE clean
 if(NOT inspect_status EQUAL 0)
     message(FATAL_ERROR "Inspect failed: ${inspect_error}")
 endif()
-foreach(expected "name=Values[0] value=11" "name=Values[1] value=22" "name=Values[2] value=33")
+foreach(expected "property_value[0] name=Values[0] fixed_count=3 value=11" "property_value[0] name=Values[1] fixed_count=3 value=22" "property_value[0] name=Values[2] fixed_count=3 value=33")
     string(FIND "${inspect_output}" "${expected}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "Missing expected array value: ${expected}\\n${inspect_output}")
