@@ -309,7 +309,7 @@ $protocolNodeMatch = [regex]::Match(
 $oleNodeMatch = [regex]::Match($inspectOutput, "OLE operation nodes:\s*(\d+)")
 $protocolEdgeMatch = [regex]::Match(
     $inspectOutput,
-    "Protocol edges:\s*rpc_pairs=(\d+)\s+dde_exchanges=(\d+)\s+dde_conversation_links=(\d+)"
+    "Protocol edges:\s*rpc_pairs=(\d+)\s+dde_exchanges=(\d+)\s+dde_conversation_links=(\d+)\s+dde_callback_links=(\d+)"
 )
 $crossLayerLinkMatch = [regex]::Match(
     $inspectOutput,
@@ -331,6 +331,7 @@ $oleGraphOperations = [UInt64]::Parse($oleNodeMatch.Groups[1].Value)
 $rpcGraphPairs = [UInt64]::Parse($protocolEdgeMatch.Groups[1].Value)
 $ddeGraphExchanges = [UInt64]::Parse($protocolEdgeMatch.Groups[2].Value)
 $ddeGraphConversationLinks = [UInt64]::Parse($protocolEdgeMatch.Groups[3].Value)
+$ddeGraphCallbackLinks = [UInt64]::Parse($protocolEdgeMatch.Groups[4].Value)
 $rpcComGraphLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[1].Value)
 $oleDataObjectLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[2].Value)
 
@@ -709,6 +710,7 @@ $summary = [ordered]@{
     dde_graph_callbacks = $ddeGraphCallbacks
     dde_graph_exchanges = $ddeGraphExchanges
     dde_graph_conversation_links = $ddeGraphConversationLinks
+    dde_graph_callback_links = $ddeGraphCallbackLinks
     ole_graph_operations = $oleGraphOperations
     ole_data_object_links = $oleDataObjectLinks
     rpcss_endpoint_records = $rpcssEndpointRecords
@@ -778,7 +780,7 @@ Write-Host "RPC client/server correlations: $rpcClientServerCorrelations ambiguo
 Write-Host "RPC evidence links: RPCSS endpoints=$rpcLinkedEndpoints COM operations=$rpcLinkedComOperations"
 Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations ambiguous_stops=$rpcAmbiguousStops"
 Write-Host "RPCSS endpoint catalog: records=$rpcssEndpointRecords active=$rpcssActiveRegistrations unmatched_unregistrations=$rpcssUnmatchedUnregistrations"
-Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rpc_com_links=$rpcComGraphLinks dde_exchanges=$ddeGraphExchanges dde_callbacks=$ddeGraphCallbacks ole_data_objects=$oleDataObjectLinks"
+Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rpc_com_links=$rpcComGraphLinks dde_exchanges=$ddeGraphExchanges dde_callbacks=$ddeGraphCallbacks dde_callback_links=$ddeGraphCallbackLinks ole_data_objects=$oleDataObjectLinks"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
