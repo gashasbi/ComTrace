@@ -80,6 +80,7 @@ typedef struct {
     BOOL has_process_generation;
     GUID guid;
     BOOL has_guid;
+    wchar_t label[128];
     ULONGLONG value;
     ULONGLONG observation_count;
     LONGLONG first_seen_timestamp;

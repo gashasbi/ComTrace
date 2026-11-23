@@ -534,6 +534,18 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
+        if (record->operation[0] != L'\0') {
+            size_t label_length = wcslen(record->operation);
+            if (label_length >= _countof(graph->nodes[operation_index].label)) {
+                label_length = _countof(graph->nodes[operation_index].label) - 1U;
+            }
+            memcpy(
+                graph->nodes[operation_index].label,
+                record->operation,
+                label_length * sizeof(wchar_t)
+            );
+            graph->nodes[operation_index].label[label_length] = L'\0';
+        }
 
         status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
             record->process_id, 0U, NULL, 0ULL,

@@ -4071,6 +4071,9 @@ static void print_relationship_graph_node(
         break;
     case COMTRACE_GRAPH_NODE_OLE_OPERATION:
         wprintf(L"ole-operation:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
+        if (node->label[0] != L'\0') {
+            wprintf(L" name=%ls", node->label);
+        }
         break;
     default:
         wprintf(L"unknown");
