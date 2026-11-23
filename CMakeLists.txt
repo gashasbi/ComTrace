@@ -229,6 +229,28 @@ if(BUILD_TESTING)
 
     add_test(NAME comtrace_relationship_graph COMMAND ComTraceRelationshipGraphTests)
 
+    add_executable(ComTraceProtocolGraphTests
+        tests/test_protocol_graph.c
+        src/protocol_graph.c
+        src/relationship_graph.c
+        src/rpc_timeline.c
+        src/dde_timeline.c
+        src/process_lifecycle.c
+        src/com_identity.c
+        src/etl_decoder.c
+        src/etl_property_format.c
+        src/etl_value.c
+    )
+    target_include_directories(ComTraceProtocolGraphTests PRIVATE src)
+    target_link_libraries(ComTraceProtocolGraphTests PRIVATE Tdh Advapi32)
+    if(MSVC)
+        target_compile_options(ComTraceProtocolGraphTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceProtocolGraphTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_protocol_graph COMMAND ComTraceProtocolGraphTests)
+
+
     add_executable(ComTraceObjectIdentityCompareTests
         tests/test_object_identity_compare.c
         src/object_identity_compare.c

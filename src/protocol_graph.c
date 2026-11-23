@@ -322,7 +322,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
                 return status;
             }
             if (record->conversation_correlation_id != 0ULL) {
-                status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_CORRELATION,
+                status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION_CORRELATION,
                     0U, 0U, NULL, record->conversation_correlation_id, &correlation_index);
                 if (status != COMTRACE_GRAPH_SUCCESS) {
                     free(transaction_nodes);
@@ -375,14 +375,14 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
                 }
             }
             if (record->transaction_correlation_id != 0ULL) {
-                status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_CORRELATION,
+                status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION,
                     0U, 0U, NULL, record->transaction_correlation_id, &correlation_index);
                 if (status != COMTRACE_GRAPH_SUCCESS) {
                     free(transaction_nodes);
                     return status;
                 }
                 status = add_protocol_edge(graph,
-                    COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_CORRELATES_WITH,
+                    COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_HAS_CORRELATION,
                     transaction_index, correlation_index);
                 if (status != COMTRACE_GRAPH_SUCCESS) {
                     free(transaction_nodes);
@@ -406,7 +406,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
             continue;
         }
         status = add_protocol_edge(graph,
-            COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_CORRELATES_WITH,
+            COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH,
             client, server);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             free(transaction_nodes);

@@ -3904,6 +3904,30 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"object_has_ipid";
     case COMTRACE_GRAPH_EDGE_IPID_SUPPORTS_IID:
         return L"ipid_supports_iid";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_RPC_CALL:
+        return L"process_owns_rpc_call";
+    case COMTRACE_GRAPH_EDGE_THREAD_INITIATES_RPC_CALL:
+        return L"thread_initiates_rpc_call";
+    case COMTRACE_GRAPH_EDGE_RPC_CALL_HAS_ACTIVITY:
+        return L"rpc_call_has_activity";
+    case COMTRACE_GRAPH_EDGE_RPC_CALL_USES_INTERFACE:
+        return L"rpc_call_uses_interface";
+    case COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_RPC_CALL:
+        return L"rpc_call_correlates_with_rpc_call";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_CONVERSATION:
+        return L"process_owns_dde_conversation";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_TRANSACTION:
+        return L"process_owns_dde_transaction";
+    case COMTRACE_GRAPH_EDGE_THREAD_INITIATES_DDE_TRANSACTION:
+        return L"thread_initiates_dde_transaction";
+    case COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_IN_CONVERSATION:
+        return L"dde_transaction_in_conversation";
+    case COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_HAS_CORRELATION:
+        return L"dde_transaction_has_correlation";
+    case COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH:
+        return L"dde_transaction_exchanges_with";
+    case COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH:
+        return L"dde_conversation_correlates_with";
     default:
         return L"unknown";
     }
@@ -4013,6 +4037,25 @@ static void print_relationship_graph_node(
                 (long long)node->last_seen_timestamp
             );
         }
+        break;
+    case COMTRACE_GRAPH_NODE_RPC_CALL:
+        wprintf(L"rpc-call:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_RPC_INTERFACE:
+        wprintf(L"rpc-interface:");
+        print_guid(&node->guid);
+        break;
+    case COMTRACE_GRAPH_NODE_DDE_CONVERSATION:
+        wprintf(L"dde-conversation:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_DDE_TRANSACTION:
+        wprintf(L"dde-transaction:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_DDE_CONVERSATION_CORRELATION:
+        wprintf(L"dde-conversation-correlation:%llu", (unsigned long long)node->value);
+        break;
+    case COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION:
+        wprintf(L"dde-transaction-correlation:%llu", (unsigned long long)node->value);
         break;
     default:
         wprintf(L"unknown");
@@ -5682,10 +5725,22 @@ static int inspect_etl_internal(
     comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
     link_rpc_records_to_endpoints(&context);
     link_rpc_records_to_com_operations(&context);
-    if (comtrace_relationship_graph_add_rpc_timeline(\n            &context.relationship_graph,\n            &context.rpc_timeline,\n            &context.process_lifecycle\n        ) != COMTRACE_GRAPH_SUCCESS ||\n        comtrace_relationship_graph_add_dde_timeline(\n            &context.relationship_graph,\n            &context.dde_timeline,\n            &context.process_lifecycle\n        ) != COMTRACE_GRAPH_SUCCESS) {\n        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;\n    }\n    add_lifetime_records_to_graph(&context);
+    add_lifetime_records_to_graph(&context);
     if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
         COMTRACE_DDE_TIMELINE_SUCCESS) {
         context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    }
+    if (comtrace_relationship_graph_add_rpc_timeline(
+            &context.relationship_graph,
+            &context.rpc_timeline,
+            &context.process_lifecycle
+        ) != COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_dde_timeline(
+            &context.relationship_graph,
+            &context.dde_timeline,
+            &context.process_lifecycle
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
