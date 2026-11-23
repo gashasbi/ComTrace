@@ -42,6 +42,7 @@ typedef struct {
     BOOL has_start;
     BOOL has_stop;
     BOOL has_duration;
+    BOOL invalid_duration_order;
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
     BOOL has_activity_id;
     GUID activity_id;
