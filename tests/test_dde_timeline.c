@@ -346,6 +346,58 @@ static int test_unmatched_conversation_close(void)
     return 1;
 }
 
+static int test_ambiguous_conversation_close(void)
+{
+    COMTRACE_DDE_TIMELINE timeline;
+    COMTRACE_DDE_TIMELINE_EVENT event;
+    const COMTRACE_DDE_TIMELINE_RECORD *first;
+    const COMTRACE_DDE_TIMELINE_RECORD *second;
+    const COMTRACE_DDE_TIMELINE_RECORD *close_record;
+
+    comtrace_dde_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_OPENED;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 100ULL;
+    event.conversation_id = 30ULL;
+    event.role = COMTRACE_DDE_ROLE_CLIENT;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.timestamp = 110ULL;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_CLOSED;
+    event.timestamp = 120ULL;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    first = comtrace_dde_timeline_get(&timeline, 0U);
+    second = comtrace_dde_timeline_get(&timeline, 1U);
+    close_record = comtrace_dde_timeline_get(&timeline, 2U);
+    if (first == NULL || second == NULL || close_record == NULL ||
+        first->has_closed || second->has_closed ||
+        !close_record->has_closed || close_record->has_opened ||
+        timeline.ambiguous_closes != 1ULL) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_dde_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_conversation_and_transaction_lifecycle() ||
@@ -353,7 +405,8 @@ int main(void)
         !test_ambiguous_and_unmatched_events() ||
         !test_partial_conversation_correlation_is_rejected() ||
         !test_invalid_duration_and_metadata_mismatch() ||
-        !test_unmatched_conversation_close()) {
+        !test_unmatched_conversation_close() ||
+        !test_ambiguous_conversation_close()) {
         fputs("DDE timeline tests failed.\n", stderr);
         return 1;
     }
