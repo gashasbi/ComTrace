@@ -1,5 +1,8 @@
 #include "relationship_graph.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 static int is_data_object_iid(const GUID *iid)
 {
     static const GUID data_object_iid = {
@@ -10,9 +13,6 @@ static int is_data_object_iid(const GUID *iid)
     return iid != NULL &&
         memcmp(iid, &data_object_iid, sizeof(data_object_iid)) == 0;
 }
-
-#include <stdlib.h>
-#include <string.h>
 
 static int ensure_node_capacity(COMTRACE_RELATIONSHIP_GRAPH *graph)
 {
