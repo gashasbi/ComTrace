@@ -44,6 +44,7 @@ typedef struct {
     BOOL has_stop;
     BOOL has_duration;
     BOOL invalid_duration_order;
+    BOOL ambiguous_match;
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
     BOOL has_activity_id;
     GUID activity_id;
@@ -59,6 +60,8 @@ typedef struct {
     size_t pending_count;
     size_t pending_capacity;
     ULONGLONG unmatched_stops;
+    ULONGLONG ambiguous_stops;
+    ULONGLONG invalid_duration_orders;
     ULONGLONG missing_activity_ids;
 } COMTRACE_OLE_TIMELINE;
 
