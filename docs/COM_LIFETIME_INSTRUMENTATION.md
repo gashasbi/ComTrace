@@ -72,7 +72,7 @@ Inspect the resulting trace with:
 ComTrace.exe --inspect trace.etl
 ```
 
-Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Explicit native bindings are displayed as `com_lifetime_native_object_id` and, when supplied, `com_lifetime_ipid`. Activity bindings are displayed as `activity_bindings`, `activity_id`, and `related_activity_id`. Process ID and thread ID come from the ETW event header. Combine the process ID with the instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
+Lifetime records are displayed as `com_lifetime_event`, `com_lifetime_object_instance_id`, `com_lifetime_clsid`, `com_lifetime_iid`, `com_lifetime_initial_reference_count`, and, where present, `com_lifetime_reference_count_result`. Explicit native bindings are displayed as `com_lifetime_native_object_id` and, when supplied, `com_lifetime_ipid`. Activity bindings are displayed as `activity_bindings`, `activity_id`, and `related_activity_id`. The module `InstrumentationId` is also included in each event and is part of the lifetime identity key. Process ID and thread ID come from the ETW event header. Combine the process ID, module identifier, and instance ID; the instance ID is not a system-wide COM OID or IPID and is not stable across processes or separate process runs.
 
 The `--compare --json` output includes an `activity_ids` array on each lifetime record. A change in that set is reported in the lifetime object's `changed_fields` bit mask as `0x80`.
 
