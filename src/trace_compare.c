@@ -1849,7 +1849,7 @@ static void write_json_object_observations(
         }
 
         wprintf(
-            L", \"oid\": \"0x%llx\", \"observations\": %llu",
+            L", \"oid\": \"0x%llx\", \"object_generation\": null, \"observations\": %llu",
             (unsigned long long)node->value,
             (unsigned long long)node->observation_count
         );
@@ -2253,7 +2253,7 @@ void comtrace_trace_comparison_write_json(
             wprintf(L"null");
         }
         wprintf(
-            L", \"oid\": \"0x%llx\", \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
+            L", \"oid\": \"0x%llx\", \"object_generation\": null, \"left_present\": %ls, \"right_present\": %ls, \"changed_fields\": \"0x%lx\"}",
             (unsigned long long)diff->object_id,
             diff->present_in_left ? L"true" : L"false",
             diff->present_in_right ? L"true" : L"false",
