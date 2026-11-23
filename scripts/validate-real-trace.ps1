@@ -439,7 +439,7 @@ Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
 $oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
 $oleSummaryMatch = [regex]::Match(
     $oleSearchOutput,
-    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete starts:\s*(\d+).*?Unmatched stops:\s*(\d+).*?Ambiguous stops:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
+    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?DoDragDrop invocations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete starts:\s*(\d+).*?Unmatched stops:\s*(\d+).*?Ambiguous stops:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
 )
 if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
     throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
@@ -449,15 +449,16 @@ $oleEventCount = [UInt64]::Parse($oleEventMatch.Groups[1].Value)
 $oleValidationStatus = "PASS"
 $oleClipboardOperations = [UInt64]::Parse($oleSummaryMatch.Groups[1].Value)
 $oleDragDropOperations = [UInt64]::Parse($oleSummaryMatch.Groups[2].Value)
-$oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
-$oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
-$oleTimelineMatchedByRelatedActivity = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
-$oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
-$oleTimelineIncompleteStarts = [UInt64]::Parse($oleSummaryMatch.Groups[7].Value)
-$oleTimelineUnmatchedStops = [UInt64]::Parse($oleSummaryMatch.Groups[8].Value)
-$oleTimelineAmbiguousStops = [UInt64]::Parse($oleSummaryMatch.Groups[9].Value)
-$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[10].Value)
-$oleInvalidDurationOrders = [UInt64]::Parse($oleSummaryMatch.Groups[11].Value)
+$oleDoDragDropInvocations = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
+$oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
+$oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
+$oleTimelineMatchedByRelatedActivity = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
+$oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[7].Value)
+$oleTimelineIncompleteStarts = [UInt64]::Parse($oleSummaryMatch.Groups[8].Value)
+$oleTimelineUnmatchedStops = [UInt64]::Parse($oleSummaryMatch.Groups[9].Value)
+$oleTimelineAmbiguousStops = [UInt64]::Parse($oleSummaryMatch.Groups[10].Value)
+$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[11].Value)
+$oleInvalidDurationOrders = [UInt64]::Parse($oleSummaryMatch.Groups[12].Value)
 $olePayloadPropertyCount = [regex]::Matches(
     $oleSearchOutput,
     "(?im)^\s*property\[\d+\] name="
@@ -731,6 +732,7 @@ $summary = [ordered]@{
     ole_events = $oleEventCount
     ole_clipboard_operations = $oleClipboardOperations
     ole_drag_drop_operations = $oleDragDropOperations
+    ole_do_drag_drop_invocations = $oleDoDragDropInvocations
     ole_timeline_matched = $oleTimelineMatched
     ole_timeline_matched_by_activity_id = $oleTimelineMatchedByActivity
     ole_timeline_matched_by_related_activity_id = $oleTimelineMatchedByRelatedActivity
@@ -795,7 +797,7 @@ Write-Host "Protocol graph: rpc_calls=$rpcGraphCalls rpc_pairs=$rpcGraphPairs rp
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
-Write-Host "OLE drag and drop operations: $oleDragDropOperations"
+Write-Host "OLE drag and drop operations: $oleDragDropOperations (DoDragDrop=$oleDoDragDropInvocations)"
 Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
 Write-Host "OLE incomplete starts: $oleTimelineIncompleteStarts unmatched stops: $oleTimelineUnmatchedStops ambiguous stops: $oleTimelineAmbiguousStops"
 Write-Host "OLE pairs matched by ActivityId: $oleTimelineMatchedByActivity"
