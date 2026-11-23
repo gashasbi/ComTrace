@@ -2438,6 +2438,9 @@ static void add_rpc_timeline_event(
     const wchar_t *phase = NULL;
     COMTRACE_ACTIVITY_IDS activity_ids;
     COMTRACE_RPC_TIMELINE_EVENT timeline_event;
+    wchar_t protocol[64];
+    wchar_t network_address[128];
+    wchar_t endpoint[128];
 
     if (context == NULL ||
         event_record == NULL ||
@@ -2458,6 +2461,9 @@ static void add_rpc_timeline_event(
 
     ZeroMemory(&timeline_event, sizeof(timeline_event));
     ZeroMemory(&activity_ids, sizeof(activity_ids));
+    ZeroMemory(protocol, sizeof(protocol));
+    ZeroMemory(network_address, sizeof(network_address));
+    ZeroMemory(endpoint, sizeof(endpoint));
     timeline_event.operation = operation;
     timeline_event.phase = wcscmp(phase, L"start") == 0
         ? COMTRACE_RPC_TIMELINE_PHASE_START
@@ -2485,6 +2491,30 @@ static void add_rpc_timeline_event(
         ) == COMTRACE_IDENTITY_SUCCESS) {
         timeline_event.has_procedure_number = TRUE;
     }
+    if (comtrace_extract_string_property(
+            event_record,
+            L"Protocol",
+            protocol,
+            _countof(protocol)
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.protocol = protocol;
+    }
+    if (comtrace_extract_string_property(
+            event_record,
+            L"NetworkAddress",
+            network_address,
+            _countof(network_address)
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.network_address = network_address;
+    }
+    if (comtrace_extract_string_property(
+            event_record,
+            L"Endpoint",
+            endpoint,
+            _countof(endpoint)
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        timeline_event.endpoint = endpoint;
+    }
 
     if (comtrace_rpc_timeline_add_event(
             &context->rpc_timeline,
@@ -2505,6 +2535,46 @@ static const wchar_t *com_timeline_match_name(
         return L"ActivityId";
     case COMTRACE_TIMELINE_MATCH_PROCESS_THREAD:
         return L"process_thread_operation";
+    default:
+        return L"none";
+    }
+}
+
+static const wchar_t *rpc_role_name(COMTRACE_RPC_ROLE role)
+{
+    switch (role) {
+    case COMTRACE_RPC_ROLE_CLIENT:
+        return L"client";
+    case COMTRACE_RPC_ROLE_SERVER:
+        return L"server";
+    case COMTRACE_RPC_ROLE_FUNCTION:
+        return L"function";
+    default:
+        return L"unknown";
+    }
+}
+
+static const wchar_t *rpc_location_name(COMTRACE_RPC_LOCATION location)
+{
+    switch (location) {
+    case COMTRACE_RPC_LOCATION_LOCAL:
+        return L"local";
+    case COMTRACE_RPC_LOCATION_NETWORK:
+        return L"network";
+    default:
+        return L"unknown";
+    }
+}
+
+static const wchar_t *rpc_correlation_name(
+    COMTRACE_RPC_CORRELATION_TYPE correlation_type
+)
+{
+    switch (correlation_type) {
+    case COMTRACE_RPC_CORRELATION_ACTIVITY_ID:
+        return L"activity_id";
+    case COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID:
+        return L"related_activity_id";
     default:
         return L"none";
     }
@@ -2572,6 +2642,10 @@ static void print_rpc_timeline_summary(
     wprintf(L"  Incomplete RPC starts: %llu\\n", (unsigned long long)incomplete_starts);
     wprintf(L"  Unmatched RPC stops: %llu\\n", (unsigned long long)context->rpc_timeline.unmatched_stops);
     wprintf(L"  RPC events without ActivityId: %llu\\n", (unsigned long long)context->rpc_timeline.missing_activity_ids);
+    wprintf(L"  Correlated client/server calls: %llu\\n",
+        (unsigned long long)context->rpc_timeline.correlated_client_server_calls);
+    wprintf(L"  Ambiguous client/server candidates: %llu\\n",
+        (unsigned long long)context->rpc_timeline.ambiguous_client_server_calls);
 
     for (index = 0U; index < count && index < 100U; ++index) {
         const COMTRACE_RPC_TIMELINE_RECORD *record =
@@ -2582,8 +2656,10 @@ static void print_rpc_timeline_summary(
         }
 
         wprintf(
-            L"  rpc_timeline operation=%ls pid=%lu tid=%lu",
+            L"  rpc_timeline operation=%ls role=%ls location=%ls pid=%lu tid=%lu",
             record->operation,
+            rpc_role_name(record->role),
+            rpc_location_name(record->location),
             (unsigned long)record->process_id,
             (unsigned long)record->thread_id
         );
@@ -2611,6 +2687,20 @@ static void print_rpc_timeline_summary(
         }
         if (record->has_procedure_number) {
             wprintf(L" proc_num=%lu", (unsigned long)record->procedure_number);
+        }
+        if (record->protocol[0] != L'\\0') {
+            wprintf(L" protocol=%ls", record->protocol);
+        }
+        if (record->network_address[0] != L'\\0') {
+            wprintf(L" network_address=%ls", record->network_address);
+        }
+        if (record->endpoint[0] != L'\\0') {
+            wprintf(L" endpoint=%ls", record->endpoint);
+        }
+        if (record->has_correlated_record) {
+            wprintf(L" correlated_record=%llu correlation=%ls",
+                (unsigned long long)record->correlated_record_index,
+                rpc_correlation_name(record->correlation_type));
         }
         if (record->has_activity_id) {
             wprintf(L" activity_id=");
@@ -5176,6 +5266,7 @@ static int inspect_etl_internal(
     process_status = ProcessTrace(&trace_handle, 1U, NULL, NULL);
     close_status = CloseTrace(trace_handle);
 
+    comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
     add_lifetime_records_to_graph(&context);
     if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
         COMTRACE_DDE_TIMELINE_SUCCESS) {
