@@ -109,10 +109,71 @@ static int test_unmatched_unregistration_does_not_close_other_endpoint(void)
     return 1;
 }
 
+static int test_time_aware_endpoint_lookup(void)
+{
+    COMTRACE_RPC_ENDPOINT_CATALOG catalog;
+    COMTRACE_RPC_ENDPOINT_EVENT event;
+    size_t record_index = 0U;
+    BOOL found = FALSE;
+    BOOL ambiguous = FALSE;
+
+    comtrace_rpc_endpoint_catalog_init(&catalog);
+    ZeroMemory(&event, sizeof(event));
+    event.phase = COMTRACE_RPC_ENDPOINT_REGISTER;
+    event.interface_uuid = interface_id;
+    event.protocol = L"ncacn_ip_tcp";
+    event.endpoint = L"50123";
+    event.timestamp = 100ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_ENDPOINT_UNREGISTER;
+    event.timestamp = 200ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        comtrace_rpc_endpoint_catalog_find(
+            &catalog,
+            &interface_id,
+            L"ncacn_ip_tcp",
+            L"50123",
+            150ULL,
+            &record_index,
+            &found,
+            &ambiguous
+        ) != COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        !found || ambiguous || record_index != 0U) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    found = TRUE;
+    if (comtrace_rpc_endpoint_catalog_find(
+            &catalog,
+            &interface_id,
+            L"ncacn_ip_tcp",
+            L"50123",
+            250ULL,
+            &record_index,
+            &found,
+            &ambiguous
+        ) != COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        found || ambiguous) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_rpc_endpoint_catalog_destroy(&catalog);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_registration_lifecycle_and_protocol_scope() ||
-        !test_unmatched_unregistration_does_not_close_other_endpoint()) {
+        !test_unmatched_unregistration_does_not_close_other_endpoint() ||
+        !test_time_aware_endpoint_lookup()) {
         fputs("RPC endpoint tests failed.\n", stderr);
         return 1;
     }
