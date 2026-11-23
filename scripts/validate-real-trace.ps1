@@ -338,6 +338,7 @@ $oleDataObjectLinks = [UInt64]::Parse($crossLayerLinkMatch.Groups[2].Value)
 if ($rpcGraphCalls -gt $rpcTimelineRecords -or
     $rpcGraphPairs -gt [Math]::Floor($rpcGraphCalls / 2) -or
     $ddeGraphExchanges -gt ($ddeGraphTransactions + $ddeGraphCallbacks) -or
+    $ddeGraphCallbackLinks -gt $ddeGraphCallbacks -or
     $ddeGraphConversationLinks -gt [Math]::Floor($ddeGraphConversations / 2) -or
     $rpcComGraphLinks -gt $rpcGraphCalls -or
     $oleDataObjectLinks -gt $oleGraphOperations) {
