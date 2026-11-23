@@ -1659,6 +1659,19 @@ static void add_com_lifetime_analysis_event(
     event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"InstrumentationId",
+            &event.instrumentation_id
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        GUID empty_instrumentation_id = {0};
+        if (memcmp(&event.instrumentation_id,
+                   &empty_instrumentation_id,
+                   sizeof(GUID)) != 0) {
+            event.has_instrumentation_id = TRUE;
+        }
+    }
+
     if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
         COMTRACE_IDENTITY_SUCCESS) {
         event.has_activity_id = activity_ids.has_activity_id;
