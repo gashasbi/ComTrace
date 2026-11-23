@@ -3234,6 +3234,9 @@ static void print_com_timeline_summary(const ETL_INSPECT_CONTEXT *context)
         if (record->has_stop) {
             wprintf(L" stop=%llu", (unsigned long long)record->stop_timestamp);
         }
+        if (record->invalid_duration_order) {
+            wprintf(L" duration_order=invalid");
+        }
         if (record->has_duration) {
             if (context->trace_frequency != 0ULL) {
                 double duration_ms =
