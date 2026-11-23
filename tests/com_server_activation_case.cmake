@@ -24,6 +24,7 @@ foreach(expected
     "Objects tracked: 2"
     "Objects created: 2"
     "Objects with explicit destruction: 2"
+    "com_lifetime_instrumentation_id="
     "com_lifetime_clsid={7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}"
     "com_lifetime_iid={8B3DA052-7E64-4091-A236-495C6D7E8F90}"
     "com_lifetime_iid={9C4EB163-8F75-41A2-B347-5A6D7E8F90A1}"
@@ -33,4 +34,15 @@ foreach(expected
         message(FATAL_ERROR "Missing COM server ETL evidence.")
     endif()
 endforeach()
+
+execute_process(COMMAND "${COMTRACE_EXE}" --compare "${TEST_DIR}/com-server-activation.etl" "${TEST_DIR}/com-server-activation.etl" --json
+    RESULT_VARIABLE compare_result OUTPUT_VARIABLE compare_output ERROR_VARIABLE compare_error TIMEOUT 60)
+if(NOT compare_result EQUAL 0)
+    message(FATAL_ERROR "COM lifetime JSON comparison failed: ${compare_error}")
+endif()
+string(FIND "${compare_output}" "\"instrumentation_id\"" instrumentation_field)
+if(instrumentation_field EQUAL -1)
+    message(FATAL_ERROR "COM lifetime JSON is missing the module instrumentation identifier.")
+endif()
+
 message(STATUS "Real COM activation, QueryInterface, multiple IIDs, and aggregation passed.")
