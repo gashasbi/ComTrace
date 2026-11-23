@@ -116,6 +116,7 @@ void comtrace_lifetime_add_ref(
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
         TraceLoggingKeyword(COMTRACE_LIFETIME_KEYWORD),
         TraceLoggingGuid(g_instrumentation_id, "InstrumentationId"),
+        TraceLoggingGuid(activity_id, "ActivityIdValue"),
         TraceLoggingUInt64(object_instance_id, "ObjectInstanceId"),
         TraceLoggingGuid(*interface_id, "InterfaceId"),
         TraceLoggingUInt32(reference_count_result, "ReferenceCountResult")
