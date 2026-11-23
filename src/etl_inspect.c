@@ -4296,11 +4296,12 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION)
     );
     wprintf(
-        L"Protocol nodes: rpc_calls=%llu rpc_interfaces=%llu dde_conversations=%llu dde_transactions=%llu\n",
+        L"Protocol nodes: rpc_calls=%llu rpc_interfaces=%llu dde_conversations=%llu dde_transactions=%llu dde_callbacks=%llu\n",
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_RPC_CALL),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_RPC_INTERFACE),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION),
-        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION)
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_CALLBACK)
     );
     wprintf(
         L"Protocol edges: rpc_pairs=%llu dde_exchanges=%llu dde_conversation_links=%llu\n",
