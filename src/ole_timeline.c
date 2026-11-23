@@ -4,6 +4,13 @@
 #include <string.h>
 #include <wchar.h>
 
+static void increment_count(ULONGLONG *value)
+{
+    if (*value != (ULONGLONG)-1) {
+        ++(*value);
+    }
+}
+
 static int ensure_record_capacity(COMTRACE_OLE_TIMELINE *timeline)
 {
     size_t capacity;
@@ -176,6 +183,8 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
 {
     size_t position;
     size_t record_index;
+    size_t selected_pending_index = (size_t)-1;
+    size_t match_count = 0U;
     COMTRACE_OLE_TIMELINE_RECORD *record;
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
     if (timeline == NULL ||
@@ -209,23 +218,28 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         ++timeline->record_count;
         if (event->activity_ids == NULL ||
             !event->activity_ids->has_activity_id) {
-            ++timeline->missing_activity_ids;
+            increment_count(&timeline->missing_activity_ids);
         }
         timeline->pending_indices[timeline->pending_count] = record_index;
         ++timeline->pending_count;
         return COMTRACE_OLE_TIMELINE_SUCCESS;
     }
 
-    for (position = timeline->pending_count; position > 0U; --position) {
-        size_t pending_index = position - 1U;
-        record_index = timeline->pending_indices[pending_index];
+    for (position = 0U; position < timeline->pending_count; ++position) {
+        record_index = timeline->pending_indices[position];
         record = &timeline->records[record_index];
-
-        match_type = get_match_type(record, event);
-        if (match_type == COMTRACE_OLE_TIMELINE_MATCH_NONE) {
+        if (get_match_type(record, event) == COMTRACE_OLE_TIMELINE_MATCH_NONE) {
             continue;
         }
+        selected_pending_index = position;
+        ++match_count;
+    }
 
+    if (match_count == 1U) {
+        size_t pending_index = selected_pending_index;
+        record_index = timeline->pending_indices[pending_index];
+        record = &timeline->records[record_index];
+        match_type = get_match_type(record, event);
         record->match_type = match_type;
         record->has_stop = TRUE;
         record->stop_process_id = event->process_id;
@@ -237,6 +251,7 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
             record->has_duration = TRUE;
         } else {
             record->invalid_duration_order = TRUE;
+            increment_count(&timeline->invalid_duration_orders);
         }
 
         if (!record->has_related_activity_id &&
@@ -258,7 +273,7 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         --timeline->pending_count;
         if (event->activity_ids == NULL ||
             !event->activity_ids->has_activity_id) {
-            ++timeline->missing_activity_ids;
+            increment_count(&timeline->missing_activity_ids);
         }
         return COMTRACE_OLE_TIMELINE_SUCCESS;
     }
@@ -281,10 +296,14 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
     record->stop_thread_id = event->thread_id;
     record->stop_timestamp = event->timestamp;
     record->has_stop = TRUE;
+    record->ambiguous_match = match_count > 1U;
     copy_activity_ids(record, event->activity_ids);
 
     ++timeline->record_count;
-    ++timeline->unmatched_stops;
+    increment_count(&timeline->unmatched_stops);
+    if (record->ambiguous_match) {
+        increment_count(&timeline->ambiguous_stops);
+    }
     if (event->activity_ids == NULL ||
         !event->activity_ids->has_activity_id) {
         ++timeline->missing_activity_ids;
