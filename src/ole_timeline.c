@@ -324,7 +324,7 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
     }
     if (event->activity_ids == NULL ||
         !event->activity_ids->has_activity_id) {
-        ++timeline->missing_activity_ids;
+        increment_count(&timeline->missing_activity_ids);
     }
     return COMTRACE_OLE_TIMELINE_SUCCESS;
 }
