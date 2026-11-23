@@ -246,6 +246,7 @@ int wmain(int argc, wchar_t **argv)
     BOOL pair_capture = FALSE;
     BOOL activity_id_set = FALSE;
     GUID previous_activity_id;
+    GUID current_activity_id;
     const wchar_t *first_etl_path = NULL;
     const wchar_t *second_etl_path = NULL;
 
@@ -378,6 +379,17 @@ int wmain(int argc, wchar_t **argv)
             goto cleanup;
         }
         activity_id_set = TRUE;
+
+        status = EventActivityIdControl(
+            EVENT_ACTIVITY_CTRL_GET_ID,
+            &current_activity_id
+        );
+        if (status != ERROR_SUCCESS ||
+            memcmp(&current_activity_id, &(GUID){0}, sizeof(GUID)) == 0) {
+            fwprintf(stderr, L"Activity ID was not set. Error: %lu\n",
+                (unsigned long)status);
+            goto cleanup;
+        }
 
         add_ref_count = (ULONG)InterlockedIncrement(&object->reference_count);
         comtrace_lifetime_add_ref(
