@@ -2963,13 +2963,15 @@ static void print_rpc_timeline_summary(
             } else if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
                 ++matched_by_process_thread;
             }
+        } else if (record->has_start) {
+            ++incomplete_starts;
+        }
+        if (record->has_stop) {
             if (record->status_is_failure) {
                 ++failed_calls;
             } else if (!record->has_status) {
                 ++status_unknown_calls;
             }
-        } else if (record->has_start) {
-            ++incomplete_starts;
         }
         if (record->has_endpoint_registration) {
             ++linked_endpoints;
