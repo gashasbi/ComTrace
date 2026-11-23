@@ -90,7 +90,6 @@ void comtrace_lifetime_add_ref(
     ULONG reference_count_result
 )
 {
-    GUID activity_id;
 
     if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
         return;
@@ -116,8 +115,7 @@ void comtrace_lifetime_release(
 {
     GUID activity_id;
 
-    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id() ||
-        !get_current_activity_id(&activity_id)) {
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
         return;
     }
 
