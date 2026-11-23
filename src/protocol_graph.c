@@ -695,6 +695,32 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
                 return status;
             }
         }
+        if (record->has_related_activity_id) {
+            size_t related_activity_index;
+
+            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_ACTIVITY,
+                0U, 0U, &record->related_activity_id, 0ULL,
+                &related_activity_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            if (record->has_activity_id &&
+                memcmp(
+                    &record->activity_id,
+                    &record->related_activity_id,
+                    sizeof(GUID)
+                ) != 0) {
+                status = add_protocol_edge(
+                    graph,
+                    COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO,
+                    activity_index,
+                    related_activity_index
+                );
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+            }
+        }
     }
     return COMTRACE_GRAPH_SUCCESS;
 }
