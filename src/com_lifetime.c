@@ -112,7 +112,7 @@ void comtrace_lifetime_release(
     ULONG reference_count_result
 )
 {
-    if (object_instance_id == 0ULL || interface_id == NULL) {
+    if (object_instance_id == 0ULL || interface_id == NULL || !get_instrumentation_id()) {
         return;
     }
 
