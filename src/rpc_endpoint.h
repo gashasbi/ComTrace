@@ -80,6 +80,7 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
     const wchar_t *endpoint,
     ULONGLONG timestamp,
     size_t *record_index,
+    BOOL *found,
     BOOL *ambiguous
 );
 
