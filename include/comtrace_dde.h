@@ -47,6 +47,21 @@ void comtrace_dde_transaction_completed(
     BOOL succeeded
 );
 
+void comtrace_dde_transaction_completed_ex(
+    ULONGLONG conversation_id,
+    ULONGLONG conversation_correlation_id,
+    ULONGLONG transaction_instance_id,
+    ULONGLONG transaction_correlation_id,
+    BOOL is_client,
+    ULONG dde_transaction_id,
+    ULONG transaction_type,
+    ULONG format,
+    const wchar_t *item,
+    ULONG result,
+    ULONG data_size,
+    BOOL succeeded
+);
+
 void comtrace_dde_callback_received(
     ULONGLONG conversation_id,
     ULONGLONG conversation_correlation_id,
