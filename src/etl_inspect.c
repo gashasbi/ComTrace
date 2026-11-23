@@ -3906,6 +3906,10 @@ static void print_dde_timeline_summary(
         (unsigned long long)context->dde_timeline.unmatched_completions
     );
     wprintf(
+        L"Ambiguous completion matches: %llu\n",
+        (unsigned long long)context->dde_timeline.ambiguous_completions
+    );
+    wprintf(
         L"Unmatched conversation closes: %llu\n",
         (unsigned long long)context->dde_timeline.unmatched_closes
     );
