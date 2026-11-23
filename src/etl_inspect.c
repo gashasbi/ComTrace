@@ -28,6 +28,7 @@
 #include "relationship_graph.h"
 #include "ole_timeline.h"
 #include "rpc_timeline.h"
+#include "rpc_endpoint.h"
 #include "dde_event.h"
 #include "dde_timeline.h"
 #include "process_lifecycle.h"
@@ -53,6 +54,8 @@ typedef struct {
     COMTRACE_OLE_TIMELINE_STATUS ole_timeline_status;
     COMTRACE_RPC_TIMELINE rpc_timeline;
     COMTRACE_RPC_TIMELINE_STATUS rpc_timeline_status;
+    COMTRACE_RPC_ENDPOINT_CATALOG rpc_endpoint_catalog;
+    COMTRACE_RPC_ENDPOINT_STATUS rpc_endpoint_status;
     COMTRACE_DDE_TIMELINE dde_timeline;
     COMTRACE_DDE_TIMELINE_STATUS dde_timeline_status;
     COMTRACE_RELATIONSHIP_GRAPH relationship_graph;
@@ -2426,6 +2429,170 @@ static void add_com_timeline_event(
     if (comtrace_timeline_add_event(&context->timeline, &timeline_event) !=
         COMTRACE_TIMELINE_SUCCESS) {
         context->timeline_status = COMTRACE_TIMELINE_ALLOCATION_FAILED;
+    }
+}
+
+static void add_rpcss_endpoint_event(
+    ETL_INSPECT_CONTEXT *context,
+    const EVENT_RECORD *event_record
+)
+{
+    const wchar_t *event_name = NULL;
+    COMTRACE_RPC_ENDPOINT_EVENT endpoint_event;
+    wchar_t protocol[64];
+    wchar_t endpoint[128];
+    COMTRACE_IDENTITY_STATUS identity_status;
+
+    if (context == NULL ||
+        event_record == NULL ||
+        !comtrace_classify_rpcss_event(
+            &event_record->EventHeader.ProviderId,
+            event_record->EventHeader.EventDescriptor.Id,
+            event_record->EventHeader.EventDescriptor.Version,
+            event_record->EventHeader.EventDescriptor.Opcode,
+            &event_name
+        )) {
+        return;
+    }
+
+    ZeroMemory(&endpoint_event, sizeof(endpoint_event));
+    ZeroMemory(protocol, sizeof(protocol));
+    ZeroMemory(endpoint, sizeof(endpoint));
+    endpoint_event.phase = wcscmp(event_name, L"InterfaceRegister") == 0
+        ? COMTRACE_RPC_ENDPOINT_REGISTER
+        : COMTRACE_RPC_ENDPOINT_UNREGISTER;
+    endpoint_event.event_process_id = event_record->EventHeader.ProcessId;
+    endpoint_event.timestamp =
+        (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
+
+    identity_status = comtrace_extract_guid_property(
+        event_record,
+        L"InterfaceUUID",
+        &endpoint_event.interface_uuid
+    );
+    if (identity_status != COMTRACE_IDENTITY_SUCCESS) {
+        return;
+    }
+
+    if (comtrace_extract_guid_property(
+            event_record,
+            L"ObjectUUID",
+            &endpoint_event.object_uuid
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        endpoint_event.has_object_uuid = TRUE;
+    }
+    if (comtrace_extract_string_property(
+            event_record,
+            L"Protocol",
+            protocol,
+            _countof(protocol)
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        endpoint_event.protocol = protocol;
+    }
+    if (comtrace_extract_string_property(
+            event_record,
+            L"EndPoint",
+            endpoint,
+            _countof(endpoint)
+        ) == COMTRACE_IDENTITY_SUCCESS) {
+        endpoint_event.endpoint = endpoint;
+    }
+
+    if (comtrace_rpc_endpoint_catalog_add(
+            &context->rpc_endpoint_catalog,
+            &endpoint_event
+        ) != COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        context->rpc_endpoint_status = COMTRACE_RPC_ENDPOINT_ALLOCATION_FAILED;
+    }
+}
+
+static const wchar_t *rpc_endpoint_location_name(
+    COMTRACE_RPC_ENDPOINT_LOCATION location
+)
+{
+    switch (location) {
+    case COMTRACE_RPC_ENDPOINT_LOCATION_LOCAL:
+        return L"local";
+    case COMTRACE_RPC_ENDPOINT_LOCATION_NETWORK:
+        return L"network";
+    default:
+        return L"unknown";
+    }
+}
+
+static void print_rpc_endpoint_summary(
+    const ETL_INSPECT_CONTEXT *context
+)
+{
+    size_t count;
+    size_t index;
+    ULONGLONG active = 0ULL;
+    ULONGLONG registered = 0ULL;
+    ULONGLONG unregistered = 0ULL;
+
+    if (context == NULL) {
+        return;
+    }
+
+    wprintf(L"\\nRPCSS endpoint registration summary\\n");
+    if (context->rpc_endpoint_status != COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        wprintf(L"  status=unavailable reason=allocation_failed\\n");
+        return;
+    }
+
+    count = comtrace_rpc_endpoint_catalog_count(&context->rpc_endpoint_catalog);
+    for (index = 0U; index < count; ++index) {
+        const COMTRACE_RPC_ENDPOINT_RECORD *record =
+            comtrace_rpc_endpoint_catalog_get(&context->rpc_endpoint_catalog, index);
+        if (record == NULL) {
+            continue;
+        }
+        if (record->is_active) {
+            ++active;
+        }
+        if (record->has_registration) {
+            ++registered;
+        }
+        if (record->has_unregistration) {
+            ++unregistered;
+        }
+    }
+
+    wprintf(L"  Endpoint records: %llu\\n", (unsigned long long)count);
+    wprintf(L"  Registrations observed: %llu\\n", (unsigned long long)registered);
+    wprintf(L"  Unregistrations observed: %llu\\n", (unsigned long long)unregistered);
+    wprintf(L"  Active registrations: %llu\\n", (unsigned long long)active);
+    wprintf(L"  Unmatched unregistrations: %llu\\n",
+        (unsigned long long)context->rpc_endpoint_catalog.unmatched_unregistrations);
+    wprintf(L"  Duplicate registrations: %llu\\n",
+        (unsigned long long)context->rpc_endpoint_catalog.duplicate_registrations);
+
+    for (index = 0U; index < count && index < 100U; ++index) {
+        const COMTRACE_RPC_ENDPOINT_RECORD *record =
+            comtrace_rpc_endpoint_catalog_get(&context->rpc_endpoint_catalog, index);
+        if (record == NULL) {
+            continue;
+        }
+
+        wprintf(L"  rpcss_endpoint interface_uuid=");
+        print_guid(&record->interface_uuid);
+        if (record->has_object_uuid) {
+            wprintf(L" object_uuid=");
+            print_guid(&record->object_uuid);
+        }
+        wprintf(
+            L" protocol=%ls endpoint=%ls location=%ls state=%ls observer_pid=%lu\\n",
+            record->protocol[0] == L'\\0' ? L"unknown" : record->protocol,
+            record->endpoint[0] == L'\\0' ? L"unknown" : record->endpoint,
+            rpc_endpoint_location_name(record->location),
+            record->is_active ? L"registered" :
+                (record->has_registration ? L"unregistered" : L"unmatched-unregister"),
+            (unsigned long)record->event_process_id
+        );
+    }
+    if (count > 100U) {
+        wprintf(L"  endpoint_display_limit=100 remaining=%llu\\n",
+            (unsigned long long)(count - 100U));
     }
 }
 
@@ -5084,6 +5251,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     add_com_timeline_event(context, event_record);
     add_ole_timeline_event(context, event_record);
     add_rpc_timeline_event(context, event_record);
+    add_rpcss_endpoint_event(context, event_record);
     add_dde_timeline_event(context, event_record);
     add_relationship_graph_event(context, event_record);
     add_com_lifetime_analysis_event(context, event_record);
@@ -5144,6 +5312,7 @@ static void destroy_inspect_context(ETL_INSPECT_CONTEXT *context)
     comtrace_process_lifecycle_catalog_destroy(&context->process_lifecycle);
     comtrace_relationship_graph_destroy(&context->relationship_graph);
     comtrace_dde_timeline_destroy(&context->dde_timeline);
+    comtrace_rpc_endpoint_catalog_destroy(&context->rpc_endpoint_catalog);
     comtrace_rpc_timeline_destroy(&context->rpc_timeline);
     comtrace_ole_timeline_destroy(&context->ole_timeline);
     comtrace_timeline_destroy(&context->timeline);
@@ -5183,6 +5352,8 @@ static int inspect_etl_internal(
     context.ole_timeline_status = COMTRACE_OLE_TIMELINE_SUCCESS;
     comtrace_rpc_timeline_init(&context.rpc_timeline);
     context.rpc_timeline_status = COMTRACE_RPC_TIMELINE_SUCCESS;
+    comtrace_rpc_endpoint_catalog_init(&context.rpc_endpoint_catalog);
+    context.rpc_endpoint_status = COMTRACE_RPC_ENDPOINT_SUCCESS;
     comtrace_dde_timeline_init(&context.dde_timeline);
     context.dde_timeline_status = COMTRACE_DDE_TIMELINE_SUCCESS;
     comtrace_relationship_graph_init(&context.relationship_graph);
@@ -5275,6 +5446,7 @@ static int inspect_etl_internal(
     print_com_timeline_summary(&context);
     print_ole_timeline_summary(&context);
     print_rpc_timeline_summary(&context);
+    print_rpc_endpoint_summary(&context);
     print_dde_timeline_summary(&context);
     print_com_lifetime_summary(&context);
     print_relationship_graph_summary(&context.relationship_graph);
