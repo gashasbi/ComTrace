@@ -163,9 +163,12 @@ static int records_can_correlate(
         left->role == right->role ||
         (left->process_id == right->process_id &&
          left->conversation_id == right->conversation_id) ||
-        left->transaction_type != right->transaction_type ||
-        left->format != right->format ||
-        _wcsicmp(left->item, right->item) != 0) {
+        (left->transaction_type != 0U && right->transaction_type != 0U &&
+         left->transaction_type != right->transaction_type) ||
+        (left->format != 0U && right->format != 0U &&
+         left->format != right->format) ||
+        (left->item[0] != L'\\0' && right->item[0] != L'\\0' &&
+         _wcsicmp(left->item, right->item) != 0)) {
         return 0;
     }
 
