@@ -84,6 +84,11 @@ typedef struct {
     BOOL has_process_generation;
     GUID guid;
     BOOL has_guid;
+    GUID related_guid;
+    BOOL has_related_guid;
+    BOOL has_ambiguous_guid;
+    BOOL has_ambiguous_related_guid;
+    BOOL has_data_object_iid;
     wchar_t label[128];
     ULONGLONG value;
     ULONGLONG observation_count;

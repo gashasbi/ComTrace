@@ -1,5 +1,16 @@
 #include "relationship_graph.h"
 
+static int is_data_object_iid(const GUID *iid)
+{
+    static const GUID data_object_iid = {
+        0x0000010E, 0x0000, 0x0000,
+        {0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+    };
+
+    return iid != NULL &&
+        memcmp(iid, &data_object_iid, sizeof(data_object_iid)) == 0;
+}
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -721,6 +732,42 @@ static COMTRACE_GRAPH_STATUS add_event_internal(
             return status;
         }
     }
+    if (identity->has_call_trace_id) {
+        status = add_node(
+            graph,
+            COMTRACE_GRAPH_NODE_CALL,
+            0U,
+            0U,
+            NULL,
+            identity->call_trace_id,
+            &call_index
+        );
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        if (activity_ids != NULL && activity_ids->has_activity_id) {
+            COMTRACE_GRAPH_NODE *call = &graph->nodes[call_index];
+            if (!call->has_guid && !call->has_ambiguous_guid) {
+                call->guid = activity_ids->activity_id;
+                call->has_guid = TRUE;
+            } else if (call->has_guid &&
+                memcmp(&call->guid, &activity_ids->activity_id, sizeof(GUID)) != 0) {
+                call->has_guid = FALSE;
+                call->has_ambiguous_guid = TRUE;
+            }
+        }
+        if (identity->has_iid) {
+            COMTRACE_GRAPH_NODE *call = &graph->nodes[call_index];
+            if (!call->has_related_guid && !call->has_ambiguous_related_guid) {
+                call->related_guid = identity->iid;
+                call->has_related_guid = TRUE;
+            } else if (call->has_related_guid &&
+                memcmp(&call->related_guid, &identity->iid, sizeof(GUID)) != 0) {
+                call->has_related_guid = FALSE;
+                call->has_ambiguous_related_guid = TRUE;
+            }
+        }
+    }
 
     object_index = (size_t)-1;
     class_index = (size_t)-1;
@@ -830,6 +877,9 @@ static COMTRACE_GRAPH_STATUS add_event_internal(
         }
 
         record_identity_observation(&graph->nodes[object_index], identity);
+        if (identity->has_iid && is_data_object_iid(&identity->iid)) {
+            graph->nodes[object_index].has_data_object_iid = TRUE;
+        }
 
         status = add_edge(
             graph,
@@ -984,6 +1034,18 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
         (LONGLONG)record->last_seen_timestamp;
     graph->nodes[object_index].has_observed_timestamp =
         record->observation_count != 0ULL;
+    if (record->interface_id_count != 0U) {
+        size_t iid_position;
+        for (iid_position = 0U; iid_position < record->interface_id_count; ++iid_position) {
+            if (is_data_object_iid(&record->interface_ids[iid_position].interface_id)) {
+                graph->nodes[object_index].has_data_object_iid = TRUE;
+                break;
+            }
+        }
+    } else if (record->has_interface_id &&
+        is_data_object_iid(&record->interface_id)) {
+        graph->nodes[object_index].has_data_object_iid = TRUE;
+    }
 
     status = add_edge(
         graph,
