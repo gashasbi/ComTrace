@@ -4,6 +4,7 @@ ComTrace reads ETW event schemas through TDH and keeps schema traversal, propert
 
 - `src/etl_decoder.c` retrieves and validates `TRACE_EVENT_INFO`, resolves nested property paths, reads property bytes, and resolves dynamic array counts.
 - `src/etl_property_format.c` formats TDH output types, value/bitmap maps, pattern-map metadata, and custom-schema metadata.
+- `src/etl_property_print.c` renders decoded event property values for the CLI. It owns property traversal output, display formatting, and per-property status reporting; the ETL inspection coordinator calls one public entry point.
 - `src/etl_inspect.c` traverses properties and presents the decoded values in the CLI.
 
 ## Property shapes
