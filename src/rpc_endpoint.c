@@ -236,3 +236,54 @@ const COMTRACE_RPC_ENDPOINT_RECORD *comtrace_rpc_endpoint_catalog_get(
 
     return &catalog->records[index];
 }
+
+COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
+    const COMTRACE_RPC_ENDPOINT_CATALOG *catalog,
+    const GUID *interface_uuid,
+    const wchar_t *protocol,
+    const wchar_t *endpoint,
+    ULONGLONG timestamp,
+    size_t *record_index,
+    BOOL *ambiguous
+)
+{
+    size_t index;
+    size_t matches = 0U;
+    size_t match_index = 0U;
+
+    if (record_index != NULL) {
+        *record_index = 0U;
+    }
+    if (ambiguous != NULL) {
+        *ambiguous = FALSE;
+    }
+    if (catalog == NULL || interface_uuid == NULL ||
+        protocol == NULL || endpoint == NULL ||
+        record_index == NULL || ambiguous == NULL) {
+        return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
+    }
+
+    for (index = 0U; index < catalog->record_count; ++index) {
+        const COMTRACE_RPC_ENDPOINT_RECORD *record = &catalog->records[index];
+        if (!record->has_registration ||
+            memcmp(&record->interface_uuid, interface_uuid, sizeof(GUID)) != 0 ||
+            _wcsicmp(record->protocol, protocol) != 0 ||
+            _wcsicmp(record->endpoint, endpoint) != 0 ||
+            timestamp < record->register_timestamp ||
+            (record->has_unregistration &&
+             timestamp > record->unregister_timestamp)) {
+            continue;
+        }
+        match_index = index;
+        ++matches;
+    }
+
+    if (matches > 1U) {
+        *ambiguous = TRUE;
+        return COMTRACE_RPC_ENDPOINT_SUCCESS;
+    }
+    if (matches == 1U) {
+        *record_index = match_index;
+    }
+    return COMTRACE_RPC_ENDPOINT_SUCCESS;
+}
