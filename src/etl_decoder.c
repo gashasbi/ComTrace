@@ -89,8 +89,7 @@ static int event_property_metadata_is_valid(
             ULONG offset = property->customSchemaType.CustomSchemaOffset;
             USHORT schema_size;
 
-            if (offset < property_end ||
-                offset > buffer_size ||
+            if (offset > buffer_size ||
                 buffer_size - offset < 4U) {
                 return 0;
             }
