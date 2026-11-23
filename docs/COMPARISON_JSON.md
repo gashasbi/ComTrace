@@ -162,15 +162,14 @@ The report includes a lifetime_summary, object_lifetimes.left,
 object_lifetimes.right, and object_lifetime_changes.
 
 Each lifetime record is keyed by process ID, process generation when available,
-and the application-level object instance ID. It records explicit creation and
+module `InstrumentationId` when present, and the application-level object instance ID. It records explicit creation and
 destruction observations, AddRef/Release event counts, zero-valued Release
 observations, raw ETW timestamps, CLSID, all observed interface IDs, initial
 and last observed reference counts when available, and any native identity
 links explicitly supplied by the instrumented application. Each record also
 contains an observation_count. Missing reference-count values are JSON null.
 
-The lifetime diff matches records using the same process and application
-identity key. Its changed_fields mask uses 0x1 for CLSID, 0x2 for the set of
+The lifetime diff matches records using the same process, module instrumentation ID when available, and application identity key. Its changed_fields mask uses 0x1 for CLSID, 0x2 for the set of
 interface IDs, 0x4 for creation/destruction state, 0x8 for lifecycle event
 counts, 0x10 for explicit native identity bindings, 0x20 for a changed initial
 reference count, and 0x40 for a changed last observed reference-count result.
@@ -195,6 +194,7 @@ as proof of a leak or invalid COM behavior.
 |---|---|---|
 | `process_id` | number | Process ID that emitted the instrumentation events |
 | `process_generation` | number or null | Resolved process generation, when available |
+| `instrumentation_id` | string or null | GUID identifying the linked instrumentation module instance; null for older traces |
 | `object_instance_id` | string | Application-level object ID in hexadecimal |
 | `created` / `destroyed` | boolean | Whether explicit creation/destruction events were observed in this trace |
 | `create_events`, `add_ref_events`, `release_events`, `destroy_events` | number | Count of each observed lifecycle event |
