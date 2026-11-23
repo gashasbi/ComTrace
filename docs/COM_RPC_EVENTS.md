@@ -61,6 +61,8 @@ The timeline retains InterfaceUuid, ProcNum, Protocol, NetworkAddress, and Endpo
 
 A COM-operation association is made only with an exact ActivityId and exact IID/InterfaceUuid value. Multiple matching COM operations are marked ambiguous. The association links an RPC call to an observed COM operation record; it does not infer a COM object lifetime or treat an RPC interface UUID as a universal COM IID.
 
+Inspect also separates linked RPC-to-COM observations by transport. `ncalrpc` links are reported as local RPC-to-COM links; `ncacn_ip_tcp` and `ncacn_http` links are reported as network RPC-to-COM links and labeled DCOM candidates. Network transport alone is not sufficient to prove a DCOM activation or identify a remote host; the label is limited to RPC calls that also passed the exact ActivityId and interface matching rules.
+
 ## Microsoft-Windows-RPCSS
 
 The Win10 17134 manifest defines two endpoint-mapper registration records:
