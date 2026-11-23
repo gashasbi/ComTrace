@@ -322,6 +322,98 @@ static int test_ambiguous_cross_layer_links_are_not_created(void)
     return 1;
 }
 
+static int test_rpc_request_response_chain(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identities[2];
+    COMTRACE_ACTIVITY_IDS activities[2];
+    COMTRACE_RPC_TIMELINE timeline;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(identities, sizeof(identities));
+    ZeroMemory(activities, sizeof(activities));
+    ZeroMemory(&timeline, sizeof(timeline));
+    timeline.records = (COMTRACE_RPC_TIMELINE_RECORD *)calloc(2U, sizeof(*timeline.records));
+    if (timeline.records == NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    activities[0].has_activity_id = TRUE;
+    activities[0].activity_id.Data1 = 130U;
+    activities[0].has_related_activity_id = TRUE;
+    activities[0].related_activity_id.Data1 = 131U;
+    activities[1].has_activity_id = TRUE;
+    activities[1].activity_id.Data1 = 131U;
+    activities[1].has_related_activity_id = TRUE;
+    activities[1].related_activity_id.Data1 = 130U;
+
+    identities[0].process_id = 610U;
+    identities[0].thread_id = 611U;
+    identities[0].oid = 0x4101ULL;
+    identities[0].has_process_id = TRUE;
+    identities[0].has_thread_id = TRUE;
+    identities[0].has_oid = TRUE;
+    identities[0].iid.Data1 = 0x12345678U;
+    identities[0].has_iid = TRUE;
+    identities[0].call_trace_id = 4101ULL;
+    identities[0].has_call_trace_id = TRUE;
+    identities[1] = identities[0];
+    identities[1].process_id = 620U;
+    identities[1].thread_id = 621U;
+    identities[1].oid = 0x4201ULL;
+    identities[1].call_trace_id = 4201ULL;
+
+    if (comtrace_relationship_graph_add_event(&graph, &identities[0], &activities[0]) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_event(&graph, &identities[1], &activities[1]) !=
+            COMTRACE_GRAPH_SUCCESS) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    timeline.record_count = 2U;
+    timeline.records[0].process_id = 610U;
+    timeline.records[0].thread_id = 611U;
+    timeline.records[0].has_start = TRUE;
+    timeline.records[0].role = COMTRACE_RPC_ROLE_CLIENT;
+    timeline.records[0].has_activity_id = TRUE;
+    timeline.records[0].activity_id = activities[0].activity_id;
+    timeline.records[0].has_related_activity_id = TRUE;
+    timeline.records[0].related_activity_id = activities[0].related_activity_id;
+    timeline.records[0].has_interface_uuid = TRUE;
+    timeline.records[0].interface_uuid = identities[0].iid;
+    timeline.records[0].has_correlated_record = TRUE;
+    timeline.records[0].correlated_record_index = 1U;
+
+    timeline.records[1].process_id = 620U;
+    timeline.records[1].thread_id = 621U;
+    timeline.records[1].has_start = TRUE;
+    timeline.records[1].role = COMTRACE_RPC_ROLE_SERVER;
+    timeline.records[1].has_activity_id = TRUE;
+    timeline.records[1].activity_id = activities[1].activity_id;
+    timeline.records[1].has_related_activity_id = TRUE;
+    timeline.records[1].related_activity_id = activities[1].related_activity_id;
+    timeline.records[1].has_interface_uuid = TRUE;
+    timeline.records[1].interface_uuid = identities[1].iid;
+    timeline.records[1].has_correlated_record = TRUE;
+    timeline.records[1].correlated_record_index = 0U;
+
+    if (comtrace_relationship_graph_add_rpc_timeline(&graph, &timeline, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_link_rpc_com_calls(&graph) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_RPC_CALL) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_COM_CALL) != 2U) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    free(timeline.records);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_rpc_pair()) {
@@ -346,6 +438,10 @@ int main(void)
     }
     if (!test_ambiguous_cross_layer_links_are_not_created()) {
         fwprintf(stderr, L"Ambiguous graph links test failed.\n");
+        return 1;
+    }
+    if (!test_rpc_request_response_chain()) {
+        fwprintf(stderr, L"RPC request/response graph chain test failed.\n");
         return 1;
     }
     wprintf(L"RPC, DDE and OLE relationship graph tests passed.\n");
