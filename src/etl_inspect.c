@@ -3637,6 +3637,7 @@ static void print_ole_timeline_summary(
     ULONGLONG unmatched = 0ULL;
     ULONGLONG clipboard_events = 0ULL;
     ULONGLONG drag_drop_events = 0ULL;
+    ULONGLONG invalid_duration_orders = 0ULL;
 
     if (context == NULL) {
         return;
@@ -3663,6 +3664,10 @@ static void print_ole_timeline_summary(
             ++incomplete;
         } else if (record->has_stop) {
             ++unmatched;
+        }
+
+        if (record->invalid_duration_order) {
+            ++invalid_duration_orders;
         }
 
         if (wcsncmp(record->operation, L"OLE_Clipboard_", 14U) == 0) {
@@ -3694,6 +3699,10 @@ static void print_ole_timeline_summary(
     wprintf(
         L"Missing ActivityId: %llu\n",
         (unsigned long long)context->ole_timeline.missing_activity_ids
+    );
+    wprintf(
+        L"Invalid duration timestamp orders: %llu\n",
+        (unsigned long long)invalid_duration_orders
     );
 
     for (index = 0U; index < count && index < 100U; ++index) {
