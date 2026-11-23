@@ -113,6 +113,8 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
     ULONG status;
     ULONG available_count;
     ULONG property_end;
+    ULONG index;
+    int has_custom_schema = 0;
     size_t property_offset = offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray);
 
     if (event_info != NULL) {
@@ -176,7 +178,16 @@ COMTRACE_ETL_EVENT_INFO_STATUS comtrace_etl_event_info_open(
         property_offset +
         (size_t)event_info->info->PropertyCount * sizeof(EVENT_PROPERTY_INFO)
     );
-    if (!event_property_metadata_is_valid(
+    for (index = 0U; index < event_info->info->PropertyCount; ++index) {
+        if ((event_info->info->EventPropertyInfoArray[index].Flags &
+                PropertyHasCustomSchema) != 0U) {
+            has_custom_schema = 1;
+            break;
+        }
+    }
+
+    if (!has_custom_schema &&
+        !event_property_metadata_is_valid(
             event_info->buffer,
             event_info->size,
             property_end,
