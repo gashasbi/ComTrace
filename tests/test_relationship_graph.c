@@ -1020,6 +1020,47 @@ static int test_instrumented_lifetime_object_graph(void)
     return 1;
 }
 
+static int test_lifetime_instrumentation_namespaces(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_LIFETIME_RECORD record;
+    GUID first_id = {0x12345678, 0x1234, 0x5678, {1, 2, 3, 4, 5, 6, 7, 8}};
+    GUID second_id = {0x87654321, 0x4321, 0x8765, {8, 7, 6, 5, 4, 3, 2, 1}};
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&record, sizeof(record));
+    record.process_id = 77U;
+    record.object_instance_id = 1ULL;
+    record.has_instrumentation_id = TRUE;
+    record.instrumentation_id = first_id;
+
+    if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+        COMTRACE_GRAPH_SUCCESS) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    record.instrumentation_id = second_id;
+    if (comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_add_lifetime_record(&graph, &record) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(
+            &graph,
+            COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT
+        ) != 2U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_PROCESS_OWNS_LIFETIME_OBJECT
+        ) != 2U) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_multiple_lifetime_interfaces_and_native_link(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -1120,6 +1161,7 @@ int main(void)
         !test_object_owner_uses_target_process_generation() ||
         !test_missing_relationship_fields() ||
         !test_instrumented_lifetime_object_graph() ||
+        !test_lifetime_instrumentation_namespaces() ||
         !test_multiple_lifetime_interfaces_and_native_link()) {
         fputs("Relationship graph tests failed.\n", stderr);
         return 1;
