@@ -5930,7 +5930,7 @@ static int inspect_etl_internal(
     }
 
     if (context.dde_timeline_status != COMTRACE_DDE_TIMELINE_SUCCESS) {
-        fwprintf(stderr, L"DDE timeline processing failed.\n");
+        fwprintf(stderr, L"DDE timeline processing failed with status %u.\n", (unsigned int)context.dde_timeline_status);
         result = EXIT_FAILURE;
     }
 
