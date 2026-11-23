@@ -301,7 +301,7 @@ if ($rpcssActiveRegistrations -gt $rpcssEndpointRecords -or
 
 $protocolNodeMatch = [regex]::Match(
     $inspectOutput,
-    "Protocol nodes:\s*rpc_calls=(\d+)\s+rpc_interfaces=(\d+)\s+dde_conversations=(\d+)\s+dde_transactions=(\d+)"
+    "Protocol nodes:\s*rpc_calls=(\d+)\s+rpc_interfaces=(\d+)\s+dde_conversations=(\d+)\s+dde_transactions=(\d+)\s+dde_callbacks=(\d+)"
 )
 $oleNodeMatch = [regex]::Match($inspectOutput, "OLE operation nodes:\s*(\d+)")
 $protocolEdgeMatch = [regex]::Match(
@@ -323,6 +323,7 @@ $rpcGraphCalls = [UInt64]::Parse($protocolNodeMatch.Groups[1].Value)
 $rpcGraphInterfaces = [UInt64]::Parse($protocolNodeMatch.Groups[2].Value)
 $ddeGraphConversations = [UInt64]::Parse($protocolNodeMatch.Groups[3].Value)
 $ddeGraphTransactions = [UInt64]::Parse($protocolNodeMatch.Groups[4].Value)
+$ddeGraphCallbacks = [UInt64]::Parse($protocolNodeMatch.Groups[5].Value)
 $oleGraphOperations = [UInt64]::Parse($oleNodeMatch.Groups[1].Value)
 $rpcGraphPairs = [UInt64]::Parse($protocolEdgeMatch.Groups[1].Value)
 $ddeGraphExchanges = [UInt64]::Parse($protocolEdgeMatch.Groups[2].Value)
