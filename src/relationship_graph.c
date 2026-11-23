@@ -947,7 +947,7 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_lifetime_record(
         COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT,
         record->process_id,
         0U,
-        NULL,
+        record->has_instrumentation_id ? &record->instrumentation_id : NULL,
         record->object_instance_id,
         record->process_generation,
         record->has_process_generation,
