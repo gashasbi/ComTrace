@@ -4026,6 +4026,8 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"process_owns_dde_callback";
     case COMTRACE_GRAPH_EDGE_THREAD_RECEIVES_DDE_CALLBACK:
         return L"thread_receives_dde_callback";
+    case COMTRACE_GRAPH_EDGE_DDE_CALLBACK_HAS_CORRELATION:
+        return L"dde_callback_has_correlation";
     default:
         return L"unknown";
     }
