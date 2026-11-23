@@ -92,7 +92,6 @@ int wmain(int argc, wchar_t **argv)
     FILETIME filetime_value = { 0x5849AAE0UL, 0x01DA3D28UL };
     SYSTEMTIME systemtime_value = { 2024U, 1U, 2U, 2U, 3U, 4U, 5U, 6U };
     PVOID pointer_value = (PVOID)(ULONG_PTR)0x12345678UL;
-    wchar_t hidden_value[] = L"Hidden";
     wchar_t reduced_text[] = L"Reduced";
     ULONGLONG etw_time_value = 1234567890ULL;
     ULONG string_number_value = 12345UL;
