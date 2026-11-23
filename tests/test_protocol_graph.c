@@ -119,6 +119,7 @@ static int test_ole_operation(void)
     timeline.records[0].thread_id = 501U;
     memcpy(timeline.records[0].operation, L"OLE_DragDrop_DoDragDrop", sizeof(L"OLE_DragDrop_DoDragDrop"));
     timeline.records[0].has_start = TRUE;
+    timeline.records[0].start_timestamp = 10ULL;
     timeline.records[0].has_stop = TRUE;
     timeline.records[0].stop_process_id = 502U;
     timeline.records[0].stop_thread_id = 503U;
@@ -132,6 +133,9 @@ static int test_ole_operation(void)
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_PROCESS_OBSERVES_OLE_OPERATION) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_OLE_OPERATION) != 1U ||
+        !graph.nodes[0].has_observed_timestamp ||
+        graph.nodes[0].first_seen_timestamp != 10LL ||
+        graph.nodes[0].last_seen_timestamp != 20LL ||
         wcscmp(graph.nodes[0].label, L"OLE_DragDrop_DoDragDrop") != 0) {
         free(timeline.records);
         comtrace_relationship_graph_destroy(&graph);
@@ -140,6 +144,88 @@ static int test_ole_operation(void)
     free(timeline.records);
     comtrace_relationship_graph_destroy(&graph);
     return 1;
+}
+
+static int test_ole_related_activity(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_OLE_TIMELINE timeline;
+    size_t index;
+    size_t operation_count = 0U;
+    int found_related_only = 0;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&timeline, sizeof(timeline));
+    timeline.records = (COMTRACE_OLE_TIMELINE_RECORD *)calloc(
+        2U,
+        sizeof(*timeline.records)
+    );
+    if (timeline.records == NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    timeline.record_count = 2U;
+    timeline.records[0].process_id = 510U;
+    timeline.records[0].thread_id = 511U;
+    timeline.records[0].has_start = TRUE;
+    timeline.records[0].has_activity_id = TRUE;
+    timeline.records[0].activity_id.Data1 = 81U;
+    timeline.records[0].has_related_activity_id = TRUE;
+    timeline.records[0].related_activity_id.Data1 = 82U;
+    memcpy(
+        timeline.records[0].operation,
+        L"OLE_DragDrop_DoDragDrop",
+        sizeof(L"OLE_DragDrop_DoDragDrop")
+    );
+
+    timeline.records[1].process_id = 520U;
+    timeline.records[1].has_start = TRUE;
+    timeline.records[1].has_related_activity_id = TRUE;
+    timeline.records[1].related_activity_id.Data1 = 82U;
+    memcpy(
+        timeline.records[1].operation,
+        L"OLE_Clipboard_GetClipboard",
+        sizeof(L"OLE_Clipboard_GetClipboard")
+    );
+
+    if (comtrace_relationship_graph_add_ole_timeline(
+            &graph,
+            &timeline,
+            NULL
+        ) != COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(
+            &graph,
+            COMTRACE_GRAPH_NODE_ACTIVITY
+        ) != 2U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY
+        ) != 1U ||
+        comtrace_relationship_graph_edge_count(
+            &graph,
+            COMTRACE_GRAPH_EDGE_ACTIVITY_RELATED_TO
+        ) != 1U) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    for (index = 0U; index < graph.node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph.nodes[index];
+
+        if (node->type == COMTRACE_GRAPH_NODE_OLE_OPERATION) {
+            ++operation_count;
+            if (wcscmp(node->label, L"OLE_Clipboard_GetClipboard") == 0 &&
+                !node->has_guid) {
+                found_related_only = 1;
+            }
+        }
+    }
+
+    free(timeline.records);
+    comtrace_relationship_graph_destroy(&graph);
+    return operation_count == 2U && found_related_only;
 }
 
 static int test_ole_data_object_link(void)
@@ -437,6 +523,10 @@ int main(void)
     }
     if (!test_ole_operation()) {
         fwprintf(stderr, L"OLE relationship graph test failed.\n");
+        return 1;
+    }
+    if (!test_ole_related_activity()) {
+        fwprintf(stderr, L"OLE related activity graph test failed.\\n");
         return 1;
     }
     if (!test_ole_data_object_link()) {
