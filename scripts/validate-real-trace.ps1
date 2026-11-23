@@ -516,6 +516,13 @@ if ($rpcBreakdownTotal -ne $rpcClassifiedEventCount -or
     throw "RPC classified event counts do not match the reported event breakdown."
 }
 
+if ($captureNewTrace -and
+    ($rpcClientCallStartCount -eq 0 -or
+     $rpcServerCallStartCount -eq 0 -or
+     $rpcTimelineRecords -eq 0)) {
+    throw "The real capture did not contain both RPC client and server calls. Review $rpcSearchPath and $inspectPath"
+}
+
 $rpcssSearchOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--search", $EtlPath, "--provider", $rpcssProviderGuid, "--max-events", "10000") -Description "RPCSS event search"
 Set-Content -LiteralPath $rpcssSearchPath -Value $rpcssSearchOutput -Encoding UTF8
 $rpcssEventMatch = [regex]::Match($rpcssSearchOutput, "Events matching filters:\s*(\d+)")
