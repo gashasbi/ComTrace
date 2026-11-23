@@ -582,6 +582,36 @@ static int test_related_activity_id_pairing(void)
     }
 
     comtrace_ole_timeline_destroy(&timeline);
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 200U;
+    event.timestamp = 500ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.timestamp = 600ULL;
+    event.activity_ids = NULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+            COMTRACE_OLE_TIMELINE_SUCCESS ||
+        comtrace_ole_timeline_pending_count(&timeline) != 1U ||
+        comtrace_ole_timeline_count(&timeline) != 2U ||
+        timeline.unmatched_stops != 1ULL) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
     return 1;
 }
 
