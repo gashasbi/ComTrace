@@ -94,7 +94,7 @@ int wmain(int argc, wchar_t **argv)
     PVOID pointer_value = (PVOID)(ULONG_PTR)0x12345678UL;
     wchar_t reduced_text[] = L"Reduced";
     ULONGLONG etw_time_value = 1234567890ULL;
-    ULONG string_number_value = 12345UL;
+    wchar_t string_number_value[] = L"12345";
     ULONG process_id_value = 1234UL;
     ULONG thread_id_value = 5678UL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
