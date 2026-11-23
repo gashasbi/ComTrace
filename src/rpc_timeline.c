@@ -318,7 +318,10 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
                 event->activity_ids->related_activity_id;
             record->has_related_activity_id = TRUE;
         }
-        if (!record->has_interface_uuid || !record->has_procedure_number) {
+        if (!record->has_interface_uuid ||
+            !record->has_procedure_number ||
+            record->protocol[0] == L'\\0' ||
+            record->endpoint[0] == L'\\0') {
             copy_event_metadata(record, event);
         }
 
