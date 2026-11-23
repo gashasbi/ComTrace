@@ -3844,6 +3844,18 @@ static void print_dde_timeline_summary(
         (unsigned long long)context->dde_timeline.unmatched_completions
     );
     wprintf(
+        L"Unmatched conversation closes: %llu\n",
+        (unsigned long long)context->dde_timeline.unmatched_closes
+    );
+    wprintf(
+        L"Invalid duration timestamp orders: %llu\n",
+        (unsigned long long)context->dde_timeline.invalid_duration_orders
+    );
+    wprintf(
+        L"Transaction metadata mismatches: %llu\n",
+        (unsigned long long)context->dde_timeline.metadata_mismatches
+    );
+    wprintf(
         L"Missing transaction correlation IDs: %llu\n",
         (unsigned long long)context->dde_timeline.missing_transaction_correlation_ids
     );
@@ -3890,11 +3902,20 @@ static void print_dde_timeline_summary(
         }
         if (record->has_completion) {
             wprintf(
-                L" completion=%llu succeeded=%ls duration_ticks=%llu",
+                L" completion=%llu succeeded=%ls",
                 (unsigned long long)record->completion_timestamp,
-                record->succeeded ? L"true" : L"false",
-                (unsigned long long)record->duration_ticks
+                record->succeeded ? L"true" : L"false"
             );
+            if (record->has_duration) {
+                wprintf(L" duration_ticks=%llu",
+                    (unsigned long long)record->duration_ticks);
+            }
+            if (record->invalid_duration_order) {
+                wprintf(L" duration_order=invalid");
+            }
+        }
+        if (record->metadata_mismatch) {
+            wprintf(L" metadata_mismatch=true");
         }
         if (record->has_callback) {
             wprintf(L" callback=%llu data_size=%lu",
