@@ -122,6 +122,206 @@ static int print_sid_value(const BYTE *value, ULONG value_size)
     return 1;
 }
 
+static void print_guid(const GUID *guid)
+{
+    wprintf(
+        L"{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+        (unsigned long)guid->Data1,
+        (unsigned int)guid->Data2,
+        (unsigned int)guid->Data3,
+        (unsigned int)guid->Data4[0],
+        (unsigned int)guid->Data4[1],
+        (unsigned int)guid->Data4[2],
+        (unsigned int)guid->Data4[3],
+        (unsigned int)guid->Data4[4],
+        (unsigned int)guid->Data4[5],
+        (unsigned int)guid->Data4[6],
+        (unsigned int)guid->Data4[7]
+    );
+}
+
+static void print_binary_value(const BYTE *value, ULONG value_size)
+{
+    ULONG offset;
+
+    wprintf(L"value=hex:");
+    for (offset = 0U; offset < value_size; ++offset) {
+        wprintf(L"%02x", (unsigned int)value[offset]);
+    }
+    wprintf(L"\n");
+}
+
+static int print_sid_value(const BYTE *value, ULONG value_size)
+{
+    LPWSTR sid_text = NULL;
+    ULONG required_size;
+
+    if (value == NULL ||
+        value_size < 8U ||
+        value[1] > SID_MAX_SUB_AUTHORITIES) {
+        return 0;
+    }
+
+    required_size = GetSidLengthRequired(value[1]);
+    if (required_size > value_size ||
+        !IsValidSid((PSID)value) ||
+        !ConvertSidToStringSidW((PSID)value, &sid_text)) {
+        return 0;
+    }
+
+    wprintf(L"value=%ls\n", sid_text);
+    (void)LocalFree(sid_text);
+    return 1;
+}
+
+static int is_hex_output_type(USHORT out_type)
+{
+    return out_type == TDH_OUTTYPE_HEXINT8 ||
+        out_type == TDH_OUTTYPE_HEXINT16 ||
+        out_type == TDH_OUTTYPE_HEXINT32 ||
+        out_type == TDH_OUTTYPE_HEXINT64 ||
+        out_type == TDH_OUTTYPE_ERRORCODE ||
+        out_type == TDH_OUTTYPE_WIN32ERROR ||
+        out_type == TDH_OUTTYPE_HRESULT ||
+        out_type == TDH_OUTTYPE_NTSTATUS ||
+        out_type == TDH_OUTTYPE_CODE_POINTER;
+}
+
+static int format_binary_hex_text(
+    const BYTE *value,
+    ULONG value_size,
+    wchar_t *text,
+    size_t text_capacity
+)
+{
+    static const wchar_t digits[] = L"0123456789abcdef";
+    size_t index;
+
+    if (value == NULL || text == NULL ||
+        text_capacity < 5U ||
+        (size_t)value_size > (text_capacity - 5U) / 2U) {
+        return 0;
+    }
+
+    text[0] = L'h';
+    text[1] = L'e';
+    text[2] = L'x';
+    text[3] = L':';
+
+    for (index = 0U; index < (size_t)value_size; ++index) {
+        text[4U + index * 2U] = digits[value[index] >> 4U];
+        text[5U + index * 2U] = digits[value[index] & 0x0FU];
+    }
+
+    text[4U + (size_t)value_size * 2U] = L'\0';
+    return 1;
+}
+
+static int format_socket_address(
+    const BYTE *value,
+    ULONG value_size,
+    wchar_t *text,
+    size_t text_capacity
+)
+{
+    ADDRESS_FAMILY family;
+
+    if (value == NULL || text == NULL ||
+        text_capacity == 0U ||
+        value_size < sizeof(family)) {
+        return 0;
+    }
+
+    CopyMemory(&family, value, sizeof(family));
+
+    if (family == AF_INET) {
+        SOCKADDR_IN address;
+        wchar_t address_text[INET_ADDRSTRLEN];
+
+        if (value_size < sizeof(address)) {
+            return 0;
+        }
+
+        CopyMemory(&address, value, sizeof(address));
+        if (InetNtopW(
+                AF_INET,
+                &address.sin_addr,
+                address_text,
+                _countof(address_text)) == NULL) {
+            return 0;
+        }
+
+        return _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"%ls:%u",
+            address_text,
+            (unsigned int)ntohs(address.sin_port)
+        ) >= 0;
+    }
+
+    if (family == AF_INET6) {
+        SOCKADDR_IN6 address;
+        wchar_t address_text[INET6_ADDRSTRLEN];
+
+        if (value_size < sizeof(address)) {
+            return 0;
+        }
+
+        CopyMemory(&address, value, sizeof(address));
+        if (InetNtopW(
+                AF_INET6,
+                &address.sin6_addr,
+                address_text,
+                _countof(address_text)) == NULL) {
+            return 0;
+        }
+
+        if (address.sin6_scope_id != 0U) {
+            return _snwprintf_s(
+                text,
+                text_capacity,
+                _TRUNCATE,
+                L"[%ls%%%lu]:%u",
+                address_text,
+                (unsigned long)address.sin6_scope_id,
+                (unsigned int)ntohs(address.sin6_port)
+            ) >= 0;
+        }
+
+        return _snwprintf_s(
+            text,
+            text_capacity,
+            _TRUNCATE,
+            L"[%ls]:%u",
+            address_text,
+            (unsigned int)ntohs(address.sin6_port)
+        ) >= 0;
+    }
+
+    return format_binary_hex_text(value, value_size, text, text_capacity);
+}
+
+static int is_utf8_string_output_type(USHORT out_type)
+{
+    return out_type == TDH_OUTTYPE_UTF8 ||
+        out_type == TDH_OUTTYPE_XML ||
+        out_type == TDH_OUTTYPE_JSON;
+}
+
+static int event_property_is_array(const EVENT_PROPERTY_INFO *property)
+{
+    if (property == NULL) {
+        return 0;
+    }
+
+    return (property->Flags & (
+        PropertyParamCount |
+        PropertyParamFixedCount
+    )) != 0U || property->count > 1U;
+}
+
 static int parse_sample_limit(const wchar_t *text, ULONG *limit)
 {
     const wchar_t *cursor;
