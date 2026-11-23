@@ -276,6 +276,25 @@ static int test_cross_process_client_server_correlation(void)
     comtrace_rpc_timeline_correlate_calls(&timeline);
     client = comtrace_rpc_timeline_get(&timeline, 0U);
     server = comtrace_rpc_timeline_get(&timeline, 1U);
+    if (client != NULL && server != NULL) {
+        fwprintf(stderr,
+            L"RPC correlation diagnostic: client_role=%u server_role=%u client_location=%u server_location=%u client_protocol=%ls server_protocol=%ls server_address=%ls server_endpoint=%ls client_pair=%u server_pair=%u client_index=%llu server_index=%llu pair_count=%llu ambiguous=%llu\\n",
+            (unsigned int)client->role,
+            (unsigned int)server->role,
+            (unsigned int)client->location,
+            (unsigned int)server->location,
+            client->protocol,
+            server->protocol,
+            server->network_address,
+            server->endpoint,
+            (unsigned int)client->has_correlated_record,
+            (unsigned int)server->has_correlated_record,
+            (unsigned long long)client->correlated_record_index,
+            (unsigned long long)server->correlated_record_index,
+            (unsigned long long)timeline.correlated_client_server_calls,
+            (unsigned long long)timeline.ambiguous_client_server_calls
+        );
+    }
     if (client == NULL || server == NULL ||
         client->role != COMTRACE_RPC_ROLE_CLIENT ||
         server->role != COMTRACE_RPC_ROLE_SERVER ||
