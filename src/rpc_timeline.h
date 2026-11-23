@@ -21,6 +21,25 @@ typedef enum {
     COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD
 } COMTRACE_RPC_TIMELINE_MATCH_TYPE;
 
+typedef enum {
+    COMTRACE_RPC_ROLE_UNKNOWN = 0,
+    COMTRACE_RPC_ROLE_CLIENT,
+    COMTRACE_RPC_ROLE_SERVER,
+    COMTRACE_RPC_ROLE_FUNCTION
+} COMTRACE_RPC_ROLE;
+
+typedef enum {
+    COMTRACE_RPC_LOCATION_UNKNOWN = 0,
+    COMTRACE_RPC_LOCATION_LOCAL,
+    COMTRACE_RPC_LOCATION_NETWORK
+} COMTRACE_RPC_LOCATION;
+
+typedef enum {
+    COMTRACE_RPC_CORRELATION_NONE = 0,
+    COMTRACE_RPC_CORRELATION_ACTIVITY_ID,
+    COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID
+} COMTRACE_RPC_CORRELATION_TYPE;
+
 typedef struct {
     const wchar_t *operation;
     COMTRACE_RPC_TIMELINE_PHASE phase;
@@ -32,6 +51,9 @@ typedef struct {
     GUID interface_uuid;
     BOOL has_procedure_number;
     ULONG procedure_number;
+    const wchar_t *protocol;
+    const wchar_t *network_address;
+    const wchar_t *endpoint;
 } COMTRACE_RPC_TIMELINE_EVENT;
 
 typedef struct {
@@ -55,6 +77,14 @@ typedef struct {
     GUID interface_uuid;
     BOOL has_procedure_number;
     ULONG procedure_number;
+    COMTRACE_RPC_ROLE role;
+    COMTRACE_RPC_LOCATION location;
+    wchar_t protocol[64];
+    wchar_t network_address[128];
+    wchar_t endpoint[128];
+    BOOL has_correlated_record;
+    size_t correlated_record_index;
+    COMTRACE_RPC_CORRELATION_TYPE correlation_type;
 } COMTRACE_RPC_TIMELINE_RECORD;
 
 typedef struct {
@@ -66,6 +96,8 @@ typedef struct {
     size_t pending_capacity;
     ULONGLONG unmatched_stops;
     ULONGLONG missing_activity_ids;
+    ULONGLONG correlated_client_server_calls;
+    ULONGLONG ambiguous_client_server_calls;
 } COMTRACE_RPC_TIMELINE;
 
 void comtrace_rpc_timeline_init(COMTRACE_RPC_TIMELINE *timeline);
@@ -78,6 +110,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 
 size_t comtrace_rpc_timeline_count(const COMTRACE_RPC_TIMELINE *timeline);
 size_t comtrace_rpc_timeline_pending_count(const COMTRACE_RPC_TIMELINE *timeline);
+
+void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline);
 
 const COMTRACE_RPC_TIMELINE_RECORD *comtrace_rpc_timeline_get(
     const COMTRACE_RPC_TIMELINE *timeline,
