@@ -604,7 +604,7 @@ int main(void)
         return 1;
     }
     if (!test_ole_data_object_link_rejects_ambiguity()) {
-        fwprintf(stderr, L"Ambiguous OLE DataObject graph test failed.\\n");
+        fwprintf(stderr, L"Ambiguous OLE DataObject graph test failed.\n");
         return 1;
     }
     if (!test_rpc_com_call_link()) {
