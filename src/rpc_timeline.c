@@ -199,7 +199,6 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
 
     if (wcscmp(record->operation, event->operation) != 0 ||
         record->has_activity_id != event_has_activity ||
-        record->has_related_activity_id != event_has_related_activity ||
         (record->has_interface_uuid && event->has_interface_uuid &&
          memcmp(&record->interface_uuid, &event->interface_uuid, sizeof(GUID)) != 0) ||
         (record->has_procedure_number && event->has_procedure_number &&
@@ -214,6 +213,7 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
                 sizeof(GUID)
             ) == 0) {
             if (record->has_related_activity_id &&
+                event_has_related_activity &&
                 memcmp(
                     &record->related_activity_id,
                     &event->activity_ids->related_activity_id,
@@ -226,8 +226,10 @@ static COMTRACE_RPC_TIMELINE_MATCH_TYPE get_match_type(
         return COMTRACE_RPC_TIMELINE_MATCH_NONE;
     }
 
-    if (record->has_related_activity_id) {
-        if (memcmp(
+    if (record->has_related_activity_id || event_has_related_activity) {
+        if (record->has_related_activity_id &&
+            event_has_related_activity &&
+            memcmp(
                 &record->related_activity_id,
                 &event->activity_ids->related_activity_id,
                 sizeof(GUID)
