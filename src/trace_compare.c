@@ -134,6 +134,7 @@ static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     COMTRACE_LIFETIME_EVENT lifetime_event;
     COMTRACE_LIFETIME_STATUS lifetime_status;
     COMTRACE_IDENTITY_STATUS instrumentation_status;
+    COMTRACE_ACTIVITY_IDS activity_ids;
     GUID empty_ipid = {0};
 
     if (!get_trace_event_name(
@@ -148,6 +149,15 @@ static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     }
 
     ZeroMemory(&lifetime_event, sizeof(lifetime_event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+
+    if (comtrace_extract_activity_ids(event_record, &activity_ids) ==
+        COMTRACE_IDENTITY_SUCCESS) {
+        lifetime_event.has_activity_id = activity_ids.has_activity_id;
+        lifetime_event.activity_id = activity_ids.activity_id;
+        lifetime_event.has_related_activity_id = activity_ids.has_related_activity_id;
+        lifetime_event.related_activity_id = activity_ids.related_activity_id;
+    }
 
     if (wcscmp(event_name, L"ComObjectCreated") == 0) {
         lifetime_event.type = COMTRACE_LIFETIME_EVENT_CREATED;
