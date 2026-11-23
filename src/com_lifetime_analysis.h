@@ -36,6 +36,8 @@ typedef struct {
     DWORD process_id;
     DWORD thread_id;
     ULONGLONG object_instance_id;
+    BOOL has_instrumentation_id;
+    GUID instrumentation_id;
     ULONGLONG process_generation;
     BOOL has_process_generation;
     ULONGLONG timestamp;
@@ -60,6 +62,8 @@ typedef struct {
 typedef struct {
     DWORD process_id;
     ULONGLONG object_instance_id;
+    BOOL has_instrumentation_id;
+    GUID instrumentation_id;
     ULONGLONG process_generation;
     BOOL has_process_generation;
     BOOL has_created;
