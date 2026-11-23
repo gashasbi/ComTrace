@@ -655,8 +655,65 @@ static int test_reversed_duration_is_reported(void)
         !record->has_start ||
         !record->has_stop ||
         !record->invalid_duration_order ||
+        timeline.invalid_duration_orders != 1ULL ||
         record->has_duration ||
         comtrace_ole_timeline_pending_count(&timeline) != 0U) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_ambiguous_cross_process_stop_is_not_paired(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    const COMTRACE_OLE_TIMELINE_RECORD *record;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.activity_id = activity_one;
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 101U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &activity_ids;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.process_id = 200U;
+    event.thread_id = 201U;
+    event.timestamp = 110ULL;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.process_id = 300U;
+    event.thread_id = 301U;
+    event.timestamp = 120ULL;
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_ole_timeline_get(&timeline, 2U);
+    if (record == NULL || !record->has_stop || record->has_start ||
+        !record->ambiguous_match || timeline.ambiguous_stops != 1ULL ||
+        timeline.unmatched_stops != 1ULL ||
+        comtrace_ole_timeline_pending_count(&timeline) != 2U) {
         comtrace_ole_timeline_destroy(&timeline);
         return 0;
     }
@@ -676,7 +733,8 @@ int main(void)
         !test_process_thread_pairing_uses_lifo_order() ||
         !test_activity_id_matches_across_process_and_thread() ||
         !test_related_activity_id_pairing() ||
-        !test_reversed_duration_is_reported()) {
+        !test_reversed_duration_is_reported() ||
+        !test_ambiguous_cross_process_stop_is_not_paired()) {
         fputs("OLE timeline tests failed.\n", stderr);
         return 1;
     }
