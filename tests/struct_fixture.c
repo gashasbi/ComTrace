@@ -166,6 +166,18 @@ int wmain(int argc, wchar_t **argv)
         TraceLoggingStruct(2, "Inner"),
         TraceLoggingUInt32(0x55667788UL, "NestedCode"),
         TraceLoggingUInt16(0x99AAU, "NestedStatus"),
+        TraceLoggingUInt32(
+            0xCAFEBABEUL,
+            "TaggedValue",
+            "",
+            0x123U
+        )
+    );
+
+    TraceLoggingWrite(
+        g_hNestedProvider,
+        "CustomSchemaEvent",
+        TraceLoggingLevel(TRACE_LEVEL_VERBOSE),
         TraceLoggingCustom(
             custom_value,
             sizeof(custom_value),
@@ -173,12 +185,6 @@ int wmain(int argc, wchar_t **argv)
             (0x11U, 0x22U, 0x33U),
             3U,
             "CustomField"
-        ),
-        TraceLoggingUInt32(
-            0xCAFEBABEUL,
-            "TaggedValue",
-            "",
-            0x123U
         )
     );
 
