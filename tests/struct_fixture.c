@@ -100,6 +100,14 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
+    status = TraceLoggingRegister(g_hNestedProvider);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"TraceLoggingRegister failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+    tracelogging_registered = 1;
+
+    nested_provider_id = TraceLoggingProviderId(g_hNestedProvider);
     status = EnableTraceEx2(
         session,
         &COMTRACE_STRUCT_PROVIDER,
@@ -113,6 +121,22 @@ int wmain(int argc, wchar_t **argv)
         fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
+
+    status = EnableTraceEx2(
+        session,
+        &nested_provider_id,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_VERBOSE,
+        0ULL,
+        0U,
+        5000U,
+        NULL);
+    if (status != ERROR_SUCCESS) {
+        fwprintf(stderr, L"TraceLogging EnableTraceEx2 failed: %lu\n", (unsigned long)status);
+        goto cleanup;
+    }
+
+    Sleep(100);
 
     EventDataDescCreate(&descriptors[0], &values_count, sizeof(values_count));
     EventDataDescCreate(&descriptors[1], &first_code, sizeof(first_code));
@@ -132,30 +156,6 @@ int wmain(int argc, wchar_t **argv)
         fwprintf(stderr, L"EventWriteStructEvent failed: %lu\n", (unsigned long)status);
         goto cleanup;
     }
-
-    status = TraceLoggingRegister(g_hNestedProvider);
-    if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"TraceLoggingRegister failed: %lu\n", (unsigned long)status);
-        goto cleanup;
-    }
-    tracelogging_registered = 1;
-
-    nested_provider_id = TraceLoggingProviderId(g_hNestedProvider);
-    status = EnableTraceEx2(
-        session,
-        &nested_provider_id,
-        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        TRACE_LEVEL_VERBOSE,
-        0ULL,
-        0U,
-        5000U,
-        NULL);
-    if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"TraceLogging EnableTraceEx2 failed: %lu\n", (unsigned long)status);
-        goto cleanup;
-    }
-
-    Sleep(100);
 
     TraceLoggingWrite(
         g_hNestedProvider,
