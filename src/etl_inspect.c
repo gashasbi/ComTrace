@@ -3346,6 +3346,7 @@ static void add_dde_timeline_event(
     wchar_t topic[256];
     COMTRACE_DDE_EVENT_TYPE event_type;
     COMTRACE_DDE_TIMELINE_EVENT timeline_event;
+    COMTRACE_DDE_TIMELINE_STATUS timeline_status;
     BOOL boolean_value;
 
     if (context == NULL ||
@@ -3585,11 +3586,13 @@ static void add_dde_timeline_event(
         return;
     }
 
-    if (comtrace_dde_timeline_add_event(
-            &context->dde_timeline,
-            &timeline_event
-        ) != COMTRACE_DDE_TIMELINE_SUCCESS) {
-        context->dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    timeline_status = comtrace_dde_timeline_add_event(
+        &context->dde_timeline,
+        &timeline_event
+    );
+    if (timeline_status != COMTRACE_DDE_TIMELINE_SUCCESS &&
+        context->dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
+        context->dde_timeline_status = timeline_status;
     }
 }
 
@@ -5784,9 +5787,9 @@ static int inspect_etl_internal(
         ) != COMTRACE_GRAPH_SUCCESS) {
         context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
-    if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
-        COMTRACE_DDE_TIMELINE_SUCCESS) {
-        context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    if (context.dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
+        context.dde_timeline_status =
+            comtrace_dde_timeline_correlate(&context.dde_timeline);
     }
     if (comtrace_relationship_graph_add_ole_timeline(
             &context.relationship_graph,
