@@ -46,6 +46,7 @@ typedef struct {
     EVENT_RECORD record;
     EVENT_HEADER_EXTENDED_DATA_ITEM *extended_data;
     BYTE *payload;
+    void *allocation;
 } COMTRACE_ARCHIVE_EVENT;
 
 typedef struct {
