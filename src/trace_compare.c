@@ -133,6 +133,7 @@ static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     const wchar_t *event_name = NULL;
     COMTRACE_LIFETIME_EVENT lifetime_event;
     COMTRACE_LIFETIME_STATUS lifetime_status;
+    COMTRACE_IDENTITY_STATUS instrumentation_status;
     GUID empty_ipid = {0};
 
     if (!get_trace_event_name(
@@ -167,17 +168,21 @@ static COMTRACE_TRACE_COMPARE_STATUS add_lifetime_summary_event(
     lifetime_event.timestamp =
         (ULONGLONG)event_record->EventHeader.TimeStamp.QuadPart;
 
-    if (comtrace_extract_guid_property(
-            event_record,
-            L"InstrumentationId",
-            &lifetime_event.instrumentation_id
-        ) == COMTRACE_IDENTITY_SUCCESS) {
+    instrumentation_status = comtrace_extract_guid_property(
+        event_record,
+        L"InstrumentationId",
+        &lifetime_event.instrumentation_id
+    );
+    if (instrumentation_status == COMTRACE_IDENTITY_SUCCESS) {
         GUID empty_instrumentation_id = {0};
         if (memcmp(&lifetime_event.instrumentation_id,
                    &empty_instrumentation_id,
-                   sizeof(GUID)) != 0) {
-            lifetime_event.has_instrumentation_id = TRUE;
+                   sizeof(GUID)) == 0) {
+            return COMTRACE_TRACE_COMPARE_SUCCESS;
         }
+        lifetime_event.has_instrumentation_id = TRUE;
+    } else if (instrumentation_status != COMTRACE_IDENTITY_PROPERTY_NOT_FOUND) {
+        return COMTRACE_TRACE_COMPARE_SUCCESS;
     }
 
     if (lifetime_event.process_id != 0U &&
