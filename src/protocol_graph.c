@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 static int ensure_nodes(COMTRACE_RELATIONSHIP_GRAPH *graph)
 {

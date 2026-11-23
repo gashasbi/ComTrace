@@ -110,6 +110,7 @@ static int test_ole_operation(void)
     timeline.record_count = 1U;
     timeline.records[0].process_id = 500U;
     timeline.records[0].thread_id = 501U;
+    wcscpy(timeline.records[0].operation, L"OLE_DragDrop_DoDragDrop");
     timeline.records[0].has_start = TRUE;
     timeline.records[0].has_activity_id = TRUE;
     timeline.records[0].activity_id.Data1 = 80U;
@@ -117,7 +118,8 @@ static int test_ole_operation(void)
             COMTRACE_GRAPH_SUCCESS ||
         comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_OLE_OPERATION) != 1U ||
         comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY) != 1U ||
-        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION) != 1U) {
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION) != 1U ||
+        wcscmp(graph.nodes[0].label, L"OLE_DragDrop_DoDragDrop") != 0) {
         free(timeline.records);
         comtrace_relationship_graph_destroy(&graph);
         return 0;
