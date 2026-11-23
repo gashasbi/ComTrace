@@ -219,6 +219,8 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         if (event->timestamp >= record->start_timestamp) {
             record->duration_ticks = event->timestamp - record->start_timestamp;
             record->has_duration = TRUE;
+        } else {
+            record->invalid_duration_order = TRUE;
         }
 
         if (!record->has_related_activity_id &&
