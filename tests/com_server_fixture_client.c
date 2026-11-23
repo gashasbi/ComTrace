@@ -63,7 +63,7 @@ static int start_trace(const wchar_t *etl,TRACEHANDLE *h,EVENT_TRACE_PROPERTIES 
  status=EnableTraceEx2(*h,&provider_guid,EVENT_CONTROL_CODE_ENABLE_PROVIDER,TRACE_LEVEL_VERBOSE,1ULL,0U,0U,NULL);
  if(status!=ERROR_SUCCESS){fwprintf(stderr,L"EnableTraceEx2 failed: %lu\n",(unsigned long)status);(void)ControlTraceW(*h,logger_name,p,EVENT_TRACE_CONTROL_STOP);(void)HeapFree(GetProcessHeap(),0U,p);*h=0U;return 0;}
  status=EnableTraceEx2(*h,&com_perf_provider_guid,EVENT_CONTROL_CODE_ENABLE_PROVIDER,TRACE_LEVEL_VERBOSE,0U,0U,0U,NULL);
- if(status!=ERROR_SUCCESS){fwprintf(stderr,L"COM Perf provider enable failed: %lu\\n",(unsigned long)status);(void)ControlTraceW(*h,logger_name,p,EVENT_TRACE_CONTROL_STOP);(void)HeapFree(GetProcessHeap(),0U,p);*h=0U;return 0;}
+ if(status!=ERROR_SUCCESS){fwprintf(stderr,L"COM Perf provider enable failed: %lu\n",(unsigned long)status);(void)ControlTraceW(*h,logger_name,p,EVENT_TRACE_CONTROL_STOP);(void)HeapFree(GetProcessHeap(),0U,p);*h=0U;return 0;}
  *out=p;return 1;
 }
 static int stop_trace(TRACEHANDLE h,EVENT_TRACE_PROPERTIES *p)
