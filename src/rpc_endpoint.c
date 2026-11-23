@@ -204,7 +204,9 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_add(
 
     for (index = catalog->record_count; index > 0U; --index) {
         record = &catalog->records[index - 1U];
-        if (record->is_active && record_matches(record, event)) {
+        if (record->is_active &&
+            record_matches(record, event) &&
+            event->timestamp >= record->register_timestamp) {
             increment_count(&record->observation_count);
             record->has_unregistration = TRUE;
             record->is_active = FALSE;
