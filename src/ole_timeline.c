@@ -184,6 +184,9 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
     size_t position;
     size_t record_index;
     size_t selected_pending_index = (size_t)-1;
+    size_t cross_candidate_index = (size_t)-1;
+    size_t same_thread_candidate_count = 0U;
+    size_t cross_candidate_count = 0U;
     size_t match_count = 0U;
     COMTRACE_OLE_TIMELINE_RECORD *record;
     COMTRACE_OLE_TIMELINE_MATCH_TYPE match_type;
@@ -231,8 +234,23 @@ COMTRACE_OLE_TIMELINE_STATUS comtrace_ole_timeline_add_event(
         if (get_match_type(record, event) == COMTRACE_OLE_TIMELINE_MATCH_NONE) {
             continue;
         }
-        selected_pending_index = position;
-        ++match_count;
+        if (record->process_id == event->process_id &&
+            record->thread_id == event->thread_id) {
+            selected_pending_index = position;
+            ++same_thread_candidate_count;
+        } else {
+            if (cross_candidate_count == 0U) {
+                cross_candidate_index = position;
+            }
+            ++cross_candidate_count;
+        }
+    }
+
+    if (same_thread_candidate_count != 0U) {
+        match_count = 1U;
+    } else {
+        selected_pending_index = cross_candidate_index;
+        match_count = cross_candidate_count;
     }
 
     if (match_count == 1U) {
