@@ -169,11 +169,60 @@ static int test_time_aware_endpoint_lookup(void)
     return 1;
 }
 
+static int test_ambiguous_binding_is_not_selected(void)
+{
+    COMTRACE_RPC_ENDPOINT_CATALOG catalog;
+    COMTRACE_RPC_ENDPOINT_EVENT event;
+    GUID second_object = {
+        0x11111111, 0x2222, 0x3333, {4, 5, 6, 7, 8, 9, 10, 11}
+    };
+    size_t record_index = 0U;
+    BOOL found = FALSE;
+    BOOL ambiguous = FALSE;
+
+    comtrace_rpc_endpoint_catalog_init(&catalog);
+    ZeroMemory(&event, sizeof(event));
+    event.phase = COMTRACE_RPC_ENDPOINT_REGISTER;
+    event.interface_uuid = interface_id;
+    event.has_object_uuid = TRUE;
+    event.object_uuid = object_id;
+    event.protocol = L"ncacn_ip_tcp";
+    event.endpoint = L"50100";
+    event.timestamp = 10ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    event.object_uuid = second_object;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        comtrace_rpc_endpoint_catalog_find(
+            &catalog,
+            &interface_id,
+            L"ncacn_ip_tcp",
+            L"50100",
+            20ULL,
+            &record_index,
+            &found,
+            &ambiguous
+        ) != COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        found || !ambiguous) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
+
+    comtrace_rpc_endpoint_catalog_destroy(&catalog);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_registration_lifecycle_and_protocol_scope() ||
         !test_unmatched_unregistration_does_not_close_other_endpoint() ||
-        !test_time_aware_endpoint_lookup()) {
+        !test_time_aware_endpoint_lookup() ||
+        !test_ambiguous_binding_is_not_selected()) {
         fputs("RPC endpoint tests failed.\n", stderr);
         return 1;
     }
