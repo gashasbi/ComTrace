@@ -439,7 +439,7 @@ Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
 $oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
 $oleSummaryMatch = [regex]::Match(
     $oleSearchOutput,
-    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
+    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete starts:\s*(\d+).*?Unmatched stops:\s*(\d+).*?Ambiguous stops:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
 )
 if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
     throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
@@ -453,8 +453,11 @@ $oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
 $oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
 $oleTimelineMatchedByRelatedActivity = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
 $oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
-$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[7].Value)
-$oleInvalidDurationOrders = [UInt64]::Parse($oleSummaryMatch.Groups[8].Value)
+$oleTimelineIncompleteStarts = [UInt64]::Parse($oleSummaryMatch.Groups[7].Value)
+$oleTimelineUnmatchedStops = [UInt64]::Parse($oleSummaryMatch.Groups[8].Value)
+$oleTimelineAmbiguousStops = [UInt64]::Parse($oleSummaryMatch.Groups[9].Value)
+$oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[10].Value)
+$oleInvalidDurationOrders = [UInt64]::Parse($oleSummaryMatch.Groups[11].Value)
 $olePayloadPropertyCount = [regex]::Matches(
     $oleSearchOutput,
     "(?im)^\s*property\[\d+\] name="
@@ -476,6 +479,10 @@ if ($oleEventCount -eq 0 -and $AllowMissingOleEvents) {
 $oleMatchTotal = $oleTimelineMatchedByActivity + $oleTimelineMatchedByRelatedActivity + $oleTimelineMatchedByProcessThread
 if ($oleMatchTotal -ne $oleTimelineMatched) {
     throw "OLE match-source counts do not add up to the total matched operations."
+}
+if ($oleTimelineAmbiguousStops -gt $oleTimelineUnmatchedStops -or
+    ($oleTimelineMatched + $oleTimelineIncompleteStarts + $oleTimelineUnmatchedStops) -gt ($oleClipboardOperations + $oleDragDropOperations)) {
+    throw "OLE unmatched, ambiguous, or lifecycle counters are inconsistent."
 }
 
 Write-Host "Checking for COM rundown instrumentation events."
@@ -728,6 +735,9 @@ $summary = [ordered]@{
     ole_timeline_matched_by_activity_id = $oleTimelineMatchedByActivity
     ole_timeline_matched_by_related_activity_id = $oleTimelineMatchedByRelatedActivity
     ole_timeline_matched_by_process_thread = $oleTimelineMatchedByProcessThread
+    ole_timeline_incomplete_starts = $oleTimelineIncompleteStarts
+    ole_timeline_unmatched_stops = $oleTimelineUnmatchedStops
+    ole_timeline_ambiguous_stops = $oleTimelineAmbiguousStops
     ole_timeline_missing_activity_id = $oleTimelineMissingActivity
     ole_invalid_duration_orders = $oleInvalidDurationOrders
     ole_payload_properties_reported = $olePayloadPropertyCount
@@ -787,6 +797,7 @@ Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
 Write-Host "OLE drag and drop operations: $oleDragDropOperations"
 Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
+Write-Host "OLE incomplete starts: $oleTimelineIncompleteStarts unmatched stops: $oleTimelineUnmatchedStops ambiguous stops: $oleTimelineAmbiguousStops"
 Write-Host "OLE pairs matched by ActivityId: $oleTimelineMatchedByActivity"
 Write-Host "OLE pairs matched by RelatedActivityId: $oleTimelineMatchedByRelatedActivity"
 Write-Host "OLE pairs matched by process/thread/operation: $oleTimelineMatchedByProcessThread"
