@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <evntrace.h>
+#include <evntprov.h>
 #include <winmeta.h>
 #include <TraceLoggingProvider.h>
 #include <objbase.h>
