@@ -372,13 +372,65 @@ static int test_ambiguous_client_server_correlation_is_not_guessed(void)
     return 1;
 }
 
+static int test_failure_status_and_invalid_duration(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    const COMTRACE_RPC_TIMELINE_RECORD *record;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ids.activity_id = activity_id;
+    ids.has_activity_id = TRUE;
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcClientCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 500ULL;
+    event.activity_ids = &ids;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.timestamp = 400ULL;
+    event.has_status = TRUE;
+    event.status = 1726U;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_rpc_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_stop ||
+        !record->invalid_duration_order ||
+        record->has_duration ||
+        !record->has_status ||
+        !record->status_is_failure ||
+        record->status != 1726U ||
+        timeline.invalid_duration_orders != 1ULL) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_activity_pair() ||
         !test_fallback_and_one_sided_identifiers() ||
         !test_activity_id_pair_across_process_and_thread() ||
         !test_cross_process_client_server_correlation() ||
-        !test_ambiguous_client_server_correlation_is_not_guessed()) {
+        !test_ambiguous_client_server_correlation_is_not_guessed() ||
+        !test_failure_status_and_invalid_duration()) {
         fputs("RPC timeline tests failed.\n", stderr);
         return 1;
     }
