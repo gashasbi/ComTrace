@@ -511,10 +511,6 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
         size_t candidate_server = (size_t)-1;
         size_t candidate_count = 0U;
 
-        client->has_correlated_record = FALSE;
-        client->correlated_record_index = 0U;
-        client->correlation_type = COMTRACE_RPC_CORRELATION_NONE;
-
         if (client->role != COMTRACE_RPC_ROLE_CLIENT ||
             !client->has_start || !client->has_stop) {
             continue;
