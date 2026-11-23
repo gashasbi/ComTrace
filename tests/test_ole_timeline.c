@@ -496,6 +496,95 @@ static int test_activity_id_matches_across_process_and_thread(void)
     return 1;
 }
 
+static int test_related_activity_id_pairing(void)
+{
+    COMTRACE_OLE_TIMELINE timeline;
+    COMTRACE_OLE_TIMELINE_EVENT event;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    COMTRACE_ACTIVITY_IDS other_activity_ids;
+    const COMTRACE_OLE_TIMELINE_RECORD *record;
+
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    ZeroMemory(&other_activity_ids, sizeof(other_activity_ids));
+
+    activity_ids.has_related_activity_id = TRUE;
+    activity_ids.related_activity_id = activity_one;
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 200U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.process_id = 101U;
+    event.thread_id = 201U;
+    event.timestamp = 200ULL;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_ole_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_start ||
+        !record->has_stop ||
+        !record->has_duration ||
+        record->duration_ticks != 100ULL ||
+        record->match_type != COMTRACE_OLE_TIMELINE_MATCH_RELATED_ACTIVITY_ID ||
+        record->has_activity_id ||
+        !record->has_related_activity_id ||
+        comtrace_ole_timeline_pending_count(&timeline) != 0U) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    comtrace_ole_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+
+    other_activity_ids.has_related_activity_id = TRUE;
+    other_activity_ids.related_activity_id = activity_two;
+    event.operation = L"OLE_DragDrop_DoDragDrop";
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_START;
+    event.process_id = 100U;
+    event.thread_id = 200U;
+    event.timestamp = 300ULL;
+    event.activity_ids = &activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+        COMTRACE_OLE_TIMELINE_SUCCESS) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_OLE_TIMELINE_PHASE_STOP;
+    event.timestamp = 400ULL;
+    event.activity_ids = &other_activity_ids;
+
+    if (comtrace_ole_timeline_add_event(&timeline, &event) !=
+            COMTRACE_OLE_TIMELINE_SUCCESS ||
+        comtrace_ole_timeline_pending_count(&timeline) != 1U ||
+        comtrace_ole_timeline_count(&timeline) != 2U ||
+        timeline.unmatched_stops != 1ULL) {
+        comtrace_ole_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_ole_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_reversed_duration_is_reported(void)
 {
     COMTRACE_OLE_TIMELINE timeline;
@@ -556,6 +645,7 @@ int main(void)
         !test_process_thread_fallback_rejects_mismatched_keys() ||
         !test_process_thread_pairing_uses_lifo_order() ||
         !test_activity_id_matches_across_process_and_thread() ||
+        !test_related_activity_id_pairing() ||
         !test_reversed_duration_is_reported()) {
         fputs("OLE timeline tests failed.\n", stderr);
         return 1;
