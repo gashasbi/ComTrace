@@ -97,6 +97,7 @@ typedef struct {
     size_t exchange_capacity;
     ULONGLONG unmatched_completions;
     ULONGLONG unmatched_closes;
+    ULONGLONG ambiguous_closes;
     ULONGLONG missing_transaction_correlation_ids;
     ULONGLONG ambiguous_correlations;
     ULONGLONG invalid_duration_orders;
