@@ -568,7 +568,10 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
 
     if (event_record->ExtendedDataCount != 0U &&
         event_record->ExtendedData == NULL) {
-        return COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+        CopyMemory(activity_ids, &result, sizeof(result));
+        return result.has_activity_id
+            ? COMTRACE_IDENTITY_SUCCESS
+            : COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
     }
 
     for (index = 0U; index < event_record->ExtendedDataCount; ++index) {
@@ -582,7 +585,10 @@ COMTRACE_IDENTITY_STATUS comtrace_extract_activity_ids(
 
         if (item->DataSize < sizeof(EVENT_EXTENDED_ITEM_RELATED_ACTIVITYID) ||
             item->DataPtr == 0ULL) {
-            return COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
+            CopyMemory(activity_ids, &result, sizeof(result));
+            return result.has_activity_id
+                ? COMTRACE_IDENTITY_SUCCESS
+                : COMTRACE_IDENTITY_VALUE_UNAVAILABLE;
         }
 
         related = (const EVENT_EXTENDED_ITEM_RELATED_ACTIVITYID *)(ULONG_PTR)item->DataPtr;
