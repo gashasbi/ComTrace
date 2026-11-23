@@ -197,13 +197,16 @@ int wmain(int argc, wchar_t **argv)
         16U
     );
 
-    comtrace_dde_transaction_completed(
+    comtrace_dde_transaction_completed_ex(
         client_conversation_id,
         conversation_correlation_id,
         transaction_instance_id,
         transaction_correlation_id,
         TRUE,
         XTYP_REQUEST,
+        XTYP_REQUEST,
+        CF_TEXT,
+        L"Item",
         DDE_FACK,
         16U,
         TRUE
