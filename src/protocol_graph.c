@@ -570,6 +570,23 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
             status = add_protocol_edge(graph,
                 COMTRACE_GRAPH_EDGE_PROCESS_OWNS_DDE_CALLBACK,
                 process_index, callback_index);
+            if (record->transaction_correlation_id != 0ULL) {
+                status = add_protocol_node(graph,
+                    COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION,
+                    0U, 0U, NULL, record->transaction_correlation_id,
+                    &correlation_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+                status = add_protocol_edge(graph,
+                    COMTRACE_GRAPH_EDGE_DDE_CALLBACK_HAS_CORRELATION,
+                    callback_index, correlation_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+            }
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 free(transaction_nodes);
                 return status;
