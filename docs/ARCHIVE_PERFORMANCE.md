@@ -32,7 +32,7 @@ Run the large-file workload directly:
 
 The `--large` workload writes 9,000,000 events. With the current 512-byte test payload and record metadata, the resulting archive is expected to exceed 4 GiB. The test explicitly fails if the resulting file does not exceed the 4 GiB boundary. It then reads every record and validates the footer record count and CRC-32 checksum.
 
-The stress output reports archive size, write/read duration, throughput, and peak process working set. Results are measurements, not fixed pass/fail performance thresholds: disk speed, CPU, memory pressure, Windows version, and build configuration affect the numbers.
+The stress output reports archive size, write/read duration, process CPU time, throughput, and peak process working set. Results are measurements, not fixed pass/fail performance thresholds: disk speed, CPU, memory pressure, Windows version, and build configuration affect the numbers.
 
 The large-file workload requires several gigabytes of free disk space and may take substantially longer than the default CTest workload. It is intentionally not part of the default automated test run.
 
