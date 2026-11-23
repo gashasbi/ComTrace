@@ -244,6 +244,7 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
     const wchar_t *endpoint,
     ULONGLONG timestamp,
     size_t *record_index,
+    BOOL *found,
     BOOL *ambiguous
 )
 {
@@ -254,12 +255,15 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
     if (record_index != NULL) {
         *record_index = 0U;
     }
+    if (found != NULL) {
+        *found = FALSE;
+    }
     if (ambiguous != NULL) {
         *ambiguous = FALSE;
     }
     if (catalog == NULL || interface_uuid == NULL ||
         protocol == NULL || endpoint == NULL ||
-        record_index == NULL || ambiguous == NULL) {
+        record_index == NULL || found == NULL || ambiguous == NULL) {
         return COMTRACE_RPC_ENDPOINT_INVALID_ARGUMENT;
     }
 
@@ -284,6 +288,7 @@ COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
     }
     if (matches == 1U) {
         *record_index = match_index;
+        *found = TRUE;
     }
     return COMTRACE_RPC_ENDPOINT_SUCCESS;
 }
