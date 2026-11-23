@@ -246,8 +246,6 @@ int wmain(int argc, wchar_t **argv)
     BOOL pair_capture = FALSE;
     BOOL activity_id_set = FALSE;
     GUID previous_activity_id;
-    GUID current_activity_id;
-    GUID empty_activity_id = {0};
     const wchar_t *first_etl_path = NULL;
     const wchar_t *second_etl_path = NULL;
 
@@ -279,21 +277,6 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
     provider_registered = TRUE;
-
-    status = EnableTraceEx2(
-        trace_handle,
-        &lifetime_provider_guid,
-        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        TRACE_LEVEL_INFORMATION,
-        0x1ULL,
-        0U,
-        0U,
-        NULL
-    );
-    if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
-        goto cleanup;
-    }
 
     object = (COMTRACE_FIXTURE_OBJECT *)HeapAlloc(
         GetProcessHeap(),
@@ -352,62 +335,19 @@ int wmain(int argc, wchar_t **argv)
         }
         provider_registered = TRUE;
 
-    status = EnableTraceEx2(
-        trace_handle,
-        &lifetime_provider_guid,
-        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        TRACE_LEVEL_INFORMATION,
-        0x1ULL,
-        0U,
-        0U,
-        NULL
-    );
-    if (status != ERROR_SUCCESS) {
-        fwprintf(stderr, L"EnableTraceEx2 failed: %lu\n", (unsigned long)status);
-        goto cleanup;
-    }
-
     }
 
     if (alternate) {
         status = EventActivityIdControl(
-            EVENT_ACTIVITY_CTRL_GET_ID,
+            EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
             &previous_activity_id
         );
         if (status != ERROR_SUCCESS) {
-            fwprintf(stderr, L"Unable to read previous ETW activity ID: %lu\\n",
-                (unsigned long)status);
-            goto cleanup;
-        }
-
-        status = (ULONG)CoCreateGuid(&current_activity_id);
-        if (status != ERROR_SUCCESS) {
-            fwprintf(stderr, L"Unable to create ETW activity ID: %lu\\n",
-                (unsigned long)status);
-            goto cleanup;
-        }
-
-        status = EventActivityIdControl(
-            EVENT_ACTIVITY_CTRL_SET_ID,
-            &current_activity_id
-        );
-        if (status != ERROR_SUCCESS) {
-            fwprintf(stderr, L"Unable to set ETW activity ID: %lu\\n",
+            fwprintf(stderr, L"Unable to create ETW activity ID: %lu\n",
                 (unsigned long)status);
             goto cleanup;
         }
         activity_id_set = TRUE;
-
-        status = EventActivityIdControl(
-            EVENT_ACTIVITY_CTRL_GET_ID,
-            &current_activity_id
-        );
-        if (status != ERROR_SUCCESS ||
-            memcmp(&current_activity_id, &empty_activity_id, sizeof(GUID)) == 0) {
-            fwprintf(stderr, L"Activity ID was not set. Error: %lu\n",
-                (unsigned long)status);
-            goto cleanup;
-        }
 
         add_ref_count = (ULONG)InterlockedIncrement(&object->reference_count);
         comtrace_lifetime_add_ref(
