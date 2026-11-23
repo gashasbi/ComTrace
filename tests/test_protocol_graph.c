@@ -137,6 +137,10 @@ int main(void)
         fwprintf(stderr, L"DDE relationship graph test failed.\n");
         return 1;
     }
-    wprintf(L"RPC and DDE relationship graph tests passed.\n");
+    if (!test_ole_operation()) {
+        fwprintf(stderr, L"OLE relationship graph test failed.\n");
+        return 1;
+    }
+    wprintf(L"RPC, DDE and OLE relationship graph tests passed.\n");
     return 0;
 }
