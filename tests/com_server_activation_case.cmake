@@ -20,6 +20,9 @@ if(NOT inspect_result EQUAL 0)
     message(FATAL_ERROR "ComTrace could not inspect the COM server ETL.")
 endif()
 foreach(expected
+    "COM timeline summary"
+    "operation=COM_CreateInstance"
+    "operation=COM_GetClassObject"
     "COM object lifetime timeline summary"
     "Objects tracked: 2"
     "Objects created: 2"
