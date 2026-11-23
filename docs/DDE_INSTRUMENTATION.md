@@ -25,6 +25,7 @@ The generated identifiers are not shared across processes. For cross-process cor
 ## Event lifecycle
 
 The API records conversation open and close events, transaction start and completion events, and server callback events. It records transaction type, format, item name, result, success state, and data size. It does not record the DDE data payload.
+Use `comtrace_dde_transaction_completed_ex` when the application can provide transaction type, format, and item at completion; the original `comtrace_dde_transaction_completed` remains available for callers that only have the original completion fields. Inspect compares metadata when both start and completion events provide it.
 
 Conversation close events are paired within the same process using ConversationId. Transaction completion events are paired within the same process using ConversationId, role, and TransactionInstanceId.
 
