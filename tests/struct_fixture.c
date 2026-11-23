@@ -155,6 +155,8 @@ int wmain(int argc, wchar_t **argv)
         goto cleanup;
     }
 
+    Sleep(100);
+
     TraceLoggingWrite(
         g_hNestedProvider,
         "NestedEvent",
