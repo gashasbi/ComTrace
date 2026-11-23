@@ -1707,6 +1707,16 @@ static void add_com_lifetime_analysis_event(
         event.related_activity_id = activity_ids.related_activity_id;
     }
 
+    if (event.type == COMTRACE_LIFETIME_EVENT_ADD_REF) {
+        wprintf(L"DEBUG lifetime header_activity_id=");
+        print_guid(&event_record->EventHeader.ActivityId);
+        wprintf(
+            L" extended_data_count=%u extended_data=%p\\n",
+            (unsigned int)event_record->ExtendedDataCount,
+            (void *)event_record->ExtendedData
+        );
+    }
+
     if (event.process_id == 0U ||
         comtrace_extract_uint64_property(
             event_record,
