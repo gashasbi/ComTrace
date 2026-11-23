@@ -241,7 +241,7 @@ Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 
 $rpcTimelineMatch = [regex]::Match(
     $inspectOutput,
-    "(?ms)RPC call timeline summary.*?RPC timeline records:\s*(\d+).*?Matched RPC calls:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete RPC starts:\s*(\d+).*?Unmatched RPC stops:\s*(\d+).*?RPC events without ActivityId:\s*(\d+).*?Correlated client/server calls:\s*(\d+).*?Ambiguous client/server candidates:\s*(\d+).*?Failed RPC calls:\s*(\d+).*?RPC calls without status:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+).*?Linked RPCSS endpoints:\s*(\d+).*?Ambiguous RPCSS endpoint links:\s*(\d+).*?Linked COM operations:\s*(\d+).*?Ambiguous COM operation links:\s*(\d+)"
+    "(?ms)RPC call timeline summary.*?RPC timeline records:\s*(\d+).*?Matched RPC calls:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete RPC starts:\s*(\d+).*?Unmatched RPC stops:\s*(\d+).*?RPC events without ActivityId:\s*(\d+).*?Correlated client/server calls:\s*(\d+).*?Ambiguous client/server candidates:\s*(\d+).*?Failed RPC calls:\s*(\d+).*?RPC calls without status:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+).*?Linked RPCSS endpoints:\s*(\d+).*?Ambiguous RPCSS endpoint links:\s*(\d+).*?Linked COM operations:\s*(\d+).*?Ambiguous COM operation links:\s*(\d+).*?Ambiguous RPC stop matches:\s*(\d+)"
 )
 if (-not $rpcTimelineMatch.Success) {
     throw "The RPC call timeline summary did not contain all correlation and outcome counters. Review $inspectPath"
@@ -264,6 +264,7 @@ $rpcLinkedEndpoints = [UInt64]::Parse($rpcTimelineMatch.Groups[14].Value)
 $rpcAmbiguousEndpointLinks = [UInt64]::Parse($rpcTimelineMatch.Groups[15].Value)
 $rpcLinkedComOperations = [UInt64]::Parse($rpcTimelineMatch.Groups[16].Value)
 $rpcAmbiguousComLinks = [UInt64]::Parse($rpcTimelineMatch.Groups[17].Value)
+$rpcAmbiguousStops = [UInt64]::Parse($rpcTimelineMatch.Groups[18].Value)
 
 $rpcTimelineMatchTotal = $rpcTimelineMatchedByActivity +
                          $rpcTimelineMatchedByRelatedActivity +
@@ -271,6 +272,7 @@ $rpcTimelineMatchTotal = $rpcTimelineMatchedByActivity +
 if ($rpcTimelineMatchTotal -ne $rpcTimelineMatched -or
     ($rpcTimelineMatched + $rpcTimelineIncompleteStarts + $rpcTimelineUnmatchedStops) -ne $rpcTimelineRecords -or
     $rpcClientServerCorrelations -gt [Math]::Floor($rpcTimelineMatched / 2) -or
+    $rpcAmbiguousStops -gt $rpcTimelineUnmatchedStops -or
     $rpcLinkedEndpoints -gt $rpcTimelineRecords -or
     $rpcLinkedComOperations -gt $rpcTimelineRecords) {
     throw "RPC timeline match, cross-process, or evidence-link counters are inconsistent. Review $inspectPath"
@@ -651,6 +653,7 @@ $summary = [ordered]@{
     rpc_ambiguous_endpoint_links = $rpcAmbiguousEndpointLinks
     rpc_linked_com_operations = $rpcLinkedComOperations
     rpc_ambiguous_com_operation_links = $rpcAmbiguousComLinks
+    rpc_ambiguous_stop_matches = $rpcAmbiguousStops
     rpcss_endpoint_records = $rpcssEndpointRecords
     rpcss_registrations = $rpcssRegistrations
     rpcss_unregistrations = $rpcssUnregistrations
@@ -714,7 +717,7 @@ Write-Host "RPCSS events: $rpcssEventCount (classified=$rpcssClassifiedEventCoun
 Write-Host "RPC timeline: records=$rpcTimelineRecords matched=$rpcTimelineMatched incomplete=$rpcTimelineIncompleteStarts unmatched_stops=$rpcTimelineUnmatchedStops"
 Write-Host "RPC client/server correlations: $rpcClientServerCorrelations ambiguous=$rpcClientServerAmbiguous"
 Write-Host "RPC evidence links: RPCSS endpoints=$rpcLinkedEndpoints COM operations=$rpcLinkedComOperations"
-Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations"
+Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations ambiguous_stops=$rpcAmbiguousStops"
 Write-Host "RPCSS endpoint catalog: records=$rpcssEndpointRecords active=$rpcssActiveRegistrations unmatched_unregistrations=$rpcssUnmatchedUnregistrations"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
