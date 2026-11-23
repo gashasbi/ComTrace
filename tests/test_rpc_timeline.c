@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 static const GUID activity_id = {
     0x12345678, 0x9ABC, 0x4DEF,
