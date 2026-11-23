@@ -28,6 +28,7 @@ add_executable(ComTrace
     src/relationship_graph.c
     src/ole_timeline.c
     src/rpc_timeline.c
+    src/rpc_endpoint.c
     src/dde_event.c
     src/dde_timeline.c
     src/object_identity_compare.c
@@ -275,6 +276,18 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME comtrace_rpc_timeline COMMAND ComTraceRpcTimelineTests)
+
+    add_executable(ComTraceRpcEndpointTests
+        tests/test_rpc_endpoint.c
+        src/rpc_endpoint.c
+    )
+    target_include_directories(ComTraceRpcEndpointTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ComTraceRpcEndpointTests PRIVATE /W4 /WX /wd5105 /utf-8)
+    else()
+        target_compile_options(ComTraceRpcEndpointTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME comtrace_rpc_endpoint COMMAND ComTraceRpcEndpointTests)
 
     add_executable(ComTraceDdeTimelineTests
         tests/test_dde_timeline.c
