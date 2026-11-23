@@ -73,4 +73,14 @@ const COMTRACE_RPC_ENDPOINT_RECORD *comtrace_rpc_endpoint_catalog_get(
     size_t index
 );
 
+COMTRACE_RPC_ENDPOINT_STATUS comtrace_rpc_endpoint_catalog_find(
+    const COMTRACE_RPC_ENDPOINT_CATALOG *catalog,
+    const GUID *interface_uuid,
+    const wchar_t *protocol,
+    const wchar_t *endpoint,
+    ULONGLONG timestamp,
+    size_t *record_index,
+    BOOL *ambiguous
+);
+
 #endif
