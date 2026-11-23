@@ -261,8 +261,8 @@ static int test_ole_data_object_link(void)
         return 0;
     }
     timeline.record_count = 1U;
-    timeline.records[0].process_id = 500U;
-    timeline.records[0].thread_id = 501U;
+    timeline.records[0].process_id = 510U;
+    timeline.records[0].thread_id = 511U;
     timeline.records[0].has_start = TRUE;
     timeline.records[0].has_activity_id = TRUE;
     timeline.records[0].activity_id = activity_ids.activity_id;
