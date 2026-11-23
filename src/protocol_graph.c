@@ -92,6 +92,58 @@ static COMTRACE_GRAPH_STATUS add_protocol_node(
     return COMTRACE_GRAPH_SUCCESS;
 }
 
+static COMTRACE_GRAPH_STATUS add_scoped_node(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    COMTRACE_GRAPH_NODE_TYPE type,
+    DWORD process_id,
+    DWORD thread_id,
+    const GUID *guid,
+    ULONGLONG value,
+    ULONGLONG process_generation,
+    BOOL has_process_generation,
+    size_t *node_index
+)
+{
+    size_t index;
+    COMTRACE_GRAPH_NODE *node;
+
+    for (index = 0U; index < graph->node_count; ++index) {
+        node = &graph->nodes[index];
+        if (node->type != type || node->process_id != process_id ||
+            node->thread_id != thread_id || node->value != value ||
+            node->has_guid != (guid != NULL) ||
+            node->has_process_generation != has_process_generation ||
+            (has_process_generation &&
+             node->process_generation != process_generation)) {
+            continue;
+        }
+        if (guid != NULL && memcmp(&node->guid, guid, sizeof(*guid)) != 0) {
+            continue;
+        }
+        *node_index = index;
+        return COMTRACE_GRAPH_SUCCESS;
+    }
+
+    if (!ensure_nodes(graph)) {
+        return COMTRACE_GRAPH_ALLOCATION_FAILED;
+    }
+    index = graph->node_count++;
+    node = &graph->nodes[index];
+    ZeroMemory(node, sizeof(*node));
+    node->type = type;
+    node->process_id = process_id;
+    node->thread_id = thread_id;
+    node->process_generation = process_generation;
+    node->has_process_generation = has_process_generation;
+    node->value = value;
+    if (guid != NULL) {
+        node->guid = *guid;
+        node->has_guid = TRUE;
+    }
+    *node_index = index;
+    return COMTRACE_GRAPH_SUCCESS;
+}
+
 static COMTRACE_GRAPH_STATUS add_protocol_edge(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     COMTRACE_GRAPH_EDGE_TYPE type,
@@ -141,22 +193,22 @@ static COMTRACE_GRAPH_STATUS add_rpc_record(
     if (record->process_id == 0U || (!record->has_start && !record->has_stop)) {
         return COMTRACE_GRAPH_SUCCESS;
     }
-    if (record->has_start && process_lifecycle != NULL) {
+    if (process_lifecycle != NULL) {
+        LONGLONG timestamp = (LONGLONG)(record->has_start
+            ? record->start_timestamp
+            : record->stop_timestamp);
         has_generation = comtrace_process_lifecycle_resolve_generation(
-            process_lifecycle, record->process_id,
-            (LONGLONG)record->start_timestamp, &generation);
+            process_lifecycle, record->process_id, timestamp, &generation);
     }
-    status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_RPC_CALL,
+    status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_RPC_CALL,
         record->process_id, 0U, NULL, (ULONGLONG)record_index + 1ULL,
-        rpc_node_index);
+        generation, has_generation, rpc_node_index);
     if (status != COMTRACE_GRAPH_SUCCESS) {
         return status;
     }
-    graph->nodes[*rpc_node_index].process_generation = generation;
-    graph->nodes[*rpc_node_index].has_process_generation = has_generation;
-
-    status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
-        record->process_id, 0U, NULL, 0ULL, &process_index);
+    status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+        record->process_id, 0U, NULL, 0ULL,
+        generation, has_generation, &process_index);
     if (status != COMTRACE_GRAPH_SUCCESS) {
         return status;
     }
@@ -167,8 +219,14 @@ static COMTRACE_GRAPH_STATUS add_rpc_record(
     }
 
     if (record->thread_id != 0U) {
-        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_THREAD,
-            record->process_id, record->thread_id, NULL, 0ULL, &thread_index);
+        status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+            record->process_id, record->thread_id, NULL, 0ULL,
+            generation, has_generation, &thread_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+            process_index, thread_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
@@ -296,21 +354,34 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
         size_t conversation_index = (size_t)-1;
         size_t transaction_index = (size_t)-1;
         size_t correlation_index;
+        ULONGLONG generation = 0ULL;
+        BOOL has_generation = FALSE;
+        LONGLONG timestamp;
         COMTRACE_GRAPH_STATUS status;
         transaction_nodes[index] = (size_t)-1;
 
         if (record->process_id == 0U) {
             continue;
         }
-        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
-            record->process_id, 0U, NULL, 0ULL, &process_index);
+        timestamp = (LONGLONG)(record->has_start ? record->start_timestamp :
+            (record->has_opened ? record->opened_timestamp :
+            (record->has_completion ? record->completion_timestamp :
+             record->callback_timestamp)));
+        if (process_lifecycle != NULL) {
+            has_generation = comtrace_process_lifecycle_resolve_generation(
+                process_lifecycle, record->process_id, timestamp, &generation);
+        }
+        status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+            record->process_id, 0U, NULL, 0ULL,
+            generation, has_generation, &process_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             free(transaction_nodes);
             return status;
         }
         if (record->conversation_id != 0ULL) {
-            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION,
-                record->process_id, 0U, NULL, record->conversation_id, &conversation_index);
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION,
+                record->process_id, 0U, NULL, record->conversation_id,
+                generation, has_generation, &conversation_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 free(transaction_nodes);
                 return status;
@@ -338,8 +409,9 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
             }
         }
         if (record->transaction_instance_id != 0ULL) {
-            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION,
-                record->process_id, 0U, NULL, record->transaction_instance_id, &transaction_index);
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION,
+                record->process_id, 0U, NULL, record->transaction_instance_id,
+                generation, has_generation, &transaction_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 free(transaction_nodes);
                 return status;
@@ -361,8 +433,15 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
             }
             if (record->thread_id != 0U) {
                 size_t thread_index;
-                status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_THREAD,
-                    record->process_id, record->thread_id, NULL, 0ULL, &thread_index);
+                status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                    record->process_id, record->thread_id, NULL, 0ULL,
+                    generation, has_generation, &thread_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    free(transaction_nodes);
+                    return status;
+                }
+                status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                    process_index, thread_index);
                 if (status != COMTRACE_GRAPH_SUCCESS) {
                     free(transaction_nodes);
                     return status;
@@ -448,18 +527,17 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             has_generation = comtrace_process_lifecycle_resolve_generation(
                 process_lifecycle, record->process_id, timestamp, &generation);
         }
-        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION,
+        status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION,
             record->process_id, 0U,
             record->has_activity_id ? &record->activity_id : NULL,
-            (ULONGLONG)index + 1ULL, &operation_index);
+            (ULONGLONG)index + 1ULL, generation, has_generation, &operation_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
-        graph->nodes[operation_index].process_generation = generation;
-        graph->nodes[operation_index].has_process_generation = has_generation;
 
-        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
-            record->process_id, 0U, NULL, 0ULL, &process_index);
+        status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+            record->process_id, 0U, NULL, 0ULL,
+            generation, has_generation, &process_index);
         if (status != COMTRACE_GRAPH_SUCCESS) {
             return status;
         }
@@ -469,8 +547,9 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             return status;
         }
         if (record->thread_id != 0U) {
-            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_THREAD,
-                record->process_id, record->thread_id, NULL, 0ULL, &thread_index);
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                record->process_id, record->thread_id, NULL, 0ULL,
+                generation, has_generation, &thread_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
