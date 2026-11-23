@@ -3005,6 +3005,8 @@ static void print_rpc_timeline_summary(
     wprintf(L"  Ambiguous RPCSS endpoint links: %llu\n", (unsigned long long)ambiguous_endpoints);
     wprintf(L"  Linked COM operations: %llu\n", (unsigned long long)linked_com_operations);
     wprintf(L"  Ambiguous COM operation links: %llu\n", (unsigned long long)ambiguous_com_operations);
+    wprintf(L"  Ambiguous RPC stop matches: %llu\n",
+        (unsigned long long)context->rpc_timeline.ambiguous_stops);
 
     for (index = 0U; index < count && index < 100U; ++index) {
         const COMTRACE_RPC_TIMELINE_RECORD *record =
