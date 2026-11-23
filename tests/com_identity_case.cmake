@@ -193,7 +193,7 @@ endfunction()
 
 assert_identity_property_search(ClassId "{00112233-4455-6677-8899-AABBCCDDEEFF}" 1 "GUID property")
 assert_identity_property_search(TargetInterface "{10213243-5465-7687-98A9-BACBDCEDFE0F}" 1 "Interface GUID property")
-assert_identity_property_search(OID "1234605616436508552" 2 "64-bit integer property")
+assert_identity_property_search(OID "1234605616436508552" 1 "64-bit integer property")
 
 execute_process(
     COMMAND "${COMTRACE_EXE}" --search "${ETL_FILE}" --provider "${COMTRACE_IDENTITY_PROVIDER_GUID}" --event-id 3
