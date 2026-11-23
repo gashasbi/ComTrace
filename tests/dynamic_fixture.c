@@ -98,7 +98,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG process_id_value = 1234UL;
     ULONG thread_id_value = 5678UL;
     BYTE pkcs7_payload[4] = { 0x30U, 0x82U, 0x01U, 0x00U };
-    EVENT_DATA_DESCRIPTOR extended_descriptors[16];
+    EVENT_DATA_DESCRIPTOR extended_descriptors[15];
     int result = 1;
 
     if (argc != 2) {
@@ -199,13 +199,12 @@ int wmain(int argc, wchar_t **argv)
     EventDataDescCreate(&extended_descriptors[6], &filetime_value, sizeof(filetime_value));
     EventDataDescCreate(&extended_descriptors[7], &systemtime_value, sizeof(systemtime_value));
     EventDataDescCreate(&extended_descriptors[8], &pointer_value, sizeof(pointer_value));
-    EventDataDescCreate(&extended_descriptors[9], &hidden_value, sizeof(hidden_value));
-    EventDataDescCreate(&extended_descriptors[10], reduced_text, sizeof(reduced_text));
-    EventDataDescCreate(&extended_descriptors[11], &etw_time_value, sizeof(etw_time_value));
-    EventDataDescCreate(&extended_descriptors[12], &string_number_value, sizeof(string_number_value));
-    EventDataDescCreate(&extended_descriptors[13], &process_id_value, sizeof(process_id_value));
-    EventDataDescCreate(&extended_descriptors[14], &thread_id_value, sizeof(thread_id_value));
-    EventDataDescCreate(&extended_descriptors[15], pkcs7_payload, sizeof(pkcs7_payload));
+    EventDataDescCreate(&extended_descriptors[9], reduced_text, sizeof(reduced_text));
+    EventDataDescCreate(&extended_descriptors[10], &etw_time_value, sizeof(etw_time_value));
+    EventDataDescCreate(&extended_descriptors[11], &string_number_value, sizeof(string_number_value));
+    EventDataDescCreate(&extended_descriptors[12], &process_id_value, sizeof(process_id_value));
+    EventDataDescCreate(&extended_descriptors[13], &thread_id_value, sizeof(thread_id_value));
+    EventDataDescCreate(&extended_descriptors[14], pkcs7_payload, sizeof(pkcs7_payload));
 
     status = EventWrite(
         extended_registration_handle,
