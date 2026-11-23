@@ -78,9 +78,11 @@ ULONGLONG comtrace_lifetime_object_created(
         return 0ULL;
     }
 
-    TraceLoggingWriteActivity(
+    TraceLoggingWriteEx(
         g_comtrace_lifetime_provider,
         "ComObjectCreated",
+        0ULL,
+        0U,
         &activity_id,
         NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
@@ -108,9 +110,11 @@ void comtrace_lifetime_add_ref(
         return;
     }
 
-    TraceLoggingWriteActivity(
+    TraceLoggingWriteEx(
         g_comtrace_lifetime_provider,
         "ComAddRef",
+        0ULL,
+        0U,
         &activity_id,
         NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
@@ -136,9 +140,11 @@ void comtrace_lifetime_release(
         return;
     }
 
-    TraceLoggingWriteActivity(
+    TraceLoggingWriteEx(
         g_comtrace_lifetime_provider,
         "ComRelease",
+        0ULL,
+        0U,
         &activity_id,
         NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
@@ -172,9 +178,11 @@ void comtrace_lifetime_bind_native_identity(
         ipid_value = *native_ipid;
     }
 
-    TraceLoggingWriteActivity(
+    TraceLoggingWriteEx(
         g_comtrace_lifetime_provider,
         "ComObjectNativeIdentityBound",
+        0ULL,
+        0U,
         &activity_id,
         NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
@@ -199,9 +207,11 @@ void comtrace_lifetime_object_destroyed(
         return;
     }
 
-    TraceLoggingWriteActivity(
+    TraceLoggingWriteEx(
         g_comtrace_lifetime_provider,
         "ComObjectDestroyed",
+        0ULL,
+        0U,
         &activity_id,
         NULL,
         TraceLoggingLevel(TRACE_LEVEL_INFORMATION),
