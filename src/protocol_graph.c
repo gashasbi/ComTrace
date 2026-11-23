@@ -558,6 +558,11 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
             }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                process_index, thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
             status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION,
                 thread_index, operation_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {

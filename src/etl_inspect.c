@@ -4215,6 +4215,11 @@ static void print_relationship_graph_summary(
         (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH)
     );
     wprintf(
+        L"Cross-layer links: rpc_com_calls=%llu ole_data_objects=%llu\n",
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_COM_CALL),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_USES_DATA_OBJECT)
+    );
+    wprintf(
         L"Nodes: processes=%llu threads=%llu activities=%llu calls=%llu objects=%llu instrumented_objects=%llu clsids=%llu iids=%llu ipids=%llu\n",
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_PROCESS),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_THREAD),
