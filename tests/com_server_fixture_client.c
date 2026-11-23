@@ -8,6 +8,7 @@
 static const WCHAR logger_name[] = L"ComTrace COM Server Fixture";
 static const GUID logger_guid = {0x2a8d1f74,0x3b65,0x4c90,{0xa1,0x27,0x58,0x6b,0x7c,0x8d,0x9e,0xaf}};
 static const GUID provider_guid = {0x6f3b5e21,0x7c14,0x4a90,{0x9d,0x42,0x81,0x31,0x6c,0xe2,0xa7,0x50}};
+static const GUID com_perf_provider_guid = {0xb8d6861b,0xd20f,0x4eec,{0xbb,0xae,0x87,0xe0,0xdd,0x80,0x60,0x2b}};
 static const wchar_t registry_path[] = L"Software\\Classes\\CLSID\\{7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}\\InprocServer32";
 typedef struct { IUnknown iface; IUnknown *inner; volatile LONG refs; } FIXTURE_OUTER;
 static HRESULT STDMETHODCALLTYPE outer_query(IUnknown *s, REFIID iid, void **r)
@@ -61,6 +62,8 @@ static int start_trace(const wchar_t *etl,TRACEHANDLE *h,EVENT_TRACE_PROPERTIES 
  if(status!=ERROR_SUCCESS){fwprintf(stderr,L"StartTraceW failed: %lu\n",(unsigned long)status);(void)HeapFree(GetProcessHeap(),0U,p);return 0;}
  status=EnableTraceEx2(*h,&provider_guid,EVENT_CONTROL_CODE_ENABLE_PROVIDER,TRACE_LEVEL_VERBOSE,1ULL,0U,0U,NULL);
  if(status!=ERROR_SUCCESS){fwprintf(stderr,L"EnableTraceEx2 failed: %lu\n",(unsigned long)status);(void)ControlTraceW(*h,logger_name,p,EVENT_TRACE_CONTROL_STOP);(void)HeapFree(GetProcessHeap(),0U,p);*h=0U;return 0;}
+ status=EnableTraceEx2(*h,&com_perf_provider_guid,EVENT_CONTROL_CODE_ENABLE_PROVIDER,TRACE_LEVEL_VERBOSE,0U,0U,0U,NULL);
+ if(status!=ERROR_SUCCESS){fwprintf(stderr,L"COM Perf provider enable failed: %lu\\n",(unsigned long)status);(void)ControlTraceW(*h,logger_name,p,EVENT_TRACE_CONTROL_STOP);(void)HeapFree(GetProcessHeap(),0U,p);*h=0U;return 0;}
  *out=p;return 1;
 }
 static int stop_trace(TRACEHANDLE h,EVENT_TRACE_PROPERTIES *p)
