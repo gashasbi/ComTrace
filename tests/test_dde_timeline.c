@@ -257,12 +257,101 @@ static int test_partial_conversation_correlation_is_rejected(void)
     return 1;
 }
 
+static int test_invalid_duration_and_metadata_mismatch(void)
+{
+    COMTRACE_DDE_TIMELINE timeline;
+    COMTRACE_DDE_TIMELINE_EVENT event;
+    const COMTRACE_DDE_TIMELINE_RECORD *record;
+
+    comtrace_dde_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_STARTED;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 200ULL;
+    event.conversation_id = 30ULL;
+    event.conversation_correlation_id = 40ULL;
+    event.transaction_instance_id = 50ULL;
+    event.transaction_correlation_id = 60ULL;
+    event.dde_transaction_id = 70U;
+    event.transaction_type = 0x00B0U;
+    event.format = 1U;
+    event.role = COMTRACE_DDE_ROLE_CLIENT;
+    event.item = L"First";
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.type = COMTRACE_DDE_TIMELINE_TRANSACTION_COMPLETED;
+    event.timestamp = 100ULL;
+    event.transaction_correlation_id = 61ULL;
+    event.dde_transaction_id = 71U;
+    event.transaction_type = 0x00B1U;
+    event.format = 2U;
+    event.item = L"Second";
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_dde_timeline_get(&timeline, 0U);
+    if (record == NULL || !record->has_completion ||
+        record->has_duration || !record->invalid_duration_order ||
+        !record->metadata_mismatch ||
+        timeline.invalid_duration_orders != 1ULL ||
+        timeline.metadata_mismatches != 1ULL ||
+        timeline.unmatched_completions != 0ULL) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_dde_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_unmatched_conversation_close(void)
+{
+    COMTRACE_DDE_TIMELINE timeline;
+    COMTRACE_DDE_TIMELINE_EVENT event;
+    const COMTRACE_DDE_TIMELINE_RECORD *record;
+
+    comtrace_dde_timeline_init(&timeline);
+    ZeroMemory(&event, sizeof(event));
+    event.type = COMTRACE_DDE_TIMELINE_CONVERSATION_CLOSED;
+    event.process_id = 10U;
+    event.thread_id = 20U;
+    event.timestamp = 100ULL;
+    event.conversation_id = 30ULL;
+    event.result = 5U;
+    if (comtrace_dde_timeline_add_event(&timeline, &event) !=
+        COMTRACE_DDE_TIMELINE_SUCCESS) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_dde_timeline_get(&timeline, 0U);
+    if (record == NULL || !record->has_closed || record->has_opened ||
+        record->closed_timestamp != 100ULL ||
+        record->close_result != 5U || timeline.unmatched_closes != 1ULL) {
+        comtrace_dde_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_dde_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_conversation_and_transaction_lifecycle() ||
         !test_explicit_cross_process_exchange() ||
         !test_ambiguous_and_unmatched_events() ||
-        !test_partial_conversation_correlation_is_rejected()) {
+        !test_partial_conversation_correlation_is_rejected() ||
+        !test_invalid_duration_and_metadata_mismatch() ||
+        !test_unmatched_conversation_close()) {
         fputs("DDE timeline tests failed.\n", stderr);
         return 1;
     }
