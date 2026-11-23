@@ -3928,6 +3928,12 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"dde_transaction_exchanges_with";
     case COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH:
         return L"dde_conversation_correlates_with";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OLE_OPERATION:
+        return L"process_owns_ole_operation";
+    case COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION:
+        return L"thread_initiates_ole_operation";
+    case COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY:
+        return L"ole_operation_has_activity";
     default:
         return L"unknown";
     }
@@ -4057,6 +4063,9 @@ static void print_relationship_graph_node(
     case COMTRACE_GRAPH_NODE_DDE_TRANSACTION_CORRELATION:
         wprintf(L"dde-transaction-correlation:%llu", (unsigned long long)node->value);
         break;
+    case COMTRACE_GRAPH_NODE_OLE_OPERATION:
+        wprintf(L"ole-operation:%lu/%llu", (unsigned long)node->process_id, (unsigned long long)node->value);
+        break;
     default:
         wprintf(L"unknown");
         break;
@@ -4182,6 +4191,10 @@ static void print_relationship_graph_summary(
     }
 
     wprintf(L"\nRelationship graph summary\n");
+    wprintf(
+        L"OLE operation nodes: %llu\n",
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION)
+    );
     wprintf(
         L"Protocol nodes: rpc_calls=%llu rpc_interfaces=%llu dde_conversations=%llu dde_transactions=%llu\n",
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_RPC_CALL),
@@ -5742,6 +5755,13 @@ static int inspect_etl_internal(
     if (comtrace_dde_timeline_correlate(&context.dde_timeline) !=
         COMTRACE_DDE_TIMELINE_SUCCESS) {
         context.dde_timeline_status = COMTRACE_DDE_TIMELINE_ALLOCATION_FAILED;
+    }
+    if (comtrace_relationship_graph_add_ole_timeline(
+            &context.relationship_graph,
+            &context.ole_timeline,
+            &context.process_lifecycle
+        ) != COMTRACE_GRAPH_SUCCESS) {
+        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
     if (comtrace_relationship_graph_add_rpc_timeline(
             &context.relationship_graph,

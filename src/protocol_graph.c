@@ -416,3 +416,86 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_dde_timeline(
     free(transaction_nodes);
     return COMTRACE_GRAPH_SUCCESS;
 }
+
+COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
+    COMTRACE_RELATIONSHIP_GRAPH *graph,
+    const COMTRACE_OLE_TIMELINE *timeline,
+    const COMTRACE_PROCESS_LIFECYCLE_CATALOG *process_lifecycle
+)
+{
+    size_t index;
+
+    if (graph == NULL || timeline == NULL) {
+        return COMTRACE_GRAPH_INVALID_ARGUMENT;
+    }
+    for (index = 0U; index < timeline->record_count; ++index) {
+        const COMTRACE_OLE_TIMELINE_RECORD *record = &timeline->records[index];
+        size_t operation_index;
+        size_t process_index;
+        size_t thread_index;
+        size_t activity_index;
+        ULONGLONG generation = 0ULL;
+        BOOL has_generation = FALSE;
+        COMTRACE_GRAPH_STATUS status;
+
+        if (record->process_id == 0U || (!record->has_start && !record->has_stop)) {
+            continue;
+        }
+        if (process_lifecycle != NULL) {
+            LONGLONG timestamp = (LONGLONG)(record->has_start
+                ? record->start_timestamp
+                : record->stop_timestamp);
+            has_generation = comtrace_process_lifecycle_resolve_generation(
+                process_lifecycle, record->process_id, timestamp, &generation);
+        }
+        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_OLE_OPERATION,
+            record->process_id, 0U, NULL, (ULONGLONG)index + 1ULL,
+            &operation_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        graph->nodes[operation_index].process_generation = generation;
+        graph->nodes[operation_index].has_process_generation = has_generation;
+
+        status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+            record->process_id, 0U, NULL, 0ULL, &process_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_OLE_OPERATION,
+            process_index, operation_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        if (record->thread_id != 0U) {
+            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                record->process_id, record->thread_id, NULL, 0ULL, &thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                process_index, thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION,
+                thread_index, operation_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+        if (record->has_activity_id) {
+            status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_ACTIVITY,
+                0U, 0U, &record->activity_id, 0ULL, &activity_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY,
+                operation_index, activity_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+    return COMTRACE_GRAPH_SUCCESS;
+}

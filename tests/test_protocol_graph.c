@@ -95,6 +95,38 @@ static int test_dde_exchange(void)
     return 1;
 }
 
+static int test_ole_operation(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_OLE_TIMELINE timeline;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&timeline, sizeof(timeline));
+    timeline.records = (COMTRACE_OLE_TIMELINE_RECORD *)calloc(1U, sizeof(*timeline.records));
+    if (timeline.records == NULL) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    timeline.record_count = 1U;
+    timeline.records[0].process_id = 500U;
+    timeline.records[0].thread_id = 501U;
+    timeline.records[0].has_start = TRUE;
+    timeline.records[0].has_activity_id = TRUE;
+    timeline.records[0].activity_id.Data1 = 80U;
+    if (comtrace_relationship_graph_add_ole_timeline(&graph, &timeline, NULL) !=
+            COMTRACE_GRAPH_SUCCESS ||
+        comtrace_relationship_graph_node_count(&graph, COMTRACE_GRAPH_NODE_OLE_OPERATION) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_OLE_OPERATION_HAS_ACTIVITY) != 1U ||
+        comtrace_relationship_graph_edge_count(&graph, COMTRACE_GRAPH_EDGE_THREAD_INITIATES_OLE_OPERATION) != 1U) {
+        free(timeline.records);
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+    free(timeline.records);
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_rpc_pair()) {
