@@ -591,16 +591,40 @@ static int test_same_thread_rpc_match_is_preferred(void)
 
 int main(void)
 {
-    if (!test_activity_pair() ||
-        !test_fallback_and_one_sided_identifiers() ||
-        !test_activity_id_pair_across_process_and_thread() ||
-        !test_cross_process_client_server_correlation() ||
-        !test_ambiguous_client_server_correlation_is_not_guessed() ||
-        !test_failure_status_and_invalid_duration() ||
-        !test_related_activity_id_pair() ||
-        !test_ambiguous_cross_thread_stop_is_not_guessed() ||
-        !test_same_thread_rpc_match_is_preferred()) {
-        fputs("RPC timeline tests failed.\n", stderr);
+    if (!test_activity_pair()) {
+        puts("test_activity_pair failed.");
+        return 1;
+    }
+    if (!test_fallback_and_one_sided_identifiers()) {
+        puts("test_fallback_and_one_sided_identifiers failed.");
+        return 1;
+    }
+    if (!test_activity_id_pair_across_process_and_thread()) {
+        puts("test_activity_id_pair_across_process_and_thread failed.");
+        return 1;
+    }
+    if (!test_cross_process_client_server_correlation()) {
+        puts("test_cross_process_client_server_correlation failed.");
+        return 1;
+    }
+    if (!test_ambiguous_client_server_correlation_is_not_guessed()) {
+        puts("test_ambiguous_client_server_correlation_is_not_guessed failed.");
+        return 1;
+    }
+    if (!test_failure_status_and_invalid_duration()) {
+        puts("test_failure_status_and_invalid_duration failed.");
+        return 1;
+    }
+    if (!test_related_activity_id_pair()) {
+        puts("test_related_activity_id_pair failed.");
+        return 1;
+    }
+    if (!test_ambiguous_cross_thread_stop_is_not_guessed()) {
+        puts("test_ambiguous_cross_thread_stop_is_not_guessed failed.");
+        return 1;
+    }
+    if (!test_same_thread_rpc_match_is_preferred()) {
+        puts("test_same_thread_rpc_match_is_preferred failed.");
         return 1;
     }
 
