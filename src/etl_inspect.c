@@ -3642,6 +3642,7 @@ static void print_ole_timeline_summary(
     size_t index;
     ULONGLONG matched = 0ULL;
     ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_related_activity_id = 0ULL;
     ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete = 0ULL;
     ULONGLONG unmatched = 0ULL;
@@ -3697,6 +3698,10 @@ static void print_ole_timeline_summary(
     wprintf(
         L"Matched by ActivityId: %llu\n",
         (unsigned long long)matched_by_activity_id
+    );
+    wprintf(
+        L"Matched by RelatedActivityId: %llu\n",
+        (unsigned long long)matched_by_related_activity_id
     );
     wprintf(
         L"Matched by process/thread/operation: %llu\n",
