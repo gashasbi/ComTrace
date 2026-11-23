@@ -755,11 +755,15 @@ static int test_write_failure(void)
     EVENT_RECORD event_record;
     COMTRACE_ARCHIVE_WRITER writer;
     COMTRACE_ARCHIVE_STATUS status;
+    BYTE payload[65535U];
     wchar_t path[TEST_PATH_CAPACITY];
     int failures = 0;
 
     memset(&event_record, 0, sizeof(event_record));
     memset(&writer, 0, sizeof(writer));
+    memset(payload, 0x5AU, sizeof(payload));
+    event_record.UserData = payload;
+    event_record.UserDataLength = (USHORT)sizeof(payload);
 
     if (!create_test_path(path, TEST_PATH_CAPACITY)) {
         return 1;
