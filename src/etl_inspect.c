@@ -4183,6 +4183,19 @@ static void print_relationship_graph_summary(
 
     wprintf(L"\nRelationship graph summary\n");
     wprintf(
+        L"Protocol nodes: rpc_calls=%llu rpc_interfaces=%llu dde_conversations=%llu dde_transactions=%llu\n",
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_RPC_CALL),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_RPC_INTERFACE),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_CONVERSATION),
+        (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_DDE_TRANSACTION)
+    );
+    wprintf(
+        L"Protocol edges: rpc_pairs=%llu dde_exchanges=%llu dde_conversation_links=%llu\n",
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_RPC_CALL),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_TRANSACTION_EXCHANGES_WITH),
+        (unsigned long long)comtrace_relationship_graph_edge_count(graph, COMTRACE_GRAPH_EDGE_DDE_CONVERSATION_CORRELATES_WITH)
+    );
+    wprintf(
         L"Nodes: processes=%llu threads=%llu activities=%llu calls=%llu objects=%llu instrumented_objects=%llu clsids=%llu iids=%llu ipids=%llu\n",
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_PROCESS),
         (unsigned long long)comtrace_relationship_graph_node_count(graph, COMTRACE_GRAPH_NODE_THREAD),

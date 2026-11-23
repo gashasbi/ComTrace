@@ -139,7 +139,7 @@ static COMTRACE_GRAPH_STATUS add_rpc_record(
     COMTRACE_GRAPH_STATUS status;
 
     if (record->process_id == 0U || (!record->has_start && !record->has_stop)) {
-        return COMTRACE_GRAPH_INVALID_ARGUMENT;
+        return COMTRACE_GRAPH_SUCCESS;
     }
     if (record->has_start && process_lifecycle != NULL) {
         has_generation = comtrace_process_lifecycle_resolve_generation(
