@@ -3940,6 +3940,14 @@ static const wchar_t *relationship_edge_name(COMTRACE_GRAPH_EDGE_TYPE type)
         return L"ole_operation_uses_data_object";
     case COMTRACE_GRAPH_EDGE_RPC_CALL_CORRELATES_WITH_COM_CALL:
         return L"rpc_call_correlates_with_com_call";
+    case COMTRACE_GRAPH_EDGE_PROCESS_COMPLETES_RPC_CALL:
+        return L"process_completes_rpc_call";
+    case COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_RPC_CALL:
+        return L"thread_completes_rpc_call";
+    case COMTRACE_GRAPH_EDGE_PROCESS_OBSERVES_OLE_OPERATION:
+        return L"process_observes_ole_operation";
+    case COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_OLE_OPERATION:
+        return L"thread_completes_ole_operation";
     default:
         return L"unknown";
     }

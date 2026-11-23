@@ -238,6 +238,47 @@ static COMTRACE_GRAPH_STATUS add_rpc_record(
         }
     }
 
+    if (record->has_stop && record->stop_process_id != 0U) {
+        size_t stop_process_index;
+        ULONGLONG stop_generation = 0ULL;
+        BOOL has_stop_generation = FALSE;
+        if (process_lifecycle != NULL) {
+            has_stop_generation = comtrace_process_lifecycle_resolve_generation(
+                process_lifecycle, record->stop_process_id,
+                (LONGLONG)record->stop_timestamp, &stop_generation);
+        }
+        status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+            record->stop_process_id, 0U, NULL, 0ULL,
+            stop_generation, has_stop_generation, &stop_process_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_COMPLETES_RPC_CALL,
+            stop_process_index, *rpc_node_index);
+        if (status != COMTRACE_GRAPH_SUCCESS) {
+            return status;
+        }
+        if (record->stop_thread_id != 0U) {
+            size_t stop_thread_index;
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                record->stop_process_id, record->stop_thread_id, NULL, 0ULL,
+                stop_generation, has_stop_generation, &stop_thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                stop_process_index, stop_thread_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_RPC_CALL,
+                stop_thread_index, *rpc_node_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+        }
+    }
+
     if (record->has_interface_uuid) {
         status = add_protocol_node(graph, COMTRACE_GRAPH_NODE_RPC_INTERFACE,
             0U, 0U, &record->interface_uuid, 0ULL, &interface_index);
@@ -596,6 +637,46 @@ COMTRACE_GRAPH_STATUS comtrace_relationship_graph_add_ole_timeline(
                 thread_index, operation_index);
             if (status != COMTRACE_GRAPH_SUCCESS) {
                 return status;
+            }
+        }
+        if (record->has_stop && record->stop_process_id != 0U) {
+            size_t stop_process_index;
+            ULONGLONG stop_generation = 0ULL;
+            BOOL has_stop_generation = FALSE;
+            if (process_lifecycle != NULL) {
+                has_stop_generation = comtrace_process_lifecycle_resolve_generation(
+                    process_lifecycle, record->stop_process_id,
+                    (LONGLONG)record->stop_timestamp, &stop_generation);
+            }
+            status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_PROCESS,
+                record->stop_process_id, 0U, NULL, 0ULL,
+                stop_generation, has_stop_generation, &stop_process_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OBSERVES_OLE_OPERATION,
+                stop_process_index, operation_index);
+            if (status != COMTRACE_GRAPH_SUCCESS) {
+                return status;
+            }
+            if (record->stop_thread_id != 0U) {
+                size_t stop_thread_index;
+                status = add_scoped_node(graph, COMTRACE_GRAPH_NODE_THREAD,
+                    record->stop_process_id, record->stop_thread_id, NULL, 0ULL,
+                    stop_generation, has_stop_generation, &stop_thread_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+                status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_PROCESS_OWNS_THREAD,
+                    stop_process_index, stop_thread_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
+                status = add_protocol_edge(graph, COMTRACE_GRAPH_EDGE_THREAD_COMPLETES_OLE_OPERATION,
+                    stop_thread_index, operation_index);
+                if (status != COMTRACE_GRAPH_SUCCESS) {
+                    return status;
+                }
             }
         }
         if (record->has_activity_id) {
