@@ -423,6 +423,54 @@ static int test_failure_status_and_invalid_duration(void)
     return 1;
 }
 
+static int test_related_activity_id_pair(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    const COMTRACE_RPC_TIMELINE_RECORD *record;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ids.related_activity_id = activity_id;
+    ids.has_related_activity_id = TRUE;
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcServerCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.process_id = 30U;
+    event.thread_id = 40U;
+    event.timestamp = 100ULL;
+    event.activity_ids = &ids;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.process_id = 31U;
+    event.thread_id = 41U;
+    event.timestamp = 150ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    record = comtrace_rpc_timeline_get(&timeline, 0U);
+    if (record == NULL ||
+        !record->has_stop ||
+        !record->has_duration ||
+        record->duration_ticks != 50ULL ||
+        record->match_type != COMTRACE_RPC_TIMELINE_MATCH_RELATED_ACTIVITY_ID) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_activity_pair() ||
@@ -430,7 +478,8 @@ int main(void)
         !test_activity_id_pair_across_process_and_thread() ||
         !test_cross_process_client_server_correlation() ||
         !test_ambiguous_client_server_correlation_is_not_guessed() ||
-        !test_failure_status_and_invalid_duration()) {
+        !test_failure_status_and_invalid_duration() ||
+        !test_related_activity_id_pair()) {
         fputs("RPC timeline tests failed.\n", stderr);
         return 1;
     }
