@@ -5214,6 +5214,17 @@ static int event_property_value_matches(
                 _countof(actual)
             )) {
             matched = search_property_text_matches(in_type, out_type, actual, filters);
+            if (wcscmp(name, L"OID") == 0) {
+                fwprintf(
+                    stderr,
+                    L"OID search diagnostic: in_type=%u out_type=%u actual=%ls expected=%ls matched=%d\\n",
+                    (unsigned int)in_type,
+                    (unsigned int)out_type,
+                    actual,
+                    filters->property_value,
+                    matched
+                );
+            }
         }
     }
 
