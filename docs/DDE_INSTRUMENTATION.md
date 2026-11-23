@@ -29,7 +29,7 @@ Use `comtrace_dde_transaction_completed_ex` when the application can provide tra
 
 Conversation close events are paired within the same process using ConversationId. Transaction completion events are paired within the same process using ConversationId, role, and TransactionInstanceId.
 
-Cross-process exchanges are correlated only when the client and server records have opposite roles and matching nonzero transaction correlation IDs. When supplied, conversation correlation IDs must also agree. Transaction type, format, and item name are checked when both sides provide them; item-name matching is case-insensitive. Missing optional metadata does not defeat an otherwise explicit correlation, but conflicting metadata does. Ambiguous matches are reported and are not guessed. Reversed completion timestamps are retained and reported as invalid durations. Unmatched closes, completions, and metadata mismatches are counted separately.
+Cross-process exchanges are correlated only when the client and server records have opposite roles and matching nonzero transaction correlation IDs. When supplied, conversation correlation IDs must also agree. Transaction type, format, and item name are checked when both sides provide them; item-name matching is case-insensitive. Missing optional metadata does not defeat an otherwise explicit correlation, but conflicting metadata does. Ambiguous cross-process exchange matches are reported and are not guessed. Ambiguous completion matches are counted separately from cross-process ambiguity so the later exchange-correlation pass cannot clear them. Reversed completion timestamps are retained and reported as invalid durations. Unmatched closes, completions, and metadata mismatches are counted separately.
 
 ## Example
 
