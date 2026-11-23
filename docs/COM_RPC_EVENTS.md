@@ -47,15 +47,19 @@ Events 14 and 15 expose `InterfaceUuid`, `TypeMgrUuid`, `Flags`, and `MaxCalls`;
 
 Start records expose fields including `InterfaceUuid`, `ProcNum`, `Protocol`, `NetworkAddress`, `Endpoint`, and authentication settings. Stop records expose status; event 1 has a different error-oriented payload. ComTrace labels mapped records with `rpc_event` and `phase`, and explicitly prints `rpc_interface_uuid` when that field exists.
 
-These RPC records describe RPC calls and interface/procedure metadata. An RPC interface UUID is not a COM IID, an RPC call is not a COM object lifetime, and RPC start/stop events are not used to create or close COM object generations. The client/server records are not assumed to be a one-to-one correlated pair.
+These RPC records describe RPC calls and interface/procedure metadata. An RPC interface UUID is not globally assumed to be a COM IID, an RPC call is not a COM object lifetime, and RPC start/stop events are not used to create or close COM object generations. A COM-operation link is emitted only when a call and a COM operation share the same ActivityId and the RPC InterfaceUuid exactly matches the COM event IID; this is trace-local correlation evidence, not a general equivalence between RPC interface UUIDs and COM IIDs.
 
 The RPC manifest also defines Debug and FunctionTrace records with internal pointers and object-like fields. ComTrace does not interpret those pointers as OID, IPID, or COM object identities.
 
 ## RPC call timelines
 
-Inspect builds separate timelines for the classified `RpcClientCall`, `RpcServerCall`, and `FunctionTrace` start/stop records. A pair is matched by ActivityId when both records expose the same ActivityId. When both records lack ActivityId, the weaker process/thread/operation match is used and labeled separately. A one-sided or conflicting ActivityId, a different interface UUID, or a different procedure number prevents a match. Client and server records remain separate timelines; ComTrace does not invent a cross-process client/server pairing.
+Inspect builds separate records for the classified `RpcClientCall`, `RpcServerCall`, and `FunctionTrace` start/stop events. Within each role, a start/stop pair is matched by ActivityId; when both sides lack ActivityId, the weaker same-process/thread/operation match is labeled separately. A one-sided or conflicting ActivityId, a different interface UUID, or a different procedure number prevents a pair. Nested calls are matched from the most recent compatible pending start.
 
-The timeline retains the interface UUID and procedure number when the start record exposes them, and reports raw ETW start/stop ticks, duration ticks, incomplete starts, unmatched stops, and records missing ActivityId. FunctionTraceStart16 is retained as a start observation; the current classifier has no matching stop event for that record, so it may remain incomplete. These timelines describe RPC activity and do not establish COM object lifetime or DCOM object identity.
+After the role-specific timelines are built, ComTrace performs a separate client/server correlation pass. It requires completed calls, a shared ActivityId (or a direct primary/related ActivityId link), the same InterfaceUuid, and the same ProcNum. A link is created only when the candidate is unique in both directions. Multiple candidates are reported as ambiguous and are not paired. The client and server Process IDs and Thread IDs remain separately visible; these IDs identify the processes that emitted the respective call records, not a guessed remote machine identity.
+
+The timeline retains InterfaceUuid, ProcNum, Protocol, NetworkAddress, and Endpoint when exposed by the provider. `ncalrpc` is classified as local; `ncacn_ip_tcp` and `ncacn_http` are classified as network transports; other protocol sequences remain unknown rather than being guessed. It reports raw ETW ticks, duration ticks and milliseconds using the trace frequency, incomplete starts, unmatched stops, invalid timestamp order, status outcomes, and missing ActivityIds. A nonzero captured RPC status is reported as a failure; absent status remains unknown. FunctionTraceStart16 remains an incomplete start observation because the mapped provider events do not provide a matching stop record.
+
+A COM-operation association is made only with an exact ActivityId and exact IID/InterfaceUuid value. Multiple matching COM operations are marked ambiguous. The association links an RPC call to an observed COM operation record; it does not infer a COM object lifetime or treat an RPC interface UUID as a universal COM IID.
 
 ## Microsoft-Windows-RPCSS
 
@@ -66,7 +70,9 @@ The Win10 17134 manifest defines two endpoint-mapper registration records:
 | 2 | 1 | 0 | Interface registration | 0x200 | InterfaceUUID, ObjectUUID, Protocol, EndPoint |
 | 3 | 1 | 0 | Interface unregistration | 0x400 | InterfaceUUID, ObjectUUID, Protocol, EndPoint |
 
-ComTrace labels them with `rpcss_event` and prints `rpcss_interface_uuid` and `rpcss_object_uuid` when the values can be decoded. These are RPCSS endpoint-registration fields. In particular, `ObjectUUID` is not treated as the COM Performance provider's OID, and interface unregistration is not treated as COM object destruction.
+ComTrace labels them with `rpcss_event` and prints `rpcss_interface_uuid` and `rpcss_object_uuid` when the values can be decoded. Inspect also builds a registration catalog keyed by InterfaceUUID, ObjectUUID presence/value, Protocol, and EndPoint. An unregistration closes only an exact active key; an unmatched unregistration remains a separate observation, and duplicate registrations are counted rather than silently discarded. The catalog reports active registrations, registration/unregistration observations, duplicates, and unmatched unregistrations.
+
+RPC calls are associated with an RPCSS registration only when InterfaceUuid, Protocol, and Endpoint match exactly and the RPC call timestamp falls inside the observed registration interval. Multiple candidates are marked ambiguous. The ETW event's Process ID is retained as the event-emitting process; it is not assumed to be the server process ID. These are RPCSS endpoint-registration fields. In particular, ObjectUUID is not treated as the COM Performance provider's OID, and interface unregistration is not treated as COM object destruction.
 
 ## Current real-trace evidence
 
@@ -79,7 +85,7 @@ The RPC provider produced 911 records, and the updated classifier recognized all
 - 15 FunctionTrace starts and 17 FunctionTrace stops
 - 2 FunctionTraceStart16 records
 
-The differing client/server start and stop counts are intentionally kept as independent observations; ComTrace does not pair client and server records based on counts or timing. The client and server call-start records each exposed 18 distinct `InterfaceUuid` values. FunctionTrace start/stop records also carry their own `InterfaceUuid`/`TypeMgrUuid` payload fields and are reported separately.
+The differing client/server start and stop counts are intentionally kept as independent observations; the correlation pass does not pair calls based on counts or timing, and requires the per-call identifiers described above. The client and server call-start records each exposed 18 distinct `InterfaceUuid` values. FunctionTrace start/stop records also carry their own `InterfaceUuid`/`TypeMgrUuid` payload fields and are reported separately.
 
 RPCSS produced two records, both `InterfaceUnregister` (event ID 3); no `InterfaceRegister` record was emitted in this capture. Both records had distinct `InterfaceUUID` values, `ObjectUUID` equal to the all-zero GUID, and protocol `ncalrpc`. These values describe RPC endpoint registration metadata and do not identify a COM OID or an object release.
 
