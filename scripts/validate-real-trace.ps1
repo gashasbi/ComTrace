@@ -433,7 +433,7 @@ Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
 $oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
 $oleSummaryMatch = [regex]::Match(
     $oleSearchOutput,
-    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Missing ActivityId:\s*(\d+)"
+    "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
 )
 if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
     throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
@@ -447,6 +447,7 @@ $oleTimelineMatched = [UInt64]::Parse($oleSummaryMatch.Groups[3].Value)
 $oleTimelineMatchedByActivity = [UInt64]::Parse($oleSummaryMatch.Groups[4].Value)
 $oleTimelineMatchedByProcessThread = [UInt64]::Parse($oleSummaryMatch.Groups[5].Value)
 $oleTimelineMissingActivity = [UInt64]::Parse($oleSummaryMatch.Groups[6].Value)
+$oleInvalidDurationOrders = [UInt64]::Parse($oleSummaryMatch.Groups[7].Value)
 $olePayloadPropertyCount = [regex]::Matches(
     $oleSearchOutput,
     "(?im)^\s*property\[\d+\] name="
@@ -718,6 +719,7 @@ $summary = [ordered]@{
     ole_timeline_matched_by_activity_id = $oleTimelineMatchedByActivity
     ole_timeline_matched_by_process_thread = $oleTimelineMatchedByProcessThread
     ole_timeline_missing_activity_id = $oleTimelineMissingActivity
+    ole_invalid_duration_orders = $oleInvalidDurationOrders
     ole_payload_properties_reported = $olePayloadPropertyCount
     ole_data_object_properties_reported = $oleDataObjectPropertyCount
     identity_values_reported = $identityValueCount
@@ -778,6 +780,7 @@ Write-Host "OLE start/stop pairs matched: $oleTimelineMatched"
 Write-Host "OLE pairs matched by ActivityId: $oleTimelineMatchedByActivity"
 Write-Host "OLE pairs matched by process/thread/operation: $oleTimelineMatchedByProcessThread"
 Write-Host "OLE events missing ActivityId: $oleTimelineMissingActivity"
+Write-Host "OLE invalid duration timestamp orders: $oleInvalidDurationOrders"
 Write-Host "OLE payload properties reported by TDH: $olePayloadPropertyCount"
 Write-Host "OLE properties named DataObject: $oleDataObjectPropertyCount"
 Write-Host "Identity values reported: $identityValueCount"
