@@ -206,6 +206,9 @@ static int record_matches_event(
 {
     return record->process_id == event->process_id &&
         record->object_instance_id == event->object_instance_id &&
+        record->has_instrumentation_id == event->has_instrumentation_id &&
+        (!event->has_instrumentation_id ||
+         memcmp(&record->instrumentation_id, &event->instrumentation_id, sizeof(GUID)) == 0) &&
         record->has_process_generation == event->has_process_generation &&
         (!event->has_process_generation ||
          record->process_generation == event->process_generation);
@@ -242,6 +245,8 @@ static COMTRACE_LIFETIME_RECORD *create_record(
     ZeroMemory(record, sizeof(*record));
     record->process_id = event->process_id;
     record->object_instance_id = event->object_instance_id;
+    record->has_instrumentation_id = event->has_instrumentation_id;
+    record->instrumentation_id = event->instrumentation_id;
     record->process_generation = event->process_generation;
     record->has_process_generation = event->has_process_generation;
     record->first_seen_timestamp = event->timestamp;
