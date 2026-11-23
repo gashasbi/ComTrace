@@ -34,6 +34,13 @@ static int test_registration_lifecycle_and_protocol_scope(void)
         comtrace_rpc_endpoint_catalog_destroy(&catalog);
         return 0;
     }
+    event.timestamp = 105ULL;
+    if (comtrace_rpc_endpoint_catalog_add(&catalog, &event) !=
+        COMTRACE_RPC_ENDPOINT_SUCCESS ||
+        catalog.duplicate_registrations != 1ULL) {
+        comtrace_rpc_endpoint_catalog_destroy(&catalog);
+        return 0;
+    }
 
     event.protocol = L"ncacn_ip_tcp";
     event.endpoint = L"49664";
@@ -62,7 +69,8 @@ static int test_registration_lifecycle_and_protocol_scope(void)
         network->location != COMTRACE_RPC_ENDPOINT_LOCATION_NETWORK ||
         wcscmp(local->endpoint, L"LRPC-123") != 0 ||
         wcscmp(network->endpoint, L"49664") != 0 ||
-        catalog.unmatched_unregistrations != 0ULL) {
+        catalog.unmatched_unregistrations != 0ULL ||
+        catalog.duplicate_registrations != 1ULL) {
         comtrace_rpc_endpoint_catalog_destroy(&catalog);
         return 0;
     }
