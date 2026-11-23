@@ -239,6 +239,63 @@ Write-Host "Inspecting ETL."
 $inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, "10000") -Description "ETL inspection"
 Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 
+$rpcTimelineMatch = [regex]::Match(
+    $inspectOutput,
+    "(?ms)RPC call timeline summary.*?RPC timeline records:\s*(\d+).*?Matched RPC calls:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete RPC starts:\s*(\d+).*?Unmatched RPC stops:\s*(\d+).*?RPC events without ActivityId:\s*(\d+).*?Correlated client/server calls:\s*(\d+).*?Ambiguous client/server candidates:\s*(\d+).*?Failed RPC calls:\s*(\d+).*?RPC calls without status:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+).*?Linked RPCSS endpoints:\s*(\d+).*?Ambiguous RPCSS endpoint links:\s*(\d+).*?Linked COM operations:\s*(\d+).*?Ambiguous COM operation links:\s*(\d+)"
+)
+if (-not $rpcTimelineMatch.Success) {
+    throw "The RPC call timeline summary did not contain all correlation and outcome counters. Review $inspectPath"
+}
+
+$rpcTimelineRecords = [UInt64]::Parse($rpcTimelineMatch.Groups[1].Value)
+$rpcTimelineMatched = [UInt64]::Parse($rpcTimelineMatch.Groups[2].Value)
+$rpcTimelineMatchedByActivity = [UInt64]::Parse($rpcTimelineMatch.Groups[3].Value)
+$rpcTimelineMatchedByRelatedActivity = [UInt64]::Parse($rpcTimelineMatch.Groups[4].Value)
+$rpcTimelineMatchedByProcessThread = [UInt64]::Parse($rpcTimelineMatch.Groups[5].Value)
+$rpcTimelineIncompleteStarts = [UInt64]::Parse($rpcTimelineMatch.Groups[6].Value)
+$rpcTimelineUnmatchedStops = [UInt64]::Parse($rpcTimelineMatch.Groups[7].Value)
+$rpcTimelineMissingActivity = [UInt64]::Parse($rpcTimelineMatch.Groups[8].Value)
+$rpcClientServerCorrelations = [UInt64]::Parse($rpcTimelineMatch.Groups[9].Value)
+$rpcClientServerAmbiguous = [UInt64]::Parse($rpcTimelineMatch.Groups[10].Value)
+$rpcFailedCalls = [UInt64]::Parse($rpcTimelineMatch.Groups[11].Value)
+$rpcCallsWithoutStatus = [UInt64]::Parse($rpcTimelineMatch.Groups[12].Value)
+$rpcInvalidDurations = [UInt64]::Parse($rpcTimelineMatch.Groups[13].Value)
+$rpcLinkedEndpoints = [UInt64]::Parse($rpcTimelineMatch.Groups[14].Value)
+$rpcAmbiguousEndpointLinks = [UInt64]::Parse($rpcTimelineMatch.Groups[15].Value)
+$rpcLinkedComOperations = [UInt64]::Parse($rpcTimelineMatch.Groups[16].Value)
+$rpcAmbiguousComLinks = [UInt64]::Parse($rpcTimelineMatch.Groups[17].Value)
+
+$rpcTimelineMatchTotal = $rpcTimelineMatchedByActivity +
+                         $rpcTimelineMatchedByRelatedActivity +
+                         $rpcTimelineMatchedByProcessThread
+if ($rpcTimelineMatchTotal -ne $rpcTimelineMatched -or
+    $rpcClientServerCorrelations -gt [Math]::Floor($rpcTimelineMatched / 2) -or
+    $rpcLinkedEndpoints -gt $rpcTimelineRecords -or
+    $rpcLinkedComOperations -gt $rpcTimelineRecords) {
+    throw "RPC timeline match, cross-process, or evidence-link counters are inconsistent. Review $inspectPath"
+}
+
+$rpcssTimelineMatch = [regex]::Match(
+    $inspectOutput,
+    "(?ms)RPCSS endpoint registration summary.*?Endpoint records:\s*(\d+).*?Registrations observed:\s*(\d+).*?Unregistrations observed:\s*(\d+).*?Active registrations:\s*(\d+).*?Unmatched unregistrations:\s*(\d+).*?Duplicate registrations:\s*(\d+)"
+)
+if (-not $rpcssTimelineMatch.Success) {
+    throw "The RPCSS endpoint registration summary did not contain all lifecycle counters. Review $inspectPath"
+}
+
+$rpcssEndpointRecords = [UInt64]::Parse($rpcssTimelineMatch.Groups[1].Value)
+$rpcssRegistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[2].Value)
+$rpcssUnregistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[3].Value)
+$rpcssActiveRegistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[4].Value)
+$rpcssUnmatchedUnregistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[5].Value)
+$rpcssDuplicateRegistrations = [UInt64]::Parse($rpcssTimelineMatch.Groups[6].Value)
+
+if ($rpcssActiveRegistrations -gt $rpcssEndpointRecords -or
+    $rpcssRegistrations -gt ($rpcssEndpointRecords + $rpcssDuplicateRegistrations) -or
+    $rpcssUnregistrations -gt $rpcssEndpointRecords) {
+    throw "RPCSS endpoint registration counters are inconsistent. Review $inspectPath"
+}
+
 $processProviderGuid = "{3D6FA8D0-FE05-11D0-9DDA-00C04FD7BA7C}"
 $processStartPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*1\s*\|"
 $processEndPattern = "(?im)^\s*$([regex]::Escape($processProviderGuid))\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*2\s*\|"
@@ -569,6 +626,29 @@ $summary = [ordered]@{
     rpc_function_trace_endpoint_events = $rpcFunctionTraceEndpointCount
     rpcss_events = $rpcssEventCount
     rpcss_classified_events = $rpcssClassifiedEventCount
+    rpc_timeline_records = $rpcTimelineRecords
+    rpc_timeline_matched = $rpcTimelineMatched
+    rpc_timeline_matched_by_activity_id = $rpcTimelineMatchedByActivity
+    rpc_timeline_matched_by_related_activity_id = $rpcTimelineMatchedByRelatedActivity
+    rpc_timeline_matched_by_process_thread = $rpcTimelineMatchedByProcessThread
+    rpc_timeline_incomplete_starts = $rpcTimelineIncompleteStarts
+    rpc_timeline_unmatched_stops = $rpcTimelineUnmatchedStops
+    rpc_timeline_missing_activity_id = $rpcTimelineMissingActivity
+    rpc_client_server_correlations = $rpcClientServerCorrelations
+    rpc_client_server_ambiguous = $rpcClientServerAmbiguous
+    rpc_failed_calls = $rpcFailedCalls
+    rpc_calls_without_status = $rpcCallsWithoutStatus
+    rpc_invalid_duration_orders = $rpcInvalidDurations
+    rpc_linked_rpcss_endpoints = $rpcLinkedEndpoints
+    rpc_ambiguous_endpoint_links = $rpcAmbiguousEndpointLinks
+    rpc_linked_com_operations = $rpcLinkedComOperations
+    rpc_ambiguous_com_operation_links = $rpcAmbiguousComLinks
+    rpcss_endpoint_records = $rpcssEndpointRecords
+    rpcss_registrations = $rpcssRegistrations
+    rpcss_unregistrations = $rpcssUnregistrations
+    rpcss_active_registrations = $rpcssActiveRegistrations
+    rpcss_unmatched_unregistrations = $rpcssUnmatchedUnregistrations
+    rpcss_duplicate_registrations = $rpcssDuplicateRegistrations
     ole_validation_status = $oleValidationStatus
     ole_events = $oleEventCount
     ole_clipboard_operations = $oleClipboardOperations
@@ -623,6 +703,11 @@ Write-Host "RPC client calls: start=$rpcClientCallStartCount stop=$rpcClientCall
 Write-Host "RPC server calls: start=$rpcServerCallStartCount stop=$rpcServerCallStopCount"
 Write-Host "RPC FunctionTrace: start=$rpcFunctionTraceStartCount stop=$rpcFunctionTraceStopCount endpoint=$rpcFunctionTraceEndpointCount"
 Write-Host "RPCSS events: $rpcssEventCount (classified=$rpcssClassifiedEventCount)"
+Write-Host "RPC timeline: records=$rpcTimelineRecords matched=$rpcTimelineMatched incomplete=$rpcTimelineIncompleteStarts unmatched_stops=$rpcTimelineUnmatchedStops"
+Write-Host "RPC client/server correlations: $rpcClientServerCorrelations ambiguous=$rpcClientServerAmbiguous"
+Write-Host "RPC evidence links: RPCSS endpoints=$rpcLinkedEndpoints COM operations=$rpcLinkedComOperations"
+Write-Host "RPC outcomes: failed=$rpcFailedCalls missing_status=$rpcCallsWithoutStatus invalid_duration=$rpcInvalidDurations"
+Write-Host "RPCSS endpoint catalog: records=$rpcssEndpointRecords active=$rpcssActiveRegistrations unmatched_unregistrations=$rpcssUnmatchedUnregistrations"
 Write-Host "OLE validation status: $oleValidationStatus"
 Write-Host "OLE Performance events: $oleEventCount"
 Write-Host "OLE clipboard operations: $oleClipboardOperations"
