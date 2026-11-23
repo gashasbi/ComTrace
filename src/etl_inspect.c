@@ -2788,6 +2788,7 @@ static void link_rpc_records_to_endpoints(ETL_INSPECT_CONTEXT *context)
         COMTRACE_RPC_TIMELINE_RECORD *record =
             &context->rpc_timeline.records[index];
         size_t endpoint_index = 0U;
+        BOOL found = FALSE;
         BOOL ambiguous = FALSE;
 
         record->has_endpoint_registration = FALSE;
@@ -2807,13 +2808,14 @@ static void link_rpc_records_to_endpoints(ETL_INSPECT_CONTEXT *context)
                 record->endpoint,
                 record->start_timestamp,
                 &endpoint_index,
+                &found,
                 &ambiguous
             ) != COMTRACE_RPC_ENDPOINT_SUCCESS) {
             continue;
         }
 
         record->endpoint_match_ambiguous = ambiguous;
-        if (!ambiguous &&
+        if (found && !ambiguous &&
             endpoint_index < context->rpc_endpoint_catalog.record_count) {
             const COMTRACE_RPC_ENDPOINT_RECORD *endpoint_record =
                 &context->rpc_endpoint_catalog.records[endpoint_index];
@@ -3053,10 +3055,17 @@ static void print_rpc_timeline_summary(
         if (record->endpoint[0] != L'\0') {
             wprintf(L" endpoint=%ls", record->endpoint);
         }
-        if (record->has_correlated_record) {
-            wprintf(L" correlated_record=%llu correlation=%ls",
-                (unsigned long long)record->correlated_record_index,
-                rpc_correlation_name(record->correlation_type));
+        if (record->has_correlated_record &&
+            record->correlated_record_index < context->rpc_timeline.record_count) {
+            const COMTRACE_RPC_TIMELINE_RECORD *peer =
+                &context->rpc_timeline.records[record->correlated_record_index];
+            wprintf(
+                L" peer_role=%ls peer_pid=%lu peer_tid=%lu correlation=%ls",
+                rpc_role_name(peer->role),
+                (unsigned long)peer->process_id,
+                (unsigned long)peer->thread_id,
+                rpc_correlation_name(record->correlation_type)
+            );
         }
         if (record->has_endpoint_registration) {
             wprintf(L" rpcss_endpoint_record=%llu",
@@ -3064,9 +3073,21 @@ static void print_rpc_timeline_summary(
         } else if (record->endpoint_match_ambiguous) {
             wprintf(L" rpcss_endpoint_match=ambiguous");
         }
-        if (record->has_com_operation) {
-            wprintf(L" com_operation_record=%llu",
-                (unsigned long long)record->com_operation_index);
+        if (record->has_com_operation &&
+            record->com_operation_index < context->timeline.record_count) {
+            const COMTRACE_TIMELINE_RECORD *com_record =
+                &context->timeline.records[record->com_operation_index];
+            wprintf(L" com_operation=%ls", com_record->operation);
+            if (com_record->has_object_identity &&
+                com_record->object_identity.has_iid) {
+                wprintf(L" com_iid=");
+                print_guid(&com_record->object_identity.iid);
+            }
+            if (com_record->has_object_identity &&
+                com_record->object_identity.has_oid) {
+                wprintf(L" com_oid=0x%llx",
+                    (unsigned long long)com_record->object_identity.oid);
+            }
         } else if (record->com_operation_match_ambiguous) {
             wprintf(L" com_operation_match=ambiguous");
         }
