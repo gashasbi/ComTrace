@@ -12,7 +12,7 @@ The Windows build produces:
 
 The COM server activation fixture also builds `ComTraceComServerFixture.dll` and `ComTraceComServerClient.exe`. It exercises a real in-process `IClassFactory`, two interfaces with independent `QueryInterface` paths, `AddRef`/`Release`, `LockServer`, and COM aggregation through a controlling outer `IUnknown`.
 
-Link the static library into one module in each process that implements the COM objects to be observed. Its object-instance counter is local to that linked module. If several DLLs in one process need instrumentation, route their calls through a shared wrapper in the module that owns this library; linking separate static copies can reuse the same instance IDs. Include `comtrace_lifetime.h`, call `comtrace_lifetime_initialize` once during application startup, and call `comtrace_lifetime_shutdown` after all tracked objects have finished emitting events.
+The library assigns each linked module instance a GUID named `InstrumentationId` and includes it in every lifetime event. `ObjectInstanceId` is a counter local to that module instance. The analysis key includes process ID, process generation when known, `InstrumentationId`, and `ObjectInstanceId`, so separate static copies linked into different EXE/DLL modules do not collide. The identifier is generated once per module instance with `CoCreateGuid`; initialization fails if a unique module identifier cannot be created. Include `comtrace_lifetime.h`, call `comtrace_lifetime_initialize` once during application startup, and call `comtrace_lifetime_shutdown` after all tracked objects have finished emitting events.
 
 The five event operations are:
 
@@ -89,7 +89,7 @@ The library does not infer lifetime from RPC call counts, RPCSS endpoint registr
 
 ## Object lifetime analysis in Inspect
 
-Inspect groups the four event types into an object instance keyed by process ID, process generation when resolvable, and `ObjectInstanceId`. Each record keeps the creation and explicit-destruction timestamps, AddRef and Release event counts, the initial and last observed reference-count values, and the observed CLSID/IID. Durations use the ETL trace clock and are shown in milliseconds when its frequency is available; otherwise raw ticks are shown.
+Inspect groups lifetime events into an object instance keyed by process ID, process generation when resolvable, `InstrumentationId` when present, and `ObjectInstanceId`. Older traces without `InstrumentationId` remain readable and retain their legacy key behavior. Each record keeps the creation and explicit-destruction timestamps, AddRef and Release event counts, the initial and last observed reference-count values, and the observed CLSID/IID. Durations use the ETL trace clock and are shown in milliseconds when its frequency is available; otherwise raw ticks are shown.
 
 The relationship graph uses a distinct `COM_LIFETIME_OBJECT` node type. These nodes connect to their owning process generation, CLSID, observed IID, and any captured ETW ActivityId. They are deliberately separate from native OID-based COM object nodes because the application-generated instance ID is not an OID. When an explicit native identity binding is present, the graph adds a `lifetime_object_maps_to_native_object` edge and links any supplied IPID and IID. No such edge is created from heuristic CLSID/IID or timing matches.
 
