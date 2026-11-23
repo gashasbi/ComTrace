@@ -2683,6 +2683,21 @@ static void add_rpc_timeline_event(
         timeline_event.endpoint = endpoint;
     }
 
+    if (timeline_event.phase == COMTRACE_RPC_TIMELINE_PHASE_STOP) {
+        if (comtrace_extract_uint32_property(
+                event_record,
+                L"Status",
+                &timeline_event.status
+            ) == COMTRACE_IDENTITY_SUCCESS ||
+            comtrace_extract_uint32_property(
+                event_record,
+                L"ErrorCode",
+                &timeline_event.status
+            ) == COMTRACE_IDENTITY_SUCCESS) {
+            timeline_event.has_status = TRUE;
+        }
+    }
+
     if (comtrace_rpc_timeline_add_event(
             &context->rpc_timeline,
             &timeline_event
@@ -2870,6 +2885,25 @@ static void link_rpc_records_to_com_operations(ETL_INSPECT_CONTEXT *context)
     }
 }
 
+static const wchar_t *rpc_record_outcome(
+    const COMTRACE_RPC_TIMELINE_RECORD *record
+)
+{
+    if (record->has_start && !record->has_stop) {
+        return L"incomplete_start";
+    }
+    if (!record->has_start && record->has_stop) {
+        return L"unmatched_stop";
+    }
+    if (record->invalid_duration_order) {
+        return L"invalid_duration";
+    }
+    if (record->has_status) {
+        return record->status_is_failure ? L"failed" : L"success";
+    }
+    return L"status_unknown";
+}
+
 static void print_rpc_timeline_summary(
     const ETL_INSPECT_CONTEXT *context
 )
@@ -2880,6 +2914,12 @@ static void print_rpc_timeline_summary(
     ULONGLONG matched_by_activity_id = 0ULL;
     ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete_starts = 0ULL;
+    ULONGLONG failed_calls = 0ULL;
+    ULONGLONG status_unknown_calls = 0ULL;
+    ULONGLONG linked_endpoints = 0ULL;
+    ULONGLONG ambiguous_endpoints = 0ULL;
+    ULONGLONG linked_com_operations = 0ULL;
+    ULONGLONG ambiguous_com_operations = 0ULL;
 
     if (context == NULL) {
         return;
@@ -2906,8 +2946,25 @@ static void print_rpc_timeline_summary(
             } else if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
                 ++matched_by_process_thread;
             }
+            if (record->status_is_failure) {
+                ++failed_calls;
+            } else if (!record->has_status) {
+                ++status_unknown_calls;
+            }
         } else if (record->has_start) {
             ++incomplete_starts;
+        }
+        if (record->has_endpoint_registration) {
+            ++linked_endpoints;
+        }
+        if (record->endpoint_match_ambiguous) {
+            ++ambiguous_endpoints;
+        }
+        if (record->has_com_operation) {
+            ++linked_com_operations;
+        }
+        if (record->com_operation_match_ambiguous) {
+            ++ambiguous_com_operations;
         }
     }
 
@@ -2922,6 +2979,14 @@ static void print_rpc_timeline_summary(
         (unsigned long long)context->rpc_timeline.correlated_client_server_calls);
     wprintf(L"  Ambiguous client/server candidates: %llu\n",
         (unsigned long long)context->rpc_timeline.ambiguous_client_server_calls);
+    wprintf(L"  Failed RPC calls: %llu\n", (unsigned long long)failed_calls);
+    wprintf(L"  RPC calls without status: %llu\n", (unsigned long long)status_unknown_calls);
+    wprintf(L"  Invalid duration timestamp orders: %llu\n",
+        (unsigned long long)context->rpc_timeline.invalid_duration_orders);
+    wprintf(L"  Linked RPCSS endpoints: %llu\n", (unsigned long long)linked_endpoints);
+    wprintf(L"  Ambiguous RPCSS endpoint links: %llu\n", (unsigned long long)ambiguous_endpoints);
+    wprintf(L"  Linked COM operations: %llu\n", (unsigned long long)linked_com_operations);
+    wprintf(L"  Ambiguous COM operation links: %llu\n", (unsigned long long)ambiguous_com_operations);
 
     for (index = 0U; index < count && index < 100U; ++index) {
         const COMTRACE_RPC_TIMELINE_RECORD *record =
@@ -2956,6 +3021,21 @@ static void print_rpc_timeline_summary(
         }
         if (record->has_duration) {
             wprintf(L" duration_ticks=%llu", (unsigned long long)record->duration_ticks);
+            if (context->trace_frequency != 0ULL) {
+                wprintf(L" duration_ms=%.3f",
+                    (double)record->duration_ticks * 1000.0 /
+                    (double)context->trace_frequency);
+            }
+        }
+        if (record->invalid_duration_order) {
+            wprintf(L" duration=invalid_timestamp_order");
+        }
+        if (record->has_status) {
+            wprintf(L" status=0x%08lX outcome=%ls",
+                (unsigned long)record->status,
+                rpc_record_outcome(record));
+        } else {
+            wprintf(L" outcome=%ls", rpc_record_outcome(record));
         }
         if (record->has_interface_uuid) {
             wprintf(L" interface_uuid=");
