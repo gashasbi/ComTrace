@@ -167,7 +167,7 @@ static int records_can_correlate(
          left->transaction_type != right->transaction_type) ||
         (left->format != 0U && right->format != 0U &&
          left->format != right->format) ||
-        (left->item[0] != L'\\0' && right->item[0] != L'\\0' &&
+        (left->item[0] != L'\0' && right->item[0] != L'\0' &&
          _wcsicmp(left->item, right->item) != 0)) {
         return 0;
     }
