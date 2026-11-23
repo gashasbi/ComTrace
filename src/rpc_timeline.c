@@ -307,9 +307,15 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
         record->stop_process_id = event->process_id;
         record->stop_thread_id = event->thread_id;
         record->stop_timestamp = event->timestamp;
+        record->has_status = event->has_status;
+        record->status = event->status;
+        record->status_is_failure = event->has_status && event->status != 0U;
         if (event->timestamp >= record->start_timestamp) {
             record->duration_ticks = event->timestamp - record->start_timestamp;
             record->has_duration = TRUE;
+        } else {
+            record->invalid_duration_order = TRUE;
+            increment_count(&timeline->invalid_duration_orders);
         }
         if (!record->has_related_activity_id &&
             event->activity_ids != NULL &&
@@ -320,8 +326,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
         }
         if (!record->has_interface_uuid ||
             !record->has_procedure_number ||
-            record->protocol[0] == L'\\0' ||
-            record->endpoint[0] == L'\\0') {
+            record->protocol[0] == L'\0' ||
+            record->endpoint[0] == L'\0') {
             copy_event_metadata(record, event);
         }
 
@@ -362,6 +368,9 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
     record->stop_thread_id = event->thread_id;
     record->stop_timestamp = event->timestamp;
     record->has_stop = TRUE;
+    record->has_status = event->has_status;
+    record->status = event->status;
+    record->status_is_failure = event->has_status && event->status != 0U;
     copy_event_metadata(record, event);
     ++timeline->record_count;
     increment_count(&timeline->unmatched_stops);
