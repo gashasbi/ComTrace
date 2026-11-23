@@ -72,6 +72,7 @@ typedef struct {
     BOOL has_stop;
     BOOL has_duration;
     BOOL invalid_duration_order;
+    BOOL ambiguous_match;
     BOOL has_status;
     ULONG status;
     BOOL status_is_failure;
@@ -112,6 +113,7 @@ typedef struct {
     ULONGLONG correlated_client_server_calls;
     ULONGLONG ambiguous_client_server_calls;
     ULONGLONG invalid_duration_orders;
+    ULONGLONG ambiguous_stops;
 } COMTRACE_RPC_TIMELINE;
 
 void comtrace_rpc_timeline_init(COMTRACE_RPC_TIMELINE *timeline);
