@@ -387,7 +387,7 @@ static int print_utf8_property_value(
             wprintf(L"\\\"");
             break;
         case L'\n':
-            wprintf(L"\\n");
+            wprintf(L"\n");
             break;
         case L'\r':
             wprintf(L"\\r");
