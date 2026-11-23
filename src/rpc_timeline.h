@@ -85,6 +85,12 @@ typedef struct {
     BOOL has_correlated_record;
     size_t correlated_record_index;
     COMTRACE_RPC_CORRELATION_TYPE correlation_type;
+    BOOL has_endpoint_registration;
+    size_t endpoint_record_index;
+    BOOL endpoint_match_ambiguous;
+    BOOL has_com_operation;
+    size_t com_operation_index;
+    BOOL com_operation_match_ambiguous;
 } COMTRACE_RPC_TIMELINE_RECORD;
 
 typedef struct {
