@@ -37,6 +37,35 @@ native signed, unsigned, or floating-point type; integer comparisons preserve
 combine with provider, event ID, process/thread, COM/OLE, CLSID, IID, OID,
 lifetime ID, and Activity ID filters using AND semantics.
 
+## Identity and combined filters
+
+Identity filters use named TDH properties exposed by the event schema; ComTrace
+does not scan arbitrary payload bytes for GUIDs or object identifiers.
+
+- `--clsid` reads `ClassId` or `CLSID`.
+- `--iid` reads `TargetInterface`, `IID`, or `InterfaceId`.
+- `--oid` reads `OID` or `ObjectId`, as a decimal or `0x`-prefixed value.
+- `--activity-id` matches either the event header's ActivityId or its
+  RelatedActivityId.
+- `--lifetime-id` matches the `ObjectInstanceId` emitted by the optional
+  ComTrace COM lifetime instrumentation provider.
+
+An identity filter only matches events whose schema exposes the corresponding
+property. For example, the COM-Perf `COM_ClientSyncCall` and
+`COM_ServerSyncCall` events expose `TargetInterface` as an IID, while a
+CLSID filter cannot match an event that does not carry a named CLSID property.
+Missing identity fields are not inferred from unrelated identifiers.
+
+All supplied filters are combined with AND semantics. For example:
+
+```cmd
+ComTrace.exe --search trace.etl --clsid {GUID} --iid {GUID} --oid 0x1122334455667788 --activity-id {GUID} --property DisplayName --contains ComTrace
+```
+
+`--max-events` limits only the number of event samples printed. The full trace
+is still scanned, and `Events matching filters` reports the total number of
+matching events regardless of the sample limit.
+
 ## Supported scalar values
 
 The property can be a top-level scalar, an indexed element of a top-level
