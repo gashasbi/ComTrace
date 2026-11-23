@@ -2779,6 +2779,8 @@ static const wchar_t *rpc_timeline_match_name(
     switch (match_type) {
     case COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID:
         return L"ActivityId";
+    case COMTRACE_RPC_TIMELINE_MATCH_RELATED_ACTIVITY_ID:
+        return L"RelatedActivityId";
     case COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD:
         return L"process_thread_operation";
     default:
@@ -2924,6 +2926,7 @@ static void print_rpc_timeline_summary(
     size_t index;
     ULONGLONG matched = 0ULL;
     ULONGLONG matched_by_activity_id = 0ULL;
+    ULONGLONG matched_by_related_activity_id = 0ULL;
     ULONGLONG matched_by_process_thread = 0ULL;
     ULONGLONG incomplete_starts = 0ULL;
     ULONGLONG failed_calls = 0ULL;
@@ -2955,6 +2958,8 @@ static void print_rpc_timeline_summary(
             ++matched;
             if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_ACTIVITY_ID) {
                 ++matched_by_activity_id;
+            } else if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_RELATED_ACTIVITY_ID) {
+                ++matched_by_related_activity_id;
             } else if (record->match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
                 ++matched_by_process_thread;
             }
@@ -2983,6 +2988,7 @@ static void print_rpc_timeline_summary(
     wprintf(L"  RPC timeline records: %llu\n", (unsigned long long)count);
     wprintf(L"  Matched RPC calls: %llu\n", (unsigned long long)matched);
     wprintf(L"  Matched by ActivityId: %llu\n", (unsigned long long)matched_by_activity_id);
+    wprintf(L"  Matched by RelatedActivityId: %llu\n", (unsigned long long)matched_by_related_activity_id);
     wprintf(L"  Matched by process/thread/operation: %llu\n", (unsigned long long)matched_by_process_thread);
     wprintf(L"  Incomplete RPC starts: %llu\n", (unsigned long long)incomplete_starts);
     wprintf(L"  Unmatched RPC stops: %llu\n", (unsigned long long)context->rpc_timeline.unmatched_stops);
