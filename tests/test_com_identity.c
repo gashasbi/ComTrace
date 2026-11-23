@@ -508,6 +508,18 @@ static VOID WINAPI identity_event_callback(PEVENT_RECORD event_record)
 
     status = comtrace_extract_uint64_property(
         event_record,
+        L"HexTargetProcessId",
+        &wide_number
+    );
+    if (status != COMTRACE_IDENTITY_SUCCESS ||
+        wide_number != (ULONGLONG)expected_target_process_id) {
+        fwprintf(stderr, L"32-bit hexadecimal identity extraction failed: status=%u value=%llu\\n",
+            (unsigned int)status, (unsigned long long)wide_number);
+        ++context->failures;
+    }
+
+    status = comtrace_extract_uint64_property(
+        event_record,
         L"CallTraceId",
         &wide_number
     );
