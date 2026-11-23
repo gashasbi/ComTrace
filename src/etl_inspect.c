@@ -701,7 +701,7 @@ static void print_event_property_value_element(
                 wprintf(L"\\\"");
                 break;
             case L'\n':
-                wprintf(L"\\n");
+                wprintf(L"\n");
                 break;
             case L'\r':
                 wprintf(L"\\r");
