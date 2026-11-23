@@ -122,58 +122,6 @@ static int print_sid_value(const BYTE *value, ULONG value_size)
     return 1;
 }
 
-static void print_guid(const GUID *guid)
-{
-    wprintf(
-        L"{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-        (unsigned long)guid->Data1,
-        (unsigned int)guid->Data2,
-        (unsigned int)guid->Data3,
-        (unsigned int)guid->Data4[0],
-        (unsigned int)guid->Data4[1],
-        (unsigned int)guid->Data4[2],
-        (unsigned int)guid->Data4[3],
-        (unsigned int)guid->Data4[4],
-        (unsigned int)guid->Data4[5],
-        (unsigned int)guid->Data4[6],
-        (unsigned int)guid->Data4[7]
-    );
-}
-
-static void print_binary_value(const BYTE *value, ULONG value_size)
-{
-    ULONG offset;
-
-    wprintf(L"value=hex:");
-    for (offset = 0U; offset < value_size; ++offset) {
-        wprintf(L"%02x", (unsigned int)value[offset]);
-    }
-    wprintf(L"\n");
-}
-
-static int print_sid_value(const BYTE *value, ULONG value_size)
-{
-    LPWSTR sid_text = NULL;
-    ULONG required_size;
-
-    if (value == NULL ||
-        value_size < 8U ||
-        value[1] > SID_MAX_SUB_AUTHORITIES) {
-        return 0;
-    }
-
-    required_size = GetSidLengthRequired(value[1]);
-    if (required_size > value_size ||
-        !IsValidSid((PSID)value) ||
-        !ConvertSidToStringSidW((PSID)value, &sid_text)) {
-        return 0;
-    }
-
-    wprintf(L"value=%ls\n", sid_text);
-    (void)LocalFree(sid_text);
-    return 1;
-}
-
 static int is_hex_output_type(USHORT out_type)
 {
     return out_type == TDH_OUTTYPE_HEXINT8 ||
@@ -4699,7 +4647,7 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
     print_rpcss_event_classification(owned_event);
     print_com_lifetime_event_classification(owned_event);
     print_ole_event_classification(owned_event);
-    print_event_properties(owned_event, context->pointer_size);
+    comtrace_etl_print_event_properties(owned_event, context->pointer_size);
 
     comtrace_event_record_destroy(owned_record);
 }
