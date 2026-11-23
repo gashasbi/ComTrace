@@ -29,6 +29,9 @@ The top-level `schema_version` field is currently `1`. Consumers should check th
 | `process_lifetimes` | object | Process generations and their observed lifecycle boundaries for each input |
 | `process_lifecycle_summary` | object | Process event counts and decode-failure counts for each input |
 | `timeline` | object | Per-operation timing summaries for each input |
+| `lifetime_summary` | object | Application-instrumented COM object lifetime totals and integrity counters |
+| `object_lifetimes` | object | Full lifetime records for each input trace |
+| `object_lifetime_changes` | array | Added, removed, and changed instrumented lifetime objects |
 
 Each input object contains:
 
@@ -44,6 +47,7 @@ The `summary` object contains numeric totals:
 - `event_types_removed`: event types present only in the left input.
 - `event_types_count_changed`: event types present in both inputs whose event counts differ.
 - `objects_added`, `objects_removed`, and `objects_changed`: COM-object change totals.
+- `lifetime_summary.added`, `lifetime_summary.removed`, and `lifetime_summary.changed`: application-instrumented lifetime-object change totals.
 
 ## Event type changes
 
