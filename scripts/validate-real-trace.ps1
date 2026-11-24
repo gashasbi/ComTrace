@@ -67,10 +67,15 @@ function Invoke-NativeCommand {
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
 
-    $quotedArguments = foreach ($argument in $Arguments) {
-        ConvertTo-NativeArgument $argument
+    if ($Arguments -and $Arguments.Count -gt 0) {
+        $quotedArguments = foreach ($argument in $Arguments) {
+            ConvertTo-NativeArgument $argument
+        }
+        $startInfo.Arguments = [string]::Join(" ", [string[]]$quotedArguments)
     }
-    $startInfo.Arguments = [string]::Join(" ", $quotedArguments)
+    else {
+        $startInfo.Arguments = ""
+    }
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
