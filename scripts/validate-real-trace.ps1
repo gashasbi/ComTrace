@@ -144,6 +144,18 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
 $runId = Get-Date -Format "yyyyMMdd-HHmmss"
+$osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
+$isAdministrator = ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$environmentInfo = [ordered]@{
+    windows_caption = $osInfo.Caption
+    windows_version = $osInfo.Version
+    windows_build = $osInfo.BuildNumber
+    os_architecture = $osInfo.OSArchitecture
+    process_is_64_bit = [Environment]::Is64BitProcess
+    process_architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+    powershell_version = $PSVersionTable.PSVersion.ToString()
+    elevated = $isAdministrator
+}
 $archivePath = Join-Path $OutputDirectory "comtrace-$runId.ctra"
 $inspectPath = Join-Path $OutputDirectory "comtrace-$runId-inspect.txt"
 $searchPath = Join-Path $OutputDirectory "comtrace-$runId-com-search.txt"
@@ -709,6 +721,7 @@ if ($captureNewTrace) {
 
 $summary = [ordered]@{
     result = "PASS"
+    environment = $environmentInfo
     etl_path = $EtlPath
     archive_path = $archivePath
     events = $report.left.events
