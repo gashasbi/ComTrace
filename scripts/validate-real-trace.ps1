@@ -185,7 +185,7 @@ $environmentInfo = [ordered]@{
     windows_build = $osInfo.BuildNumber
     os_architecture = $osInfo.OSArchitecture
     process_is_64_bit = [Environment]::Is64BitProcess
-    process_architecture = "x64"
+    process_architecture = $env:PROCESSOR_ARCHITECTURE
     powershell_version = $PSVersionTable.PSVersion.ToString()
     elevated = $isAdministrator
 }
