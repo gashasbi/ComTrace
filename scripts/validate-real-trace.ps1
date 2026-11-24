@@ -246,7 +246,7 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     }
 
     Write-Host "Generating non-interactive OLE data-object and drop-target activity."
-    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE data-object activity fixture"
+    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE data-object activity fixture" -TimeoutSeconds 60
     Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
 
     if ($oleFixtureOutput -notmatch "OLE IDataObject activity succeeded" -or
