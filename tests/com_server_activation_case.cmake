@@ -16,7 +16,7 @@ file(REMOVE "${TEST_DIR}/com-server-activation.etl")
 execute_process(COMMAND "${CLIENT_EXE}" "${SERVER_DLL}" "${TEST_DIR}/com-server-activation.etl"
     RESULT_VARIABLE client_result OUTPUT_VARIABLE client_output ERROR_VARIABLE client_error TIMEOUT 60)
 if(NOT client_result EQUAL 0)
-    message(FATAL_ERROR "Real COM server activation client failed.")
+    message(FATAL_ERROR "Real COM server activation client failed (exit=${client_result}).\nstdout: ${client_output}\nstderr: ${client_error}")
 endif()
 if(NOT EXISTS "${TEST_DIR}/com-server-activation.etl")
     message(FATAL_ERROR "COM server client did not create an ETL file.")
