@@ -791,6 +791,11 @@ else()
     target_compile_options(ComTraceOleActivityFixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+if(BUILD_TESTING)
+    add_test(NAME comtrace_ole_activity_fixture COMMAND ComTraceOleActivityFixture)
+    set_tests_properties(comtrace_ole_activity_fixture PROPERTIES TIMEOUT 30)
+endif()
+
 set(CPACK_PACKAGE_NAME "ComTrace")
 set(CPACK_PACKAGE_VENDOR "ComTrace")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows ETW COM/OLE trace tools")
