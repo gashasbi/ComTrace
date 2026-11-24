@@ -14,7 +14,9 @@ param(
     [ValidateRange(10, 3600)]
     [int]$CaptureSeconds = 30,
 
-    [switch]$AllowMissingOleEvents
+    [switch]$AllowMissingOleEvents,
+
+    [switch]$InteractiveOleValidation
 )
 
 $ErrorActionPreference = "Stop"
@@ -172,6 +174,10 @@ $summaryPath = Join-Path $OutputDirectory "comtrace-$runId-validation.json"
 $activationCount = 0
 $activationFailures = New-Object 'System.Collections.Generic.List[string]'
 
+if ($InteractiveOleValidation -and (-not [string]::IsNullOrWhiteSpace($EtlPath) -or $AllowMissingOleEvents)) {
+    throw "Interactive OLE validation requires a new capture and cannot be combined with -AllowMissingOleEvents."
+}
+
 if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -260,6 +266,12 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     Write-Host "Generating non-interactive OLE data-object and drop-target activity."
     $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE data-object activity fixture" -TimeoutSeconds 60
     Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
+
+    if ($InteractiveOleValidation) {
+        Write-Host "Perform a real clipboard copy/paste and a real drag-and-drop operation now."
+        Write-Host "Keep both operations within the configured capture window."
+        [void](Read-Host "Press Enter after completing the OLE operations")
+    }
 
     if ($oleFixtureOutput -notmatch "OLE IDataObject activity succeeded" -or
         $oleFixtureOutput -notmatch "OLE drop target registration succeeded") {
