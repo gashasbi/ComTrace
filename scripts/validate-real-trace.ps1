@@ -21,6 +21,36 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-NativeArgument {
+    param([string]$Argument)
+
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $backslashes = 0
+
+    foreach ($character in $Argument.ToCharArray()) {
+        if ($character -eq '\') {
+            $backslashes++
+            continue
+        }
+
+        if ($character -eq '"') {
+            [void]$builder.Append(('\' * (2 * $backslashes + 1)))
+            [void]$builder.Append('"')
+        }
+        else {
+            [void]$builder.Append(('\' * $backslashes))
+            [void]$builder.Append($character)
+        }
+
+        $backslashes = 0
+    }
+
+    [void]$builder.Append(('\' * (2 * $backslashes)))
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
 function Invoke-NativeCommand {
     param(
         [string]$Executable,
@@ -37,9 +67,10 @@ function Invoke-NativeCommand {
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
 
-    foreach ($argument in $Arguments) {
-        [void]$startInfo.ArgumentList.Add($argument)
+    $quotedArguments = foreach ($argument in $Arguments) {
+        ConvertTo-NativeArgument $argument
     }
+    $startInfo.Arguments = [string]::Join(" ", $quotedArguments)
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
@@ -54,7 +85,7 @@ function Invoke-NativeCommand {
         $stderrTask = $process.StandardError.ReadToEndAsync()
 
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $process.Kill($true)
+            $null = & "$env:WINDIR\System32\taskkill.exe" /PID $process.Id /T /F
             $process.WaitForExit()
             $stdout = $stdoutTask.GetAwaiter().GetResult()
             $stderr = $stderrTask.GetAwaiter().GetResult()
@@ -154,7 +185,7 @@ $environmentInfo = [ordered]@{
     windows_build = $osInfo.BuildNumber
     os_architecture = $osInfo.OSArchitecture
     process_is_64_bit = [Environment]::Is64BitProcess
-    process_architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+    process_architecture = "x64"
     powershell_version = $PSVersionTable.PSVersion.ToString()
     elevated = $isAdministrator
 }
