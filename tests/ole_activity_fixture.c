@@ -530,6 +530,9 @@ int main(void)
         return 1;
     }
 
+    puts("OLE fixture: initialized.");
+    fflush(stdout);
+
     data_object = create_data_object();
     if (data_object == NULL) {
         puts("Unable to allocate the OLE data object.");
@@ -543,6 +546,8 @@ int main(void)
     format.tymed = TYMED_HGLOBAL;
 
     ZeroMemory(&medium, sizeof(medium));
+    puts("OLE fixture: reading IDataObject data.");
+    fflush(stdout);
     result = data_object->lpVtbl->GetData(data_object, &format, &medium);
     if (FAILED(result)) {
         printf("IDataObject::GetData failed: 0x%08lx\n", (unsigned long)result);
@@ -550,6 +555,9 @@ int main(void)
     }
 
     ReleaseStgMedium(&medium);
+
+    puts("OLE fixture: IDataObject read succeeded.");
+    fflush(stdout);
 
     drop_target = create_drop_target();
     if (drop_target == NULL) {
@@ -576,12 +584,16 @@ int main(void)
         goto cleanup;
     }
 
+    puts("OLE fixture: registering drop target.");
+    fflush(stdout);
     result = RegisterDragDrop(drop_window, drop_target);
     if (FAILED(result)) {
         printf("RegisterDragDrop failed: 0x%08lx\n", (unsigned long)result);
         goto cleanup;
     }
     drop_registered = TRUE;
+    puts("OLE fixture: drop target registered.");
+    fflush(stdout);
 
     result = RevokeDragDrop(drop_window);
     if (FAILED(result)) {
@@ -589,6 +601,8 @@ int main(void)
         goto cleanup;
     }
     drop_registered = FALSE;
+    puts("OLE fixture: drop target revoked.");
+    fflush(stdout);
 
     exit_code = 0;
 
