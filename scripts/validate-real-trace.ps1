@@ -23,18 +23,58 @@ function Invoke-NativeCommand {
     param(
         [string]$Executable,
         [string[]]$Arguments,
-        [string]$Description
+        [string]$Description,
+        [int]$TimeoutSeconds = 300
     )
 
-    $output = & $Executable @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
-    $text = ($output | Out-String).TrimEnd()
+    Write-Host "[$Description] starting."
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $Executable
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
 
-    if ($exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode.$([Environment]::NewLine)$text"
+    foreach ($argument in $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
     }
 
-    return $text
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    try {
+        if (-not $process.Start()) {
+            throw "$Description could not start."
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill($true)
+            $process.WaitForExit()
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+            $stderr = $stderrTask.GetAwaiter().GetResult()
+            throw "$Description exceeded its $TimeoutSeconds second timeout.$([Environment]::NewLine)$stdout$([Environment]::NewLine)$stderr"
+        }
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        $exitCode = $process.ExitCode
+        $text = "$stdout$stderr".TrimEnd()
+
+        if ($exitCode -ne 0) {
+            throw "$Description failed with exit code $exitCode.$([Environment]::NewLine)$text"
+        }
+
+        Write-Host "[$Description] completed in $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1)) seconds."
+        return $text
+    }
+    finally {
+        $stopwatch.Stop()
+        $process.Dispose()
+    }
 }
 
 function Release-ComObject {
@@ -54,13 +94,17 @@ function Invoke-ComActivation {
 
     $instance = $null
 
+    Write-Host "[COM activation] $ProgId starting."
+
     try {
         $instance = New-Object -ComObject $ProgId
         & $Action $instance
+        Write-Host "[COM activation] $ProgId succeeded."
         return $true
     }
     catch {
         [void]$Failures.Add("$ProgId : $($_.Exception.Message)")
+        Write-Host "[COM activation] $ProgId failed: $($_.Exception.Message)"
         return $false
     }
     finally {
