@@ -26,6 +26,12 @@ jobs:
       - name: Run tests
         run: ctest --preset windows-vs2022-x64-release
 
+      - name: Build Debug
+        run: cmake --build --preset windows-vs2022-x64-debug --parallel
+
+      - name: Run Debug tests
+        run: ctest --preset windows-vs2022-x64-debug
+
       - name: Run large archive stress validation
         timeout-minutes: 20
         shell: pwsh
