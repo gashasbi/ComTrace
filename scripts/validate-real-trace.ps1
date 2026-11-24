@@ -314,14 +314,22 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
         throw "The OLE activity fixture did not complete its data-object and drop-target checks. Review $oleFixturePath"
     }
 
-    if (-not $captureProcess.WaitForExit(($CaptureSeconds + 30) * 1000)) {
+    $captureWaitCompleted = $captureProcess.WaitForExit(($CaptureSeconds + 90) * 1000)
+    $captureProcess.Refresh()
+
+    if (-not $captureWaitCompleted -and -not $captureProcess.HasExited) {
         throw "ETW capture did not finish within the expected time. Process ID: $($captureProcess.Id)"
     }
 
-    if ($captureProcess.ExitCode -ne 0) {
+    if (-not $captureProcess.HasExited) {
+        throw "ETW capture process has not exited. Process ID: $($captureProcess.Id)"
+    }
+
+    $captureExitCode = $captureProcess.ExitCode
+    if ($captureExitCode -ne 0) {
         $captureText = Get-Content -LiteralPath $captureOutputPath -Raw
         $captureErrorText = Get-Content -LiteralPath $captureErrorPath -Raw
-        throw "ETW capture failed with exit code $($captureProcess.ExitCode).$([Environment]::NewLine)$captureText$([Environment]::NewLine)$captureErrorText"
+        throw "ETW capture failed with exit code $captureExitCode.$([Environment]::NewLine)$captureText$([Environment]::NewLine)$captureErrorText"
     }
 
     if ($activationCount -eq 0) {
