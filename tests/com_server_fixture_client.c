@@ -33,7 +33,7 @@ static IUnknownVtbl outer_vtable={outer_query,outer_addref,outer_release};
 static int register_server(const wchar_t *dll)
 {
  HKEY key=NULL; DWORD disp=0U,size; static const wchar_t threading[]=L"Both";
- LONG status=RegCreateKeyExW(HKEY_CURRENT_USER,registry_path,0U,NULL,REG_OPTION_NON_VOLATILE,KEY_SET_VALUE,NULL,&key,&disp);
+ LONG status=RegCreateKeyExW(HKEY_LOCAL_MACHINE,registry_path,0U,NULL,REG_OPTION_NON_VOLATILE,KEY_SET_VALUE,NULL,&key,&disp);
  if(status!=ERROR_SUCCESS)return 0;
  size=(DWORD)((wcslen(dll)+1U)*sizeof(wchar_t));
  status=RegSetValueExW(key,NULL,0U,REG_SZ,(const BYTE*)dll,size);
@@ -43,7 +43,7 @@ static int register_server(const wchar_t *dll)
 static void unregister_server(void)
 {
  static const wchar_t path[]=L"Software\\Classes\\CLSID\\{7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}";
- (void)RegDeleteTreeW(HKEY_CURRENT_USER,path);
+ (void)RegDeleteTreeW(HKEY_LOCAL_MACHINE,path);
 }
 static int start_trace(const wchar_t *etl,TRACEHANDLE *h,EVENT_TRACE_PROPERTIES **out)
 {
@@ -177,7 +177,7 @@ int wmain(int argc,wchar_t **argv)
   fwprintf(stderr,L"Usage: ComTraceComServerClient <server.dll> <output.etl>\n");return EXIT_FAILURE;}
  if(!start_trace(argv[2],&h,&p))goto done;
  if(!register_server(argv[1])){fwprintf(stderr,L"Unable to register the COM class.\n");goto done;}reg=1;
- {HKEY key=NULL;WCHAR registered_dll[MAX_PATH];DWORD type=0U,size=sizeof(registered_dll);LONG rs=RegOpenKeyExW(HKEY_CLASSES_ROOT,L"CLSID\\{7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}\\InprocServer32",0U,KEY_QUERY_VALUE,&key);if(rs!=ERROR_SUCCESS){fwprintf(stderr,L"Registered class is not visible through HKCR (error=%ld).\n",rs);goto done;}rs=RegQueryValueExW(key,NULL,NULL,&type,(BYTE*)registered_dll,&size);(void)RegCloseKey(key);if(rs!=ERROR_SUCCESS||type!=REG_SZ){fwprintf(stderr,L"COM server path query failed (error=%ld, type=%lu).\n",rs,(unsigned long)type);goto done;}if(GetFileAttributesW(registered_dll)==INVALID_FILE_ATTRIBUTES){fwprintf(stderr,L"Registered COM server file is missing: %ls (error=%lu).\n",registered_dll,(unsigned long)GetLastError());goto done;} {HMODULE module=LoadLibraryW(registered_dll);if(module==NULL){fwprintf(stderr,L"Registered COM server could not be loaded: %ls (error=%lu).\n",registered_dll,(unsigned long)GetLastError());goto done;}if(GetProcAddress(module,"DllGetClassObject")==NULL){fwprintf(stderr,L"COM server does not export DllGetClassObject: %ls.\n",registered_dll);(void)FreeLibrary(module);goto done;}(void)FreeLibrary(module);}}
+ {HKEY key=NULL;LONG rs=RegOpenKeyExW(HKEY_CLASSES_ROOT,L"CLSID\\{7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}\\InprocServer32",0U,KEY_QUERY_VALUE,&key);if(rs!=ERROR_SUCCESS){fwprintf(stderr,L"Registered class is not visible through HKCR (error=%ld).\n",rs);goto done;}(void)RegCloseKey(key);}
  {HRESULT s=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(s)){fwprintf(stderr,L"CoInitializeEx failed: 0x%08lX.\n",(unsigned long)s);goto done;}com=1;}
  if(!test_regular()){fwprintf(stderr,L"COM regular activation checks failed.\n");goto done;}
  if(!test_aggregation()){fwprintf(stderr,L"COM aggregation checks failed.\n");goto done;}
