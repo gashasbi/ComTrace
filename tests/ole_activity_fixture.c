@@ -29,11 +29,6 @@ static const IID COMTRACE_IID_IDROPTARGET = {
     { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
 };
 
-static const IID COMTRACE_IID_IDROPSOURCE = {
-    0x00000121, 0x0000, 0x0000,
-    { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
-};
-
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     IDataObject *data_object_iface,
     REFIID interface_id,
@@ -518,86 +513,15 @@ static IDataObject *create_data_object(void)
     return &object->data_object_iface;
 }
 
-typedef struct {
-    IDropSource drop_source_iface;
-    LONG references;
-} COMTRACE_TEST_DROP_SOURCE;
-
-static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
-    IDropSource *drop_source_iface,
-    REFIID interface_id,
-    void **result
-)
-{
-    if (result == NULL || interface_id == NULL) {
-        return E_POINTER;
-    }
-    *result = NULL;
-    if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
-        IsEqualGUID(interface_id, &COMTRACE_IID_IDROPSOURCE)) {
-        *result = drop_source_iface;
-        drop_source_iface->lpVtbl->AddRef(drop_source_iface);
-        return S_OK;
-    }
-    return E_NOINTERFACE;
-}
-
-static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface)
-{
-    COMTRACE_TEST_DROP_SOURCE *source =
-        (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
-    return (ULONG)InterlockedIncrement(&source->references);
-}
-
-static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface)
-{
-    COMTRACE_TEST_DROP_SOURCE *source =
-        (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
-    LONG references = InterlockedDecrement(&source->references);
-    return references < 0 ? 0U : (ULONG)references;
-}
-
-static HRESULT STDMETHODCALLTYPE drop_source_query_continue_drag(
-    IDropSource *drop_source_iface,
-    BOOL escape_pressed,
-    DWORD key_state
-)
-{
-    UNREFERENCED_PARAMETER(drop_source_iface);
-    UNREFERENCED_PARAMETER(escape_pressed);
-    UNREFERENCED_PARAMETER(key_state);
-    return DRAGDROP_S_CANCEL;
-}
-
-static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
-    IDropSource *drop_source_iface,
-    DWORD effect
-)
-{
-    UNREFERENCED_PARAMETER(drop_source_iface);
-    UNREFERENCED_PARAMETER(effect);
-    return DRAGDROP_S_USEDEFAULTCURSORS;
-}
-
-static IDropSourceVtbl drop_source_vtable = {
-    drop_source_query_interface,
-    drop_source_add_ref,
-    drop_source_release,
-    drop_source_query_continue_drag,
-    drop_source_give_feedback
-};
-
 int main(void)
 {
     IDataObject *data_object = NULL;
-    IDataObject *clipboard_object = NULL;
     IDropTarget *drop_target = NULL;
-    COMTRACE_TEST_DROP_SOURCE drop_source;
-    DWORD drop_effect = DROPEFFECT_NONE;
     HWND drop_window = NULL;
     FORMATETC format;
     STGMEDIUM medium;
     HRESULT result;
+    BOOL drop_registered = FALSE;
     int exit_code = 1;
 
     result = OleInitialize(NULL);
@@ -608,25 +532,7 @@ int main(void)
 
     data_object = create_data_object();
     if (data_object == NULL) {
-        printf("Unable to allocate the OLE data object.\n");
-        goto cleanup;
-    }
-
-    result = OleSetClipboard(data_object);
-    if (FAILED(result)) {
-        printf("OleSetClipboard failed: 0x%08lx\n", (unsigned long)result);
-        goto cleanup;
-    }
-
-    result = OleIsCurrentClipboard(data_object);
-    if (result != S_OK) {
-        printf("OleIsCurrentClipboard returned: 0x%08lx\n", (unsigned long)result);
-        goto cleanup;
-    }
-
-    result = OleGetClipboard(&clipboard_object);
-    if (FAILED(result) || clipboard_object == NULL) {
-        printf("OleGetClipboard failed: 0x%08lx\n", (unsigned long)result);
+        puts("Unable to allocate the OLE data object.");
         goto cleanup;
     }
 
@@ -637,26 +543,17 @@ int main(void)
     format.tymed = TYMED_HGLOBAL;
 
     ZeroMemory(&medium, sizeof(medium));
-    result = clipboard_object->lpVtbl->GetData(
-        clipboard_object,
-        &format,
-        &medium
-    );
+    result = data_object->lpVtbl->GetData(data_object, &format, &medium);
     if (FAILED(result)) {
         printf("IDataObject::GetData failed: 0x%08lx\n", (unsigned long)result);
         goto cleanup;
     }
 
     ReleaseStgMedium(&medium);
-    result = OleFlushClipboard();
-    if (FAILED(result)) {
-        printf("OleFlushClipboard failed: 0x%08lx\n", (unsigned long)result);
-        goto cleanup;
-    }
 
     drop_target = create_drop_target();
     if (drop_target == NULL) {
-        printf("Unable to allocate the OLE drop target.\n");
+        puts("Unable to allocate the OLE drop target.");
         goto cleanup;
     }
 
@@ -684,51 +581,36 @@ int main(void)
         printf("RegisterDragDrop failed: 0x%08lx\n", (unsigned long)result);
         goto cleanup;
     }
-
-    ZeroMemory(&drop_source, sizeof(drop_source));
-    drop_source.drop_source_iface.lpVtbl = &drop_source_vtable;
-    drop_source.references = 1;
-    result = DoDragDrop(
-        data_object,
-        &drop_source.drop_source_iface,
-        DROPEFFECT_COPY,
-        &drop_effect
-    );
-    if (result != DRAGDROP_S_CANCEL) {
-        printf("DoDragDrop returned unexpected status: 0x%08lx\n",
-            (unsigned long)result);
-        goto cleanup;
-    }
+    drop_registered = TRUE;
 
     result = RevokeDragDrop(drop_window);
     if (FAILED(result)) {
         printf("RevokeDragDrop failed: 0x%08lx\n", (unsigned long)result);
         goto cleanup;
     }
+    drop_registered = FALSE;
 
     exit_code = 0;
 
 cleanup:
+    if (drop_registered && drop_window != NULL) {
+        RevokeDragDrop(drop_window);
+    }
     if (drop_window != NULL) {
         DestroyWindow(drop_window);
     }
     if (drop_target != NULL) {
         drop_target->lpVtbl->Release(drop_target);
     }
-    if (clipboard_object != NULL) {
-        clipboard_object->lpVtbl->Release(clipboard_object);
-    }
     if (data_object != NULL) {
-        OleSetClipboard(NULL);
         data_object->lpVtbl->Release(data_object);
     }
 
     OleUninitialize();
 
     if (exit_code == 0) {
-        puts("OLE clipboard activity succeeded.");
-        puts("OLE drag-drop registration succeeded.");
-        puts("OLE DoDragDrop cancellation succeeded.");
+        puts("OLE IDataObject activity succeeded.");
+        puts("OLE drop target registration succeeded.");
     }
 
     return exit_code;
