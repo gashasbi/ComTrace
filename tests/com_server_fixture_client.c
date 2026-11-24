@@ -73,38 +73,44 @@ static int stop_trace(TRACEHANDLE h,EVENT_TRACE_PROPERTIES *p)
 }
 static int test_regular(void)
 {
- IClassFactory *factory=NULL;
- COMTRACE_PRIMARY *a=NULL;
- COMTRACE_SECONDARY *b=NULL;
- IUnknown *ia=NULL;
- IUnknown *ib=NULL;
- LONG v=0;
- BOOL server_locked=FALSE;
- int ok=0;
-
- if(FAILED(CoGetClassObject(
-        &COMTRACE_FIXTURE_CLSID,
-        CLSCTX_INPROC_SERVER,
-        NULL,
-        &IID_IClassFactory,
-        (void**)&factory)))goto done;
- if(FAILED(factory->lpVtbl->LockServer(factory,TRUE)))goto done;
+ IClassFactory *factory=NULL; COMTRACE_PRIMARY *a=NULL; COMTRACE_SECONDARY *b=NULL;
+ IUnknown *ia=NULL,*ib=NULL; LONG v=0; BOOL server_locked=FALSE; int ok=0;
+ HRESULT hr=S_OK; const wchar_t *step=L"CoGetClassObject";
+ hr=CoGetClassObject(&COMTRACE_FIXTURE_CLSID,CLSCTX_INPROC_SERVER,NULL,&IID_IClassFactory,(void**)&factory);
+ if(FAILED(hr))goto failed;
+ step=L"IClassFactory::LockServer(TRUE)";
+ hr=factory->lpVtbl->LockServer(factory,TRUE);
+ if(FAILED(hr))goto failed;
  server_locked=TRUE;
- if(FAILED(factory->lpVtbl->CreateInstance(
-        factory,
-        NULL,
-        &COMTRACE_FIXTURE_IID_PRIMARY,
-        (void**)&a)))goto done;
- if(FAILED(a->lpVtbl->SetValue(a,40))||
-    FAILED(a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b))||
-    FAILED(b->lpVtbl->AddToValue(b,2))||
-    FAILED(a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia))||
-    FAILED(b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib))||
-    ia!=ib||
-    FAILED(a->lpVtbl->GetValue(a,&v))||
-    v!=42)goto done;
+ step=L"IClassFactory::CreateInstance";
+ hr=factory->lpVtbl->CreateInstance(factory,NULL,&COMTRACE_FIXTURE_IID_PRIMARY,(void**)&a);
+ if(FAILED(hr))goto failed;
+ step=L"primary SetValue";
+ hr=a->lpVtbl->SetValue(a,40);
+ if(FAILED(hr))goto failed;
+ step=L"primary QueryInterface secondary";
+ hr=a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b);
+ if(FAILED(hr))goto failed;
+ step=L"secondary AddToValue";
+ hr=b->lpVtbl->AddToValue(b,2);
+ if(FAILED(hr))goto failed;
+ step=L"primary QueryInterface IUnknown";
+ hr=a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia);
+ if(FAILED(hr))goto failed;
+ step=L"secondary QueryInterface IUnknown";
+ hr=b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib);
+ if(FAILED(hr))goto failed;
+ step=L"IUnknown identity comparison";
+ if(ia!=ib){hr=E_FAIL;goto failed;}
+ step=L"primary GetValue";
+ hr=a->lpVtbl->GetValue(a,&v);
+ if(FAILED(hr))goto failed;
+ step=L"primary value verification";
+ if(v!=42){hr=E_FAIL;goto failed;}
  ok=1;
-
+ goto done;
+failed:
+ fwprintf(stderr,L"Regular COM activation failed at %ls (HRESULT=0x%08lX).\n",step,(unsigned long)hr);
 done:
  if(ib)(void)ib->lpVtbl->Release(ib);
  if(ia)(void)ia->lpVtbl->Release(ia);
@@ -116,21 +122,50 @@ done:
 }
 static int test_aggregation(void)
 {
- FIXTURE_OUTER o;IUnknown *inner=NULL,*ia=NULL,*ib=NULL;COMTRACE_PRIMARY *a=NULL;COMTRACE_SECONDARY *b=NULL;LONG v=0;int ok=0;
+ FIXTURE_OUTER o; IUnknown *inner=NULL,*ia=NULL,*ib=NULL;
+ COMTRACE_PRIMARY *a=NULL; COMTRACE_SECONDARY *b=NULL; LONG v=0; int ok=0;
+ HRESULT hr=S_OK; const wchar_t *step=L"CoCreateInstance aggregation";
  ZeroMemory(&o,sizeof(o));o.iface.lpVtbl=&outer_vtable;o.refs=1;
- if(FAILED(CoCreateInstance(&COMTRACE_FIXTURE_CLSID,&o.iface,CLSCTX_INPROC_SERVER,&IID_IUnknown,(void**)&inner)))goto done;
+ hr=CoCreateInstance(&COMTRACE_FIXTURE_CLSID,&o.iface,CLSCTX_INPROC_SERVER,&IID_IUnknown,(void**)&inner);
+ if(FAILED(hr))goto failed;
  o.inner=inner;
- if(FAILED(o.iface.lpVtbl->QueryInterface(&o.iface,&COMTRACE_FIXTURE_IID_PRIMARY,(void**)&a))||
-    FAILED(a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b))||
-    FAILED(a->lpVtbl->SetValue(a,70))||FAILED(b->lpVtbl->AddToValue(b,5))||
-    FAILED(a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia))||
-    FAILED(b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib))||
-    ia!=&o.iface||ib!=&o.iface||FAILED(a->lpVtbl->GetValue(a,&v))||v!=75||o.refs<5)goto done;
+ step=L"outer QueryInterface primary";
+ hr=o.iface.lpVtbl->QueryInterface(&o.iface,&COMTRACE_FIXTURE_IID_PRIMARY,(void**)&a);
+ if(FAILED(hr))goto failed;
+ step=L"primary QueryInterface secondary";
+ hr=a->lpVtbl->QueryInterface(a,&COMTRACE_FIXTURE_IID_SECONDARY,(void**)&b);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated primary SetValue";
+ hr=a->lpVtbl->SetValue(a,70);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated secondary AddToValue";
+ hr=b->lpVtbl->AddToValue(b,5);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated primary QueryInterface IUnknown";
+ hr=a->lpVtbl->QueryInterface(a,&IID_IUnknown,(void**)&ia);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated secondary QueryInterface IUnknown";
+ hr=b->lpVtbl->QueryInterface(b,&IID_IUnknown,(void**)&ib);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated IUnknown identity comparison";
+ if(ia!=&o.iface||ib!=&o.iface){hr=E_FAIL;goto failed;}
+ step=L"aggregated GetValue";
+ hr=a->lpVtbl->GetValue(a,&v);
+ if(FAILED(hr))goto failed;
+ step=L"aggregated value verification";
+ if(v!=75){hr=E_FAIL;goto failed;}
+ step=L"aggregated reference count verification";
+ if(o.refs<5){hr=E_FAIL;goto failed;}
  ok=1;
+ goto done;
+failed:
+ fwprintf(stderr,L"COM aggregation failed at %ls (HRESULT=0x%08lX, outer refs=%ld, value=%ld).\n",step,(unsigned long)hr,o.refs,v);
 done:
- if(ib)(void)ib->lpVtbl->Release(ib);if(ia)(void)ia->lpVtbl->Release(ia);
- if(b)(void)b->lpVtbl->Release(b);if(a)(void)a->lpVtbl->Release(a);
- if(inner){if(o.refs!=1){fwprintf(stderr,L"Aggregated outer references were not balanced.\n");ok=0;}
+ if(ib)(void)ib->lpVtbl->Release(ib);
+ if(ia)(void)ia->lpVtbl->Release(ia);
+ if(b)(void)b->lpVtbl->Release(b);
+ if(a)(void)a->lpVtbl->Release(a);
+ if(inner){if(o.refs!=1){fwprintf(stderr,L"Aggregated outer references were not balanced (refs=%ld).\n",o.refs);ok=0;}
   (void)inner->lpVtbl->Release(inner);o.inner=NULL;}
  if(o.refs!=0)(void)o.iface.lpVtbl->Release(&o.iface);
  return ok;
@@ -142,8 +177,9 @@ int wmain(int argc,wchar_t **argv)
   fwprintf(stderr,L"Usage: ComTraceComServerClient <server.dll> <output.etl>\n");return EXIT_FAILURE;}
  if(!start_trace(argv[2],&h,&p))goto done;
  if(!register_server(argv[1])){fwprintf(stderr,L"Unable to register the COM class.\n");goto done;}reg=1;
- {HRESULT s=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(s)){fwprintf(stderr,L"CoInitializeEx failed.\n");goto done;}com=1;}
- if(!test_regular()||!test_aggregation()){fwprintf(stderr,L"COM activation fixture checks failed.\n");goto done;}
+ {HRESULT s=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(s)){fwprintf(stderr,L"CoInitializeEx failed: 0x%08lX.\n",(unsigned long)s);goto done;}com=1;}
+ if(!test_regular()){fwprintf(stderr,L"COM regular activation checks failed.\n");goto done;}
+ if(!test_aggregation()){fwprintf(stderr,L"COM aggregation checks failed.\n");goto done;}
  CoFreeUnusedLibraries();result=EXIT_SUCCESS;
 done:
  if(com)CoUninitialize();if(reg)unregister_server();
