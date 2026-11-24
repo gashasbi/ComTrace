@@ -21,7 +21,7 @@ cmake --build --preset windows-vs2022-x64-release
 ctest --preset windows-vs2022-x64-release
 ```
 
-For Debug, replace `release` with `debug`. Open `out\build\windows-vs2022-x64\ComTrace.sln` to work in Visual Studio.
+For Debug, replace `release` with `debug`. Open `out\build\windows-vs2022-x64\ComTrace.sln` to work in Visual Studio. The CI workflow builds and runs the test suite in both Release and Debug configurations on Windows Server 2022 x64.
 
 ### VS Code / Ninja
 
@@ -98,6 +98,10 @@ ComTraceArchive.exe --version
 The first command converts an ETL trace to the CTRA archive format. New archives use **CTRA version 2** and store a CRC-32 checksum over every byte before the checksum field, including the file header, event records, and footer metadata. `--inspect` validates the archive checksum and reports its event and trace-footer statistics. The reader remains backward-compatible with **CTRA version 1** archives, which do not contain a checksum. CRC32 detects accidental corruption; it is not a cryptographic signature or authenticity guarantee. The complete byte layout, validation rules, and version compatibility details are documented in [CTRA_FORMAT.md](docs/CTRA_FORMAT.md). Streaming behavior, benchmark commands, and the optional greater-than-4-GiB stress workload are documented in [ARCHIVE_PERFORMANCE.md](docs/ARCHIVE_PERFORMANCE.md).
 
 `--recover` scans recoverable records and reports the recovered count, stopping offset, and stop reason. When a version 2 checksum is invalid, recovery preserves the records that could be read but reports `checksum invalid` and does not mark the archive as complete. Recovery mode is a read-only scan; it does not write a replacement archive.
+
+## Supported platforms
+
+The current supported release target is Windows 10/11 x64. Windows Server 2022 x64 is used for automated CI. Windows 10 and Windows 11 client builds require separate manual validation before release; x86 and ARM64 are not currently supported release targets. See [the platform and architecture matrix](docs/REAL_TRACE_VALIDATION.md#platform-and-architecture-matrix) for the required checks.
 
 ## Real ETL validation
 
