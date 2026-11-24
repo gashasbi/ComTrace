@@ -21,6 +21,49 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 
 ```
 
 
+## Interactive OLE lifecycle validation
+
+The automated fixture is intentionally headless-safe. It does not generate a real system clipboard operation or execute `DoDragDrop`. Use the interactive mode below on a logged-in Windows desktop to validate those provider events.
+
+Open **64-bit PowerShell as Administrator** in the repository directory. Build Release first, then run:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 -ComTraceExe .\out\build\windows-vs2022-x64\Release\ComTrace.exe -ComTraceArchiveExe .\out\build\windows-vs2022-x64\Release\ComTraceArchive.exe -CaptureSeconds 180 -InteractiveOleValidation
+```
+
+When the script prompts, use a real application to copy and paste content, then perform a real drag-and-drop operation. Return to PowerShell and press Enter before the 180-second capture ends. Do not pass `-AllowMissingOleEvents`; interactive validation must fail if the required OLE lifecycle events and matched start/stop operations are absent. The JSON summary records the Windows edition, version, build, OS architecture, PowerShell version, process architecture, and whether the shell was elevated.
+
+If the desktop is remote, make sure the interactive session remains logged in and unlocked while the test runs. Clipboard redirection from Remote Desktop can change which machine owns the clipboard; perform the operation inside the Windows session being traced.
+
+## Platform and architecture matrix
+
+The supported build and release target is Windows x64. The regular GitHub Actions workflow currently validates Release and Debug configurations on a Windows Server 2022 x64 runner. This is useful Windows CI coverage, but it is not a substitute for testing on client editions of Windows.
+
+Run the following manual matrix before a production release and attach each validation JSON summary to the release checklist:
+
+| Environment | Build | Automated tests | Real COM capture | Interactive OLE |
+|---|---|---|---|---|
+| Windows 10 x64 | Release and Debug | Required | Required | Required |
+| Windows 11 x64 | Release and Debug | Required | Required | Required |
+| Windows Server 2022 x64 | Release and Debug | Required (CI) | Required (CI) | Required on an interactive server session |
+| x86 or ARM64 | Not a supported release target | Not currently validated | Not currently validated | Not currently validated |
+
+For each client OS, record the exact Windows build from the validation JSON. If a required OS image or interactive desktop is unavailable, leave that matrix cell unverified rather than treating a different Windows runner as equivalent. The x86 and ARM64 targets remain outside the current supported release scope; do not advertise them until dedicated configure, build, test, and real-trace runs pass.
+
+## Repeated-run and resource checks
+
+After one successful interactive trace validation, repeat capture and archive conversion several times on each target Windows build. Use a new output directory for each run so the ETL, CTRA, and reports are retained:
+
+```powershell
+1..5 | ForEach-Object {
+    $output = ".\validation-run-$_"
+    pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-real-trace.ps1 -ComTraceExe .\out\build\windows-vs2022-x64\Release\ComTrace.exe -ComTraceArchiveExe .\out\build\windows-vs2022-x64\Release\ComTraceArchive.exe -CaptureSeconds 30 -OutputDirectory $output
+    if ($LASTEXITCODE -ne 0) { throw "Validation run $_ failed." }
+}
+```
+
+Check that each run exits normally, the ETW session is stopped, all archive checksums pass, and no temporary files or trace sessions accumulate. For native heap and handle leak investigation, run the Release executables under Windows Application Verifier or an equivalent native diagnostic tool; CTest failure-path coverage and repeated successful runs are useful regression checks, but they are not a proof that no leak exists.
+
 ## Validate an existing ETL
 
 An existing ETL can be checked without starting an ETW session or running as Administrator:
