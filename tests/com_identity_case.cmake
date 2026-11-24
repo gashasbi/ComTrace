@@ -387,7 +387,7 @@ endforeach()
 set(JSON_FILE "${TEST_DIR}/comparison.json")
 file(WRITE "${JSON_FILE}" "${json_output}")
 execute_process(
-    COMMAND pwsh -NoProfile -Command "Get-Content -Raw -LiteralPath '${JSON_FILE}' | ConvertFrom-Json | Out-Null"
+    COMMAND powershell.exe -NoProfile -NonInteractive -Command "Get-Content -Raw -LiteralPath '${JSON_FILE}' | ConvertFrom-Json | Out-Null"
     RESULT_VARIABLE json_parse_status
     OUTPUT_VARIABLE json_parse_output
     ERROR_VARIABLE json_parse_error
