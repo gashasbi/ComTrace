@@ -177,6 +177,7 @@ int wmain(int argc,wchar_t **argv)
   fwprintf(stderr,L"Usage: ComTraceComServerClient <server.dll> <output.etl>\n");return EXIT_FAILURE;}
  if(!start_trace(argv[2],&h,&p))goto done;
  if(!register_server(argv[1])){fwprintf(stderr,L"Unable to register the COM class.\n");goto done;}reg=1;
+ {HKEY key=NULL;LONG rs=RegOpenKeyExW(HKEY_CLASSES_ROOT,L"CLSID\\{7A2C9E41-6D53-4F80-9125-384B5C6D7E8F}\\InprocServer32",0U,KEY_QUERY_VALUE,&key);if(rs!=ERROR_SUCCESS){fwprintf(stderr,L"Registered class is not visible through HKCR (error=%ld).\\n",rs);goto done;}(void)RegCloseKey(key);}
  {HRESULT s=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(s)){fwprintf(stderr,L"CoInitializeEx failed: 0x%08lX.\n",(unsigned long)s);goto done;}com=1;}
  if(!test_regular()){fwprintf(stderr,L"COM regular activation checks failed.\n");goto done;}
  if(!test_aggregation()){fwprintf(stderr,L"COM aggregation checks failed.\n");goto done;}
