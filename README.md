@@ -101,7 +101,7 @@ The first command converts an ETL trace to the CTRA archive format. New archives
 
 ## Supported platforms
 
-The current supported release target is Windows 10/11 x64. Windows Server 2022 x64 is used for automated CI. Windows 10 and Windows 11 client builds require separate manual validation before release; x86 and ARM64 are not currently supported release targets. See [the platform and architecture matrix](docs/REAL_TRACE_VALIDATION.md#platform-and-architecture-matrix) for the required checks.
+The current supported release target is Windows 10/11 x64. Windows Server 2022 x64 is used for automated CI. Windows 10 and Windows 11 client builds require separate manual validation before release; x86 and ARM64 are not currently supported release targets. See [the platform and architecture matrix](docs/REAL_TRACE_VALIDATION.md#platform-and-architecture-matrix) for the required checks. The full release gates are tracked in [RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Real ETL validation
 
