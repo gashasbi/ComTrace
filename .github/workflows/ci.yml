@@ -79,6 +79,7 @@ jobs:
           }
 
       - name: Validate real COM and OLE ETL and CTRA round trip
+        timeout-minutes: 15
         shell: pwsh
         run: |
           $comTrace = Join-Path $env:GITHUB_WORKSPACE 'out/build/windows-vs2022-x64/Release/ComTrace.exe'
