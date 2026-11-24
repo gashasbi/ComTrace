@@ -511,7 +511,12 @@ if(BUILD_TESTING)
     else()
         target_compile_options(ComTraceArchiveEtlTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
-    add_test(NAME comtrace_archive_etl COMMAND ComTraceArchiveEtlTests)
+    add_test(
+        NAME comtrace_archive_etl
+        COMMAND "${CMAKE_COMMAND}"
+            "-DTEST_EXE=$<TARGET_FILE:ComTraceArchiveEtlTests>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/archive_etl_case.cmake"
+    )
 
     add_executable(ComTraceArchiveReaderTests
         tests/test_archive_reader.c
@@ -721,6 +726,19 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/dynamic_cli_case.cmake"
     )
     set_tests_properties(comtrace_inspect_dynamic_properties PROPERTIES RUN_SERIAL TRUE)
+    set_tests_properties(
+        comtrace_com_lifetime_capture
+        comtrace_com_server_activation
+        comtrace_lifetime_compare
+        comtrace_dde_instrumentation
+        comtrace_archive_etl
+        comtrace_inspect_fixed_array
+        comtrace_inspect_struct
+        comtrace_com_identity
+        comtrace_inspect_dynamic_properties
+        PROPERTIES
+        SKIP_REGULAR_EXPRESSION "SKIP: elevated privileges required"
+    )
     add_test(NAME comtrace_smoke COMMAND ComTrace --self-test)
     add_test(NAME comtrace_version COMMAND ComTrace --version)
     add_test(NAME comtrace_provider_inventory COMMAND ComTrace --providers)
