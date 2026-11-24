@@ -86,42 +86,6 @@ static void print_guid(const GUID *guid)
     );
 }
 
-static void print_binary_value(const BYTE *value, ULONG value_size)
-{
-    ULONG offset;
-
-    wprintf(L"value=hex:");
-    for (offset = 0U; offset < value_size; ++offset) {
-        wprintf(L"%02x", (unsigned int)value[offset]);
-    }
-    wprintf(L"\n");
-}
-
-
-
-static int print_sid_value(const BYTE *value, ULONG value_size)
-{
-    LPWSTR sid_text = NULL;
-    ULONG required_size;
-
-    if (value == NULL ||
-        value_size < 8U ||
-        value[1] > SID_MAX_SUB_AUTHORITIES) {
-        return 0;
-    }
-
-    required_size = GetSidLengthRequired(value[1]);
-    if (required_size > value_size ||
-        !IsValidSid((PSID)value) ||
-        !ConvertSidToStringSidW((PSID)value, &sid_text)) {
-        return 0;
-    }
-
-    wprintf(L"value=%ls\n", sid_text);
-    (void)LocalFree(sid_text);
-    return 1;
-}
-
 static int is_hex_output_type(USHORT out_type)
 {
     return out_type == TDH_OUTTYPE_HEXINT8 ||
