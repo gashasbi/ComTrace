@@ -510,9 +510,10 @@ $oleDataObjectPropertyCount = [regex]::Matches(
     "(?im)^\s*property\[\d+\] name=[^\r\n]*DataObject"
 ).Count
 
-if ($oleEventCount -eq 0 -and $AllowMissingOleEvents) {
+if (($oleEventCount -eq 0 -or
+     ($oleClipboardOperations -eq 0 -and $oleDragDropOperations -eq 0)) -and $AllowMissingOleEvents) {
     $oleValidationStatus = "NOT_EMITTED"
-    Write-Warning "The OLE-Perf provider emitted no events on this Windows environment. OLE unit tests remain enabled."
+    Write-Warning "The OLE-Perf provider emitted no clipboard or drag-and-drop lifecycle events on this Windows environment. OLE unit tests remain enabled."
 } elseif ($oleEventCount -eq 0 -or
           ($oleClipboardOperations -eq 0 -and $oleDragDropOperations -eq 0) -or
           $oleTimelineMatched -eq 0) {
