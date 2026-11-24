@@ -1,3 +1,10 @@
+include("${CMAKE_CURRENT_LIST_DIR}/require_admin.cmake")
+comtrace_check_admin(COMTRACE_IS_ADMIN)
+if(NOT COMTRACE_IS_ADMIN)
+    message("SKIP: elevated privileges required")
+    return()
+endif()
+
 if(NOT DEFINED FIXTURE_EXE OR NOT DEFINED TEST_EXE OR NOT DEFINED COMTRACE_EXE OR NOT DEFINED COMTRACE_ARCHIVE_EXE OR NOT DEFINED MANIFEST_FILE OR NOT DEFINED TEST_DIR)
     message(FATAL_ERROR "Missing test arguments.")
 endif()
