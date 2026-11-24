@@ -444,7 +444,7 @@ int comtrace_capture_com_perf(
     properties->BufferSize = 64U;
     properties->MinimumBuffers = 4U;
     properties->MaximumBuffers = 16U;
-    properties->MaximumFileSize = 64U;
+    properties->MaximumFileSize = 0U;
     properties->LogFileMode =
         EVENT_TRACE_FILE_MODE_SEQUENTIAL | EVENT_TRACE_SYSTEM_LOGGER_MODE;
     properties->EnableFlags = EVENT_TRACE_FLAG_PROCESS;
