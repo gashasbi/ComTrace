@@ -245,15 +245,13 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
         }
     }
 
-    Write-Host "Generating OLE clipboard and drag-drop registration activity."
-    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE clipboard activity fixture"
+    Write-Host "Generating non-interactive OLE data-object and drop-target activity."
+    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE data-object activity fixture"
     Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
 
-    if ($oleFixtureOutput -notmatch "OLE clipboard activity succeeded") {
-        throw "The OLE activity fixture did not report success. Review $oleFixturePath"
-    }
-    if ($oleFixtureOutput -notmatch "OLE DoDragDrop cancellation succeeded") {
-        throw "The OLE activity fixture did not execute DoDragDrop successfully. Review $oleFixturePath"
+    if ($oleFixtureOutput -notmatch "OLE IDataObject activity succeeded" -or
+        $oleFixtureOutput -notmatch "OLE drop target registration succeeded") {
+        throw "The OLE activity fixture did not complete its data-object and drop-target checks. Review $oleFixturePath"
     }
 
     if (-not $captureProcess.WaitForExit(($CaptureSeconds + 30) * 1000)) {
