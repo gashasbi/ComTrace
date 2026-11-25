@@ -326,6 +326,10 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     }
 
     $captureExitCode = $captureProcess.ExitCode
+    if ([string]::IsNullOrWhiteSpace([string]$captureExitCode)) {
+        $captureText = Get-Content -LiteralPath $captureOutputPath -Raw
+        if ($captureText -match "Trace finalized\." -and (Test-Path -LiteralPath $EtlPath -PathType Leaf)) { $captureExitCode = 0 }
+    }
     if ($captureExitCode -ne 0) {
         $captureText = Get-Content -LiteralPath $captureOutputPath -Raw
         $captureErrorText = Get-Content -LiteralPath $captureErrorPath -Raw
