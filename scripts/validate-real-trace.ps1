@@ -599,11 +599,11 @@ Set-Content -LiteralPath $oleSearchPath -Value $oleSearchOutput -Encoding UTF8
 
 $oleEventMatch = [regex]::Match($oleSearchOutput, "Events matching filters:\s*(\d+)")
 $oleSummaryMatch = [regex]::Match(
-    $oleSearchOutput,
+    $inspectOutput,
     "(?ms)OLE timeline summary.*?Clipboard operations:\s*(\d+).*?Drag and Drop operations:\s*(\d+).*?DoDragDrop invocations:\s*(\d+).*?Matched start/stop:\s*(\d+).*?Matched by ActivityId:\s*(\d+).*?Matched by RelatedActivityId:\s*(\d+).*?Matched by process/thread/operation:\s*(\d+).*?Incomplete starts:\s*(\d+).*?Unmatched stops:\s*(\d+).*?Ambiguous stops:\s*(\d+).*?Missing ActivityId:\s*(\d+).*?Invalid duration timestamp orders:\s*(\d+)"
 )
 if (-not $oleEventMatch.Success -or -not $oleSummaryMatch.Success) {
-    throw "The OLE search output did not contain event and timeline counters. Review $oleSearchPath"
+    throw "The OLE search output did not contain an event count, or the inspect report did not contain OLE timeline counters. Review $oleSearchPath and $inspectPath"
 }
 
 $oleEventCount = [UInt64]::Parse($oleEventMatch.Groups[1].Value)
