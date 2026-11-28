@@ -71,6 +71,260 @@ static int ensure_pending_capacity(COMTRACE_RPC_TIMELINE *timeline)
     return 1;
 }
 
+
+static size_t hash_pending_key(
+    const wchar_t *operation,
+    BOOL has_activity_id,
+    const GUID *activity_id,
+    BOOL has_related_activity_id,
+    const GUID *related_activity_id,
+    DWORD process_id,
+    DWORD thread_id
+)
+{
+    size_t hash = (size_t)2166136261U;
+    const wchar_t *character;
+    const unsigned char *byte;
+    const GUID *key_guid = NULL;
+    size_t key_size = 0U;
+    unsigned int key_type;
+
+    for (character = operation; *character != L'\0'; ++character) {
+        hash ^= (size_t)*character;
+        hash *= (size_t)16777619U;
+    }
+
+    if (has_activity_id) {
+        key_type = 1U;
+        key_guid = activity_id;
+        key_size = sizeof(*activity_id);
+    } else if (has_related_activity_id) {
+        key_type = 2U;
+        key_guid = related_activity_id;
+        key_size = sizeof(*related_activity_id);
+    } else {
+        key_type = 3U;
+    }
+
+    hash ^= (size_t)key_type;
+    hash *= (size_t)16777619U;
+
+    if (key_guid != NULL) {
+        for (byte = (const unsigned char *)key_guid;
+             key_size > 0U;
+             ++byte, --key_size) {
+            hash ^= (size_t)*byte;
+            hash *= (size_t)16777619U;
+        }
+    } else {
+        hash ^= (size_t)process_id;
+        hash *= (size_t)16777619U;
+        hash ^= (size_t)thread_id;
+        hash *= (size_t)16777619U;
+    }
+
+    return hash;
+}
+
+static size_t hash_pending_record_key(
+    const COMTRACE_RPC_TIMELINE_RECORD *record
+)
+{
+    return hash_pending_key(
+        record->operation,
+        record->has_activity_id,
+        &record->activity_id,
+        record->has_related_activity_id,
+        &record->related_activity_id,
+        record->process_id,
+        record->thread_id
+    );
+}
+
+static size_t hash_pending_event_key(
+    const COMTRACE_RPC_TIMELINE_EVENT *event
+)
+{
+    BOOL has_activity_id = event->activity_ids != NULL &&
+        event->activity_ids->has_activity_id;
+    BOOL has_related_activity_id = event->activity_ids != NULL &&
+        event->activity_ids->has_related_activity_id;
+    const GUID *activity_id = has_activity_id
+        ? &event->activity_ids->activity_id
+        : NULL;
+    const GUID *related_activity_id = has_related_activity_id
+        ? &event->activity_ids->related_activity_id
+        : NULL;
+
+    return hash_pending_key(
+        event->operation,
+        has_activity_id,
+        activity_id,
+        has_related_activity_id,
+        related_activity_id,
+        event->process_id,
+        event->thread_id
+    );
+}
+
+static int pending_record_matches_event(
+    const COMTRACE_RPC_TIMELINE_RECORD *record,
+    const COMTRACE_RPC_TIMELINE_EVENT *event
+)
+{
+    BOOL event_has_activity_id = event->activity_ids != NULL &&
+        event->activity_ids->has_activity_id;
+    BOOL event_has_related_activity_id = event->activity_ids != NULL &&
+        event->activity_ids->has_related_activity_id;
+
+    if (wcscmp(record->operation, event->operation) != 0) {
+        return 0;
+    }
+
+    if (event_has_activity_id) {
+        return record->has_activity_id &&
+            memcmp(
+                &record->activity_id,
+                &event->activity_ids->activity_id,
+                sizeof(GUID)
+            ) == 0;
+    }
+
+    if (event_has_related_activity_id) {
+        return !record->has_activity_id &&
+            record->has_related_activity_id &&
+            memcmp(
+                &record->related_activity_id,
+                &event->activity_ids->related_activity_id,
+                sizeof(GUID)
+            ) == 0;
+    }
+
+    return !record->has_activity_id &&
+        !record->has_related_activity_id &&
+        record->process_id == event->process_id &&
+        record->thread_id == event->thread_id;
+}
+
+static int ensure_pending_hash_capacity(COMTRACE_RPC_TIMELINE *timeline)
+{
+    size_t capacity = timeline->pending_hash_capacity;
+    size_t required;
+    size_t *slots;
+    size_t position;
+    size_t slot;
+
+    if (timeline->pending_count == (size_t)-1) {
+        return 0;
+    }
+    required = timeline->pending_count + 1U;
+
+    if (capacity == 0U) {
+        capacity = 64U;
+    }
+    while (capacity < required) {
+        if (capacity > (size_t)-1 / 2U) {
+            return 0;
+        }
+        capacity *= 2U;
+    }
+
+    if (capacity == timeline->pending_hash_capacity) {
+        return 1;
+    }
+    if (capacity > (size_t)-1 / sizeof(*slots)) {
+        return 0;
+    }
+
+    slots = (size_t *)malloc(capacity * sizeof(*slots));
+    if (slots == NULL) {
+        return 0;
+    }
+    for (slot = 0U; slot < capacity; ++slot) {
+        slots[slot] = (size_t)-1;
+    }
+
+    for (position = 0U; position < timeline->pending_count; ++position) {
+        size_t record_index = timeline->pending_indices[position];
+        COMTRACE_RPC_TIMELINE_RECORD *record =
+            &timeline->records[record_index];
+        size_t bucket = hash_pending_record_key(record) % capacity;
+        size_t next_index = slots[bucket];
+
+        record->pending_previous_index = (size_t)-1;
+        record->pending_next_index = next_index;
+        record->pending_position = position;
+        if (next_index != (size_t)-1) {
+            timeline->records[next_index].pending_previous_index = record_index;
+        }
+        slots[bucket] = record_index;
+    }
+
+    free(timeline->pending_hash_slots);
+    timeline->pending_hash_slots = slots;
+    timeline->pending_hash_capacity = capacity;
+    return 1;
+}
+
+static void insert_pending_record(
+    COMTRACE_RPC_TIMELINE *timeline,
+    size_t record_index
+)
+{
+    COMTRACE_RPC_TIMELINE_RECORD *record =
+        &timeline->records[record_index];
+    size_t bucket = hash_pending_record_key(record) %
+        timeline->pending_hash_capacity;
+    size_t next_index = timeline->pending_hash_slots[bucket];
+
+    record->pending_previous_index = (size_t)-1;
+    record->pending_next_index = next_index;
+    record->pending_position = timeline->pending_count;
+    if (next_index != (size_t)-1) {
+        timeline->records[next_index].pending_previous_index = record_index;
+    }
+
+    timeline->pending_hash_slots[bucket] = record_index;
+    timeline->pending_indices[timeline->pending_count] = record_index;
+    ++timeline->pending_count;
+}
+
+static void remove_pending_record(
+    COMTRACE_RPC_TIMELINE *timeline,
+    size_t record_index
+)
+{
+    COMTRACE_RPC_TIMELINE_RECORD *record =
+        &timeline->records[record_index];
+    size_t bucket = hash_pending_record_key(record) %
+        timeline->pending_hash_capacity;
+    size_t previous_index = record->pending_previous_index;
+    size_t next_index = record->pending_next_index;
+    size_t position = record->pending_position;
+    size_t last_position = timeline->pending_count - 1U;
+    size_t last_index = timeline->pending_indices[last_position];
+
+    if (previous_index == (size_t)-1) {
+        timeline->pending_hash_slots[bucket] = next_index;
+    } else {
+        timeline->records[previous_index].pending_next_index = next_index;
+    }
+
+    if (next_index != (size_t)-1) {
+        timeline->records[next_index].pending_previous_index = previous_index;
+    }
+
+    if (position != last_position) {
+        timeline->pending_indices[position] = last_index;
+        timeline->records[last_index].pending_position = position;
+    }
+    --timeline->pending_count;
+
+    record->pending_next_index = (size_t)-1;
+    record->pending_previous_index = (size_t)-1;
+    record->pending_position = (size_t)-1;
+}
+
 static int copy_operation(
     wchar_t *destination,
     size_t capacity,
@@ -271,6 +525,7 @@ void comtrace_rpc_timeline_destroy(COMTRACE_RPC_TIMELINE *timeline)
 
     free(timeline->records);
     free(timeline->pending_indices);
+    free(timeline->pending_hash_slots);
     ZeroMemory(timeline, sizeof(*timeline));
 }
 
@@ -279,16 +534,19 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
     const COMTRACE_RPC_TIMELINE_EVENT *event
 )
 {
-    size_t position;
     size_t record_index;
-    size_t selected_pending_index = (size_t)-1;
+    size_t selected_record_index = (size_t)-1;
     size_t cross_candidate_index = (size_t)-1;
     size_t cross_candidate_count = 0U;
-    size_t same_thread_candidate_count = 0U;
+    size_t bucket;
+    size_t candidate_index;
     BOOL ambiguous_match = FALSE;
     COMTRACE_RPC_TIMELINE_RECORD *record;
     COMTRACE_RPC_TIMELINE_MATCH_TYPE match_type;
-    COMTRACE_RPC_TIMELINE_MATCH_TYPE selected_match_type = COMTRACE_RPC_TIMELINE_MATCH_NONE;
+    COMTRACE_RPC_TIMELINE_MATCH_TYPE selected_match_type =
+        COMTRACE_RPC_TIMELINE_MATCH_NONE;
+    COMTRACE_RPC_TIMELINE_MATCH_TYPE cross_match_type =
+        COMTRACE_RPC_TIMELINE_MATCH_NONE;
 
     if (timeline == NULL ||
         event == NULL ||
@@ -301,7 +559,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 
     if (event->phase == COMTRACE_RPC_TIMELINE_PHASE_START) {
         if (!ensure_record_capacity(timeline) ||
-            !ensure_pending_capacity(timeline)) {
+            !ensure_pending_capacity(timeline) ||
+            !ensure_pending_hash_capacity(timeline)) {
             return COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
         }
 
@@ -311,7 +570,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
         if (!copy_operation(
                 record->operation,
                 _countof(record->operation),
-                event->operation)) {
+                event->operation
+            )) {
             return COMTRACE_RPC_TIMELINE_INVALID_ARGUMENT;
         }
 
@@ -322,9 +582,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
         record->has_start = TRUE;
         copy_event_metadata(record, event);
         ++timeline->record_count;
+        insert_pending_record(timeline, record_index);
 
-        timeline->pending_indices[timeline->pending_count] = record_index;
-        ++timeline->pending_count;
         if (event->activity_ids == NULL ||
             !event->activity_ids->has_activity_id) {
             increment_count(&timeline->missing_activity_ids);
@@ -332,52 +591,54 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
         return COMTRACE_RPC_TIMELINE_SUCCESS;
     }
 
-    for (position = timeline->pending_count; position > 0U; --position) {
-        size_t pending_index = position - 1U;
-        size_t candidate_record_index = timeline->pending_indices[pending_index];
+    bucket = hash_pending_event_key(event) %
+        (timeline->pending_hash_capacity == 0U
+            ? 1U
+            : timeline->pending_hash_capacity);
+    candidate_index = timeline->pending_hash_capacity == 0U
+        ? (size_t)-1
+        : timeline->pending_hash_slots[bucket];
+
+    while (candidate_index != (size_t)-1) {
         const COMTRACE_RPC_TIMELINE_RECORD *candidate =
-            &timeline->records[candidate_record_index];
+            &timeline->records[candidate_index];
+        size_t next_index = candidate->pending_next_index;
 
-        match_type = get_match_type(candidate, event);
-        if (match_type == COMTRACE_RPC_TIMELINE_MATCH_NONE) {
-            continue;
-        }
+        if (pending_record_matches_event(candidate, event)) {
+            match_type = get_match_type(candidate, event);
+            if (match_type != COMTRACE_RPC_TIMELINE_MATCH_NONE) {
+                if (candidate->process_id == event->process_id &&
+                    candidate->thread_id == event->thread_id) {
+                    selected_record_index = candidate_index;
+                    selected_match_type = match_type;
+                    break;
+                }
 
-        if (match_type == COMTRACE_RPC_TIMELINE_MATCH_PROCESS_THREAD) {
-            selected_pending_index = pending_index;
-            selected_match_type = match_type;
-            break;
-        }
-
-        if (candidate->process_id == event->process_id &&
-            candidate->thread_id == event->thread_id) {
-            if (same_thread_candidate_count == 0U) {
-                selected_pending_index = pending_index;
-                selected_match_type = match_type;
+                if (cross_candidate_count == 0U) {
+                    cross_candidate_index = candidate_index;
+                    cross_match_type = match_type;
+                    cross_candidate_count = 1U;
+                } else {
+                    cross_candidate_count = 2U;
+                }
             }
-            ++same_thread_candidate_count;
-        } else {
-            if (cross_candidate_count == 0U) {
-                cross_candidate_index = pending_index;
-            }
-            ++cross_candidate_count;
         }
+
+        candidate_index = next_index;
     }
 
-    if (same_thread_candidate_count == 0U &&
-        selected_pending_index == (size_t)-1) {
+    if (selected_record_index == (size_t)-1) {
         if (cross_candidate_count == 1U) {
-            selected_pending_index = cross_candidate_index;
-            record_index = timeline->pending_indices[selected_pending_index];
-            selected_match_type = get_match_type(&timeline->records[record_index], event);
+            selected_record_index = cross_candidate_index;
+            selected_match_type = cross_match_type;
         } else if (cross_candidate_count > 1U) {
             ambiguous_match = TRUE;
         }
     }
 
-    if (selected_pending_index != (size_t)-1) {
-        record_index = timeline->pending_indices[selected_pending_index];
-        record = &timeline->records[record_index];
+    if (selected_record_index != (size_t)-1) {
+        record = &timeline->records[selected_record_index];
+        remove_pending_record(timeline, selected_record_index);
         record->match_type = selected_match_type;
         record->has_stop = TRUE;
         record->stop_process_id = event->process_id;
@@ -407,15 +668,6 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
             copy_event_metadata(record, event);
         }
 
-        if (selected_pending_index + 1U < timeline->pending_count) {
-            memmove(
-                &timeline->pending_indices[selected_pending_index],
-                &timeline->pending_indices[selected_pending_index + 1U],
-                (timeline->pending_count - selected_pending_index - 1U) *
-                    sizeof(timeline->pending_indices[0])
-            );
-        }
-        --timeline->pending_count;
         if (event->activity_ids == NULL ||
             !event->activity_ids->has_activity_id) {
             increment_count(&timeline->missing_activity_ids);
@@ -433,7 +685,8 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
     if (!copy_operation(
             record->operation,
             _countof(record->operation),
-            event->operation)) {
+            event->operation
+        )) {
         return COMTRACE_RPC_TIMELINE_INVALID_ARGUMENT;
     }
 
