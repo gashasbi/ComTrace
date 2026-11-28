@@ -4542,7 +4542,9 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
 
     context = (ETL_INSPECT_CONTEXT *)event_record->UserContext;
     ++context->total_events;
-    add_process_lifecycle_event(context, event_record);
+    if (!context->has_filters) {
+        add_process_lifecycle_event(context, event_record);
+    }
 
     if (!event_matches_filters(context, event_record)) {
         return;
@@ -4560,13 +4562,15 @@ static VOID WINAPI inspect_event_callback(PEVENT_RECORD event_record)
         context->catalog_status = catalog_status;
     }
 
-    add_com_timeline_event(context, event_record);
-    add_ole_timeline_event(context, event_record);
-    add_rpc_timeline_event(context, event_record);
-    add_rpcss_endpoint_event(context, event_record);
-    add_dde_timeline_event(context, event_record);
-    add_relationship_graph_event(context, event_record);
-    add_com_lifetime_analysis_event(context, event_record);
+    if (!context->has_filters) {
+        add_com_timeline_event(context, event_record);
+        add_ole_timeline_event(context, event_record);
+        add_rpc_timeline_event(context, event_record);
+        add_rpcss_endpoint_event(context, event_record);
+        add_dde_timeline_event(context, event_record);
+        add_relationship_graph_event(context, event_record);
+        add_com_lifetime_analysis_event(context, event_record);
+    }
 
     if (context->sampled_events >= context->sample_limit) {
         return;
@@ -4749,54 +4753,56 @@ static int inspect_etl_internal(
     process_status = ProcessTrace(&trace_handle, 1U, NULL, NULL);
     close_status = CloseTrace(trace_handle);
 
-    comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
-    link_rpc_records_to_endpoints(&context);
-    link_rpc_records_to_com_operations(&context);
-    add_lifetime_records_to_graph(&context);
-    if (comtrace_relationship_graph_link_ole_data_objects(
-            &context.relationship_graph
-        ) != COMTRACE_GRAPH_SUCCESS) {
-        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+    if (!context.has_filters) {
+        comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
+        link_rpc_records_to_endpoints(&context);
+        link_rpc_records_to_com_operations(&context);
+        add_lifetime_records_to_graph(&context);
+        if (comtrace_relationship_graph_link_ole_data_objects(
+                &context.relationship_graph
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+        }
+        if (comtrace_relationship_graph_link_rpc_com_calls(
+                &context.relationship_graph
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+        }
+        if (context.dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
+            context.dde_timeline_status =
+                comtrace_dde_timeline_correlate(&context.dde_timeline);
+        }
+        if (comtrace_relationship_graph_add_ole_timeline(
+                &context.relationship_graph,
+                &context.ole_timeline,
+                &context.process_lifecycle
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+        }
+        if (comtrace_relationship_graph_add_rpc_timeline(
+                &context.relationship_graph,
+                &context.rpc_timeline,
+                &context.process_lifecycle
+            ) != COMTRACE_GRAPH_SUCCESS ||
+            comtrace_relationship_graph_add_dde_timeline(
+                &context.relationship_graph,
+                &context.dde_timeline,
+                &context.process_lifecycle
+            ) != COMTRACE_GRAPH_SUCCESS) {
+            context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
+        }
+        print_com_timeline_summary(&context);
+        print_ole_timeline_summary(&context);
+        print_rpc_timeline_summary(&context);
+        print_rpc_endpoint_summary(&context);
+        print_dde_timeline_summary(&context);
+        print_com_lifetime_summary(&context);
+        print_relationship_graph_summary(&context.relationship_graph);
+        print_process_lifecycle_summary(
+            &context.process_lifecycle,
+            context.process_lifecycle_failures
+        );
     }
-    if (comtrace_relationship_graph_link_rpc_com_calls(
-            &context.relationship_graph
-        ) != COMTRACE_GRAPH_SUCCESS) {
-        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
-    }
-    if (context.dde_timeline_status == COMTRACE_DDE_TIMELINE_SUCCESS) {
-        context.dde_timeline_status =
-            comtrace_dde_timeline_correlate(&context.dde_timeline);
-    }
-    if (comtrace_relationship_graph_add_ole_timeline(
-            &context.relationship_graph,
-            &context.ole_timeline,
-            &context.process_lifecycle
-        ) != COMTRACE_GRAPH_SUCCESS) {
-        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
-    }
-    if (comtrace_relationship_graph_add_rpc_timeline(
-            &context.relationship_graph,
-            &context.rpc_timeline,
-            &context.process_lifecycle
-        ) != COMTRACE_GRAPH_SUCCESS ||
-        comtrace_relationship_graph_add_dde_timeline(
-            &context.relationship_graph,
-            &context.dde_timeline,
-            &context.process_lifecycle
-        ) != COMTRACE_GRAPH_SUCCESS) {
-        context.graph_status = COMTRACE_GRAPH_ALLOCATION_FAILED;
-    }
-    print_com_timeline_summary(&context);
-    print_ole_timeline_summary(&context);
-    print_rpc_timeline_summary(&context);
-    print_rpc_endpoint_summary(&context);
-    print_dde_timeline_summary(&context);
-    print_com_lifetime_summary(&context);
-    print_relationship_graph_summary(&context.relationship_graph);
-    print_process_lifecycle_summary(
-        &context.process_lifecycle,
-        context.process_lifecycle_failures
-    );
 
     wprintf(L"\nEvent summary\n");
     wprintf(
