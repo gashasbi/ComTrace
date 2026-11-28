@@ -11,6 +11,12 @@ param(
 
     [string]$OutputDirectory = (Join-Path (Get-Location).Path "comtrace-validation"),
 
+    [ValidateRange(1, 10000)]
+    [int]$InspectSampleLimit = 100,
+
+    [ValidateRange(300, 3600)]
+    [int]$InspectionTimeoutSeconds = 900,
+
     [ValidateRange(10, 3600)]
     [int]$CaptureSeconds = 30,
 
@@ -353,7 +359,7 @@ if (-not (Test-Path -LiteralPath $EtlPath -PathType Leaf)) {
 }
 
 Write-Host "Inspecting ETL."
-$inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, "10000") -Description "ETL inspection"
+$inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, [string]$InspectSampleLimit) -Description "ETL inspection" -TimeoutSeconds $InspectionTimeoutSeconds
 Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
 
 $rpcTimelineMatch = [regex]::Match(
