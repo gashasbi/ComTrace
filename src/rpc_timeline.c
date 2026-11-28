@@ -489,9 +489,250 @@ static COMTRACE_RPC_CORRELATION_TYPE get_cross_call_match(
     return COMTRACE_RPC_CORRELATION_NONE;
 }
 
+typedef struct {
+    GUID interface_uuid;
+    ULONG procedure_number;
+    GUID activity_id;
+    COMTRACE_RPC_ROLE role;
+    size_t record_index;
+} COMTRACE_RPC_CALL_LOOKUP_KEY;
+
+static int compare_rpc_call_lookup_group(
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *left,
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *right
+)
+{
+    int result = memcmp(
+        &left->interface_uuid,
+        &right->interface_uuid,
+        sizeof(left->interface_uuid)
+    );
+
+    if (result != 0) {
+        return result;
+    }
+    if (left->procedure_number < right->procedure_number) {
+        return -1;
+    }
+    if (left->procedure_number > right->procedure_number) {
+        return 1;
+    }
+
+    result = memcmp(
+        &left->activity_id,
+        &right->activity_id,
+        sizeof(left->activity_id)
+    );
+    if (result != 0) {
+        return result;
+    }
+    if (left->role < right->role) {
+        return -1;
+    }
+    if (left->role > right->role) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int compare_rpc_call_lookup_keys(
+    const void *left_value,
+    const void *right_value
+)
+{
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *left =
+        (const COMTRACE_RPC_CALL_LOOKUP_KEY *)left_value;
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *right =
+        (const COMTRACE_RPC_CALL_LOOKUP_KEY *)right_value;
+    int result = compare_rpc_call_lookup_group(left, right);
+
+    if (result != 0) {
+        return result;
+    }
+    if (left->record_index < right->record_index) {
+        return -1;
+    }
+    if (left->record_index > right->record_index) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static void find_rpc_call_lookup_range(
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *keys,
+    size_t key_count,
+    const GUID *interface_uuid,
+    ULONG procedure_number,
+    const GUID *activity_id,
+    COMTRACE_RPC_ROLE role,
+    size_t *range_start,
+    size_t *range_end
+)
+{
+    COMTRACE_RPC_CALL_LOOKUP_KEY search_key;
+    size_t low = 0U;
+    size_t high = key_count;
+
+    ZeroMemory(&search_key, sizeof(search_key));
+    search_key.interface_uuid = *interface_uuid;
+    search_key.procedure_number = procedure_number;
+    search_key.activity_id = *activity_id;
+    search_key.role = role;
+
+    while (low < high) {
+        size_t middle = low + (high - low) / 2U;
+
+        if (compare_rpc_call_lookup_group(&keys[middle], &search_key) < 0) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
+    *range_start = low;
+
+    high = key_count;
+    while (low < high) {
+        size_t middle = low + (high - low) / 2U;
+
+        if (compare_rpc_call_lookup_group(&keys[middle], &search_key) <= 0) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
+    *range_end = low;
+}
+
+static void add_rpc_call_candidates_from_index(
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *keys,
+    size_t key_count,
+    const COMTRACE_RPC_TIMELINE *timeline,
+    const COMTRACE_RPC_TIMELINE_RECORD *record,
+    const GUID *activity_id,
+    COMTRACE_RPC_ROLE target_role,
+    size_t *candidate_marks,
+    size_t mark_value,
+    size_t *candidate_count,
+    size_t *candidate_index
+)
+{
+    size_t range_start;
+    size_t range_end;
+    size_t position;
+
+    if (*candidate_count > 1U) {
+        return;
+    }
+
+    find_rpc_call_lookup_range(
+        keys,
+        key_count,
+        &record->interface_uuid,
+        record->procedure_number,
+        activity_id,
+        target_role,
+        &range_start,
+        &range_end
+    );
+
+    for (position = range_start; position < range_end; ++position) {
+        size_t record_index = keys[position].record_index;
+
+        if (candidate_marks[record_index] == mark_value) {
+            continue;
+        }
+        candidate_marks[record_index] = mark_value;
+
+        if (get_cross_call_match(
+                record,
+                &timeline->records[record_index]
+            ) == COMTRACE_RPC_CORRELATION_NONE) {
+            continue;
+        }
+
+        if (*candidate_count == 0U) {
+            *candidate_index = record_index;
+        }
+        ++(*candidate_count);
+        if (*candidate_count > 1U) {
+            return;
+        }
+    }
+}
+
+static size_t count_rpc_call_candidates(
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *primary_keys,
+    size_t primary_key_count,
+    const COMTRACE_RPC_CALL_LOOKUP_KEY *related_keys,
+    size_t related_key_count,
+    const COMTRACE_RPC_TIMELINE *timeline,
+    const COMTRACE_RPC_TIMELINE_RECORD *record,
+    COMTRACE_RPC_ROLE target_role,
+    size_t *candidate_marks,
+    size_t mark_value,
+    size_t *candidate_index
+)
+{
+    size_t candidate_count = 0U;
+
+    add_rpc_call_candidates_from_index(
+        primary_keys,
+        primary_key_count,
+        timeline,
+        record,
+        &record->activity_id,
+        target_role,
+        candidate_marks,
+        mark_value,
+        &candidate_count,
+        candidate_index
+    );
+
+    if (record->has_related_activity_id) {
+        add_rpc_call_candidates_from_index(
+            primary_keys,
+            primary_key_count,
+            timeline,
+            record,
+            &record->related_activity_id,
+            target_role,
+            candidate_marks,
+            mark_value,
+            &candidate_count,
+            candidate_index
+        );
+    }
+
+    add_rpc_call_candidates_from_index(
+        related_keys,
+        related_key_count,
+        timeline,
+        record,
+        &record->activity_id,
+        target_role,
+        candidate_marks,
+        mark_value,
+        &candidate_count,
+        candidate_index
+    );
+
+    return candidate_count;
+}
+
 void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
 {
+    COMTRACE_RPC_CALL_LOOKUP_KEY *primary_keys = NULL;
+    COMTRACE_RPC_CALL_LOOKUP_KEY *related_keys = NULL;
+    size_t *candidate_marks = NULL;
+    size_t primary_key_count = 0U;
+    size_t related_key_count = 0U;
+    size_t primary_position = 0U;
+    size_t related_position = 0U;
     size_t client_index;
+    size_t record_index;
+    size_t mark_value = 0U;
 
     if (timeline == NULL) {
         return;
@@ -499,34 +740,138 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
 
     timeline->correlated_client_server_calls = 0ULL;
     timeline->ambiguous_client_server_calls = 0ULL;
-    for (client_index = 0U; client_index < timeline->record_count; ++client_index) {
-        timeline->records[client_index].has_correlated_record = FALSE;
-        timeline->records[client_index].correlated_record_index = 0U;
-        timeline->records[client_index].correlation_type = COMTRACE_RPC_CORRELATION_NONE;
+    for (record_index = 0U; record_index < timeline->record_count; ++record_index) {
+        timeline->records[record_index].has_correlated_record = FALSE;
+        timeline->records[record_index].correlated_record_index = 0U;
+        timeline->records[record_index].correlation_type = COMTRACE_RPC_CORRELATION_NONE;
+
+        if (!timeline->records[record_index].has_start ||
+            !timeline->records[record_index].has_stop ||
+            !timeline->records[record_index].has_activity_id ||
+            !timeline->records[record_index].has_interface_uuid ||
+            !timeline->records[record_index].has_procedure_number ||
+            (timeline->records[record_index].role != COMTRACE_RPC_ROLE_CLIENT &&
+             timeline->records[record_index].role != COMTRACE_RPC_ROLE_SERVER)) {
+            continue;
+        }
+
+        ++primary_key_count;
+        if (timeline->records[record_index].has_related_activity_id) {
+            ++related_key_count;
+        }
+    }
+
+    if (primary_key_count == 0U) {
+        return;
+    }
+
+    if (primary_key_count > (size_t)-1 / sizeof(*primary_keys) ||
+        related_key_count > (size_t)-1 / sizeof(*related_keys) ||
+        timeline->record_count > (size_t)-1 / sizeof(*candidate_marks)) {
+        return;
+    }
+
+    primary_keys = (COMTRACE_RPC_CALL_LOOKUP_KEY *)malloc(
+        primary_key_count * sizeof(*primary_keys)
+    );
+    if (related_key_count != 0U) {
+        related_keys = (COMTRACE_RPC_CALL_LOOKUP_KEY *)malloc(
+            related_key_count * sizeof(*related_keys)
+        );
+    }
+    candidate_marks = (size_t *)calloc(
+        timeline->record_count,
+        sizeof(*candidate_marks)
+    );
+
+    if (primary_keys == NULL ||
+        (related_key_count != 0U && related_keys == NULL) ||
+        candidate_marks == NULL) {
+        free(primary_keys);
+        free(related_keys);
+        free(candidate_marks);
+        return;
+    }
+
+    for (record_index = 0U; record_index < timeline->record_count; ++record_index) {
+        const COMTRACE_RPC_TIMELINE_RECORD *record =
+            &timeline->records[record_index];
+        COMTRACE_RPC_CALL_LOOKUP_KEY *key;
+
+        if (!record->has_start ||
+            !record->has_stop ||
+            !record->has_activity_id ||
+            !record->has_interface_uuid ||
+            !record->has_procedure_number ||
+            (record->role != COMTRACE_RPC_ROLE_CLIENT &&
+             record->role != COMTRACE_RPC_ROLE_SERVER)) {
+            continue;
+        }
+
+        key = &primary_keys[primary_position];
+        key->interface_uuid = record->interface_uuid;
+        key->procedure_number = record->procedure_number;
+        key->activity_id = record->activity_id;
+        key->role = record->role;
+        key->record_index = record_index;
+        ++primary_position;
+
+        if (record->has_related_activity_id) {
+            key = &related_keys[related_position];
+            key->interface_uuid = record->interface_uuid;
+            key->procedure_number = record->procedure_number;
+            key->activity_id = record->related_activity_id;
+            key->role = record->role;
+            key->record_index = record_index;
+            ++related_position;
+        }
+    }
+
+    qsort(
+        primary_keys,
+        primary_key_count,
+        sizeof(*primary_keys),
+        compare_rpc_call_lookup_keys
+    );
+    if (related_key_count != 0U) {
+        qsort(
+            related_keys,
+            related_key_count,
+            sizeof(*related_keys),
+            compare_rpc_call_lookup_keys
+        );
     }
 
     for (client_index = 0U; client_index < timeline->record_count; ++client_index) {
         COMTRACE_RPC_TIMELINE_RECORD *client = &timeline->records[client_index];
-        size_t server_index;
-        size_t candidate_server = (size_t)-1;
-        size_t candidate_count = 0U;
+        size_t candidate_server = 0U;
+        size_t candidate_count;
+        size_t candidate_client = 0U;
+        size_t reverse_count;
+        COMTRACE_RPC_TIMELINE_RECORD *server;
 
         if (client->role != COMTRACE_RPC_ROLE_CLIENT ||
-            !client->has_start || !client->has_stop) {
+            !client->has_start ||
+            !client->has_stop ||
+            !client->has_activity_id ||
+            !client->has_interface_uuid ||
+            !client->has_procedure_number) {
             continue;
         }
 
-        for (server_index = 0U; server_index < timeline->record_count; ++server_index) {
-            const COMTRACE_RPC_TIMELINE_RECORD *server = &timeline->records[server_index];
-
-            if (server->role != COMTRACE_RPC_ROLE_SERVER ||
-                !server->has_start || !server->has_stop ||
-                get_cross_call_match(client, server) == COMTRACE_RPC_CORRELATION_NONE) {
-                continue;
-            }
-            candidate_server = server_index;
-            ++candidate_count;
-        }
+        ++mark_value;
+        candidate_count = count_rpc_call_candidates(
+            primary_keys,
+            primary_key_count,
+            related_keys,
+            related_key_count,
+            timeline,
+            client,
+            COMTRACE_RPC_ROLE_SERVER,
+            candidate_marks,
+            mark_value,
+            &candidate_server
+        );
 
         if (candidate_count > 1U) {
             increment_count(&timeline->ambiguous_client_server_calls);
@@ -536,40 +881,38 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
             continue;
         }
 
-        {
-            size_t other_client_index;
-            size_t reverse_count = 0U;
-            COMTRACE_RPC_TIMELINE_RECORD *server =
-                &timeline->records[candidate_server];
+        server = &timeline->records[candidate_server];
+        ++mark_value;
+        reverse_count = count_rpc_call_candidates(
+            primary_keys,
+            primary_key_count,
+            related_keys,
+            related_key_count,
+            timeline,
+            server,
+            COMTRACE_RPC_ROLE_CLIENT,
+            candidate_marks,
+            mark_value,
+            &candidate_client
+        );
 
-            for (other_client_index = 0U;
-                 other_client_index < timeline->record_count;
-                 ++other_client_index) {
-                const COMTRACE_RPC_TIMELINE_RECORD *other_client =
-                    &timeline->records[other_client_index];
-
-                if (other_client->role == COMTRACE_RPC_ROLE_CLIENT &&
-                    other_client->has_start && other_client->has_stop &&
-                    get_cross_call_match(other_client, server) !=
-                        COMTRACE_RPC_CORRELATION_NONE) {
-                    ++reverse_count;
-                }
-            }
-
-            if (reverse_count != 1U || server->has_correlated_record) {
-                increment_count(&timeline->ambiguous_client_server_calls);
-                continue;
-            }
-
-            client->has_correlated_record = TRUE;
-            client->correlated_record_index = candidate_server;
-            client->correlation_type = get_cross_call_match(client, server);
-            server->has_correlated_record = TRUE;
-            server->correlated_record_index = client_index;
-            server->correlation_type = client->correlation_type;
-            increment_count(&timeline->correlated_client_server_calls);
+        if (reverse_count != 1U || server->has_correlated_record) {
+            increment_count(&timeline->ambiguous_client_server_calls);
+            continue;
         }
+
+        client->has_correlated_record = TRUE;
+        client->correlated_record_index = candidate_server;
+        client->correlation_type = get_cross_call_match(client, server);
+        server->has_correlated_record = TRUE;
+        server->correlated_record_index = client_index;
+        server->correlation_type = client->correlation_type;
+        increment_count(&timeline->correlated_client_server_calls);
     }
+
+    free(primary_keys);
+    free(related_keys);
+    free(candidate_marks);
 }
 
 typedef struct {
