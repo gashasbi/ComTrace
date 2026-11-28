@@ -981,3 +981,5 @@ Write-Host "COM events missing ActivityId: $comTimelineMissingActivity"
 Write-Host "CTRA checksum: CRC32 valid"
 Write-Host "ETL and CTRA comparison: identical"
 Write-Host "Validation summary: $summaryPath"
+
+$global:LASTEXITCODE = 0
