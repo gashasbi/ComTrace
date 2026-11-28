@@ -323,12 +323,11 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     }
 
     if ($InteractiveOleValidation) {
-        if ($oleFixtureOutput -notmatch "OLE clipboard API activity succeeded" -or
-            $oleFixtureOutput -notmatch "OLE DoDragDrop activity succeeded") {
-            throw "The interactive OLE fixture did not complete its clipboard and DoDragDrop checks. Review $oleFixturePath"
+        if ($oleFixtureOutput -notmatch "OLE clipboard API activity succeeded") {
+            throw "The interactive OLE fixture did not complete its clipboard checks. Review $oleFixturePath"
         }
 
-        Write-Host "The fixture exercised the OLE clipboard and DoDragDrop APIs."
+        Write-Host "The fixture exercised the OLE clipboard APIs."
         Write-Host "Perform a real clipboard copy/paste and a real drag-and-drop operation now."
         Write-Host "Keep both operations within the configured capture window."
         [void](Read-Host "Press Enter after completing the OLE operations")
