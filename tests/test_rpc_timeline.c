@@ -654,7 +654,11 @@ static int test_related_activity_id_client_server_correlation(void)
     records[8].has_related_activity_id = TRUE;
     records[8].related_activity_id = activities[6];
 
-    comtrace_rpc_timeline_correlate_calls(&timeline);
+    if (comtrace_rpc_timeline_correlate_calls(&timeline) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
 
     if (!records[0].has_correlated_record ||
         records[0].correlated_record_index != 1U ||
@@ -722,7 +726,11 @@ static int test_large_rpc_client_server_correlation(void)
             : COMTRACE_RPC_ROLE_SERVER;
     }
 
-    comtrace_rpc_timeline_correlate_calls(&timeline);
+    if (comtrace_rpc_timeline_correlate_calls(&timeline) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
 
     if (timeline.correlated_client_server_calls != 0ULL ||
         timeline.ambiguous_client_server_calls != 0ULL) {
