@@ -235,6 +235,7 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
 
     $captureProcess = Start-Process -FilePath $ComTraceExe -ArgumentList $captureArguments -PassThru -RedirectStandardOutput $captureOutputPath -RedirectStandardError $captureErrorPath
 
+    try {
     $captureStarted = $false
     $startupDeadline = (Get-Date).AddSeconds(20)
 
@@ -345,6 +346,26 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
     if ($activationCount -eq 0) {
         throw "None of the built-in COM activation tests succeeded. ETL was preserved at $EtlPath"
     }
+}
+finally {
+    if ($captureStarted -and $null -ne $captureProcess) {
+        $captureProcess.Refresh()
+        if (-not $captureProcess.HasExited) {
+            $logmanOutput = & "$env:WINDIR\System32\logman.exe" stop "ComTrace COM Perf Capture" -ets 2>&1
+            $logmanExitCode = $LASTEXITCODE
+            if ($logmanExitCode -ne 0) {
+                Write-Warning "Unable to stop the ComTrace ETW session during cleanup: $($logmanOutput -join ' ')"
+            }
+            if (-not $captureProcess.WaitForExit(15000)) {
+                Stop-Process -Id $captureProcess.Id -Force -ErrorAction SilentlyContinue
+                [void]$captureProcess.WaitForExit(5000)
+            }
+        }
+    }
+    if ($null -ne $captureProcess) {
+        $captureProcess.Dispose()
+    }
+}
 }
 else {
     if (-not (Test-Path -LiteralPath $EtlPath -PathType Leaf)) {
