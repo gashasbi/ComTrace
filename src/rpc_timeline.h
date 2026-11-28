@@ -100,6 +100,9 @@ typedef struct {
     BOOL has_com_operation;
     size_t com_operation_index;
     BOOL com_operation_match_ambiguous;
+    size_t pending_next_index;
+    size_t pending_previous_index;
+    size_t pending_position;
 } COMTRACE_RPC_TIMELINE_RECORD;
 
 typedef struct {
@@ -109,6 +112,8 @@ typedef struct {
     size_t *pending_indices;
     size_t pending_count;
     size_t pending_capacity;
+    size_t *pending_hash_slots;
+    size_t pending_hash_capacity;
     ULONGLONG unmatched_stops;
     ULONGLONG missing_activity_ids;
     ULONGLONG correlated_client_server_calls;
