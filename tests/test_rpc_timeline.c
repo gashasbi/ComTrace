@@ -1,6 +1,7 @@
 #include "rpc_timeline.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
@@ -589,8 +590,101 @@ static int test_same_thread_rpc_match_is_preferred(void)
     return 1;
 }
 
+
+static int test_com_operation_link_index(void)
+{
+    COMTRACE_RPC_TIMELINE rpc_timeline;
+    COMTRACE_TIMELINE com_timeline;
+    COMTRACE_RPC_TIMELINE_RECORD *rpc_records;
+    COMTRACE_TIMELINE_RECORD *com_records;
+    GUID second_activity = activity_id;
+    GUID third_activity = activity_id;
+    size_t index;
+
+    second_activity.Data1++;
+    third_activity.Data1 += 2U;
+    comtrace_rpc_timeline_init(&rpc_timeline);
+    ZeroMemory(&com_timeline, sizeof(com_timeline));
+
+    rpc_records = (COMTRACE_RPC_TIMELINE_RECORD *)calloc(4U, sizeof(*rpc_records));
+    com_records = (COMTRACE_TIMELINE_RECORD *)calloc(4U, sizeof(*com_records));
+    if (rpc_records == NULL || com_records == NULL) {
+        free(rpc_records);
+        free(com_records);
+        return 0;
+    }
+
+    rpc_timeline.records = rpc_records;
+    rpc_timeline.record_count = 4U;
+    rpc_timeline.record_capacity = 4U;
+    com_timeline.records = com_records;
+    com_timeline.record_count = 4U;
+    com_timeline.record_capacity = 4U;
+
+    for (index = 0U; index < 4U; ++index) {
+        rpc_records[index].has_com_operation = TRUE;
+        rpc_records[index].com_operation_index = 99U;
+        rpc_records[index].com_operation_match_ambiguous = TRUE;
+        rpc_records[index].has_start = TRUE;
+        rpc_records[index].has_activity_id = TRUE;
+        rpc_records[index].has_interface_uuid = TRUE;
+    }
+
+    rpc_records[0].activity_id = activity_id;
+    rpc_records[0].interface_uuid = interface_id;
+    rpc_records[1].activity_id = second_activity;
+    rpc_records[1].interface_uuid = interface_id;
+    rpc_records[2].activity_id = third_activity;
+    rpc_records[2].interface_uuid = interface_id;
+    rpc_records[3].has_start = FALSE;
+
+    for (index = 0U; index < 4U; ++index) {
+        com_records[index].has_start = TRUE;
+        com_records[index].has_activity_ids = TRUE;
+        com_records[index].activity_ids.has_activity_id = TRUE;
+        com_records[index].has_object_identity = TRUE;
+        com_records[index].object_identity.has_iid = TRUE;
+    }
+
+    com_records[0].activity_ids.activity_id = activity_id;
+    com_records[0].object_identity.iid = interface_id;
+    com_records[1].activity_ids.activity_id = second_activity;
+    com_records[1].object_identity.iid = interface_id;
+    com_records[2].activity_ids.activity_id = second_activity;
+    com_records[2].object_identity.iid = interface_id;
+    com_records[3].activity_ids.activity_id = activity_id;
+    com_records[3].object_identity.iid = second_activity;
+
+    if (comtrace_rpc_timeline_link_com_operations(
+            &rpc_timeline,
+            &com_timeline
+        ) != COMTRACE_RPC_TIMELINE_SUCCESS ||
+        !rpc_records[0].has_com_operation ||
+        rpc_records[0].com_operation_index != 0U ||
+        rpc_records[0].com_operation_match_ambiguous ||
+        rpc_records[1].has_com_operation ||
+        !rpc_records[1].com_operation_match_ambiguous ||
+        rpc_records[2].has_com_operation ||
+        rpc_records[2].com_operation_match_ambiguous ||
+        rpc_records[3].has_com_operation ||
+        rpc_records[3].com_operation_match_ambiguous ||
+        rpc_records[3].com_operation_index != 0U) {
+        comtrace_rpc_timeline_destroy(&rpc_timeline);
+        free(com_records);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&rpc_timeline);
+    free(com_records);
+    return 1;
+}
+
 int main(void)
 {
+    if (!test_com_operation_link_index()) {
+        puts("test_com_operation_link_index failed.");
+        return 1;
+    }
     if (!test_activity_pair()) {
         puts("test_activity_pair failed.");
         return 1;
