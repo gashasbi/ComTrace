@@ -520,7 +520,8 @@ static int run_clipboard_activity(IDataObject *data_object)
     IDataObject *current = NULL;
     HRESULT result;
     HRESULT restore_result;
-    int succeeded = 0;
+    int operation_succeeded = 0;
+    int restore_succeeded = 0;
 
     result = OleGetClipboard(&previous);
     if (FAILED(result)) {
@@ -548,23 +549,22 @@ static int run_clipboard_activity(IDataObject *data_object)
 
     current->lpVtbl->Release(current);
     current = NULL;
+    operation_succeeded = 1;
 
 restore:
-    succeeded = 0;
-
     {
         unsigned int attempt;
 
         for (attempt = 0; attempt < 5U; ++attempt) {
             restore_result = OleSetClipboard(previous);
             if (SUCCEEDED(restore_result)) {
-                succeeded = 1;
+                restore_succeeded = 1;
                 break;
             }
 
             if (previous != NULL &&
                 OleIsCurrentClipboard(previous) == S_OK) {
-                succeeded = 1;
+                restore_succeeded = 1;
                 break;
             }
 
@@ -572,7 +572,7 @@ restore:
         }
     }
 
-    if (!succeeded) {
+    if (!restore_succeeded) {
         printf("Restoring the previous clipboard failed: 0x%08lx\n",
             (unsigned long)restore_result);
         goto cleanup;
@@ -580,26 +580,24 @@ restore:
 
     if (previous != NULL) {
         unsigned int attempt;
-        succeeded = 0;
+        int flush_succeeded = 0;
 
         for (attempt = 0; attempt < 5U; ++attempt) {
             restore_result = OleFlushClipboard();
             if (SUCCEEDED(restore_result)) {
-                succeeded = 1;
+                flush_succeeded = 1;
                 break;
             }
 
             Sleep(50U);
         }
 
-        if (!succeeded) {
+        if (!flush_succeeded) {
             printf("Flushing the restored clipboard failed: 0x%08lx\n",
                 (unsigned long)restore_result);
             goto cleanup;
         }
     }
-
-    succeeded = 1;
 
 cleanup:
     if (current != NULL) {
@@ -609,7 +607,7 @@ cleanup:
         previous->lpVtbl->Release(previous);
     }
 
-    return succeeded;
+    return operation_succeeded && restore_succeeded;
 }
 
 int main(int argc, char **argv)
