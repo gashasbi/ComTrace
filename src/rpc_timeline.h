@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include "com_identity.h"
+#include "com_timeline.h"
 
 typedef enum {
     COMTRACE_RPC_TIMELINE_SUCCESS = 0,
@@ -128,6 +129,11 @@ size_t comtrace_rpc_timeline_count(const COMTRACE_RPC_TIMELINE *timeline);
 size_t comtrace_rpc_timeline_pending_count(const COMTRACE_RPC_TIMELINE *timeline);
 
 void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline);
+
+COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_link_com_operations(
+    COMTRACE_RPC_TIMELINE *rpc_timeline,
+    const COMTRACE_TIMELINE *com_timeline
+);
 
 const COMTRACE_RPC_TIMELINE_RECORD *comtrace_rpc_timeline_get(
     const COMTRACE_RPC_TIMELINE *timeline,
