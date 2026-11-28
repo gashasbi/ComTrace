@@ -721,7 +721,7 @@ static size_t count_rpc_call_candidates(
     return candidate_count;
 }
 
-void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
+COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
 {
     COMTRACE_RPC_CALL_LOOKUP_KEY *primary_keys = NULL;
     COMTRACE_RPC_CALL_LOOKUP_KEY *related_keys = NULL;
@@ -735,7 +735,7 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
     size_t mark_value = 0U;
 
     if (timeline == NULL) {
-        return;
+        return COMTRACE_RPC_TIMELINE_INVALID_ARGUMENT;
     }
 
     timeline->correlated_client_server_calls = 0ULL;
@@ -762,13 +762,13 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
     }
 
     if (primary_key_count == 0U) {
-        return;
+        return COMTRACE_RPC_TIMELINE_SUCCESS;
     }
 
     if (primary_key_count > (size_t)-1 / sizeof(*primary_keys) ||
         related_key_count > (size_t)-1 / sizeof(*related_keys) ||
         timeline->record_count > (size_t)-1 / sizeof(*candidate_marks)) {
-        return;
+        return COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
     }
 
     primary_keys = (COMTRACE_RPC_CALL_LOOKUP_KEY *)malloc(
@@ -790,7 +790,7 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
         free(primary_keys);
         free(related_keys);
         free(candidate_marks);
-        return;
+        return COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
     }
 
     for (record_index = 0U; record_index < timeline->record_count; ++record_index) {
@@ -913,6 +913,7 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
     free(primary_keys);
     free(related_keys);
     free(candidate_marks);
+    return COMTRACE_RPC_TIMELINE_SUCCESS;
 }
 
 typedef struct {
