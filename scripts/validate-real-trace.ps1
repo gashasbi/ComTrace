@@ -105,6 +105,7 @@ function Invoke-NativeCommand {
             throw "$Description exceeded its $TimeoutSeconds second timeout.$([Environment]::NewLine)$stdout$([Environment]::NewLine)$stderr"
         }
 
+        $process.WaitForExit()
         $stdout = $stdoutTask.GetAwaiter().GetResult()
         $stderr = $stderrTask.GetAwaiter().GetResult()
         $exitCode = $process.ExitCode
