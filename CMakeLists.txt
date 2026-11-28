@@ -290,6 +290,7 @@ if(BUILD_TESTING)
     add_executable(ComTraceRpcTimelineTests
         tests/test_rpc_timeline.c
         src/rpc_timeline.c
+        src/com_timeline.c
     )
     target_include_directories(ComTraceRpcTimelineTests PRIVATE src)
 
