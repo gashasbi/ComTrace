@@ -1671,66 +1671,6 @@ static void link_rpc_records_to_endpoints(ETL_INSPECT_CONTEXT *context)
     }
 }
 
-static void link_rpc_records_to_com_operations(ETL_INSPECT_CONTEXT *context)
-{
-    size_t rpc_index;
-
-    if (context == NULL) {
-        return;
-    }
-
-    for (rpc_index = 0U; rpc_index < context->rpc_timeline.record_count; ++rpc_index) {
-        COMTRACE_RPC_TIMELINE_RECORD *rpc_record =
-            &context->rpc_timeline.records[rpc_index];
-        size_t com_index;
-        size_t match_index = 0U;
-        size_t match_count = 0U;
-
-        rpc_record->has_com_operation = FALSE;
-        rpc_record->com_operation_index = 0U;
-        rpc_record->com_operation_match_ambiguous = FALSE;
-        if (!rpc_record->has_start ||
-            !rpc_record->has_activity_id ||
-            !rpc_record->has_interface_uuid) {
-            continue;
-        }
-
-        for (com_index = 0U; com_index < context->timeline.record_count; ++com_index) {
-            const COMTRACE_TIMELINE_RECORD *com_record =
-                &context->timeline.records[com_index];
-            const COMTRACE_COM_OBJECT_IDENTITY *identity;
-
-            if (!com_record->has_start ||
-                !com_record->has_activity_ids ||
-                !com_record->activity_ids.has_activity_id ||
-                !com_record->has_object_identity) {
-                continue;
-            }
-
-            identity = &com_record->object_identity;
-            if (!identity->has_iid ||
-                memcmp(&identity->iid, &rpc_record->interface_uuid, sizeof(GUID)) != 0 ||
-                memcmp(
-                    &com_record->activity_ids.activity_id,
-                    &rpc_record->activity_id,
-                    sizeof(GUID)
-                ) != 0) {
-                continue;
-            }
-
-            match_index = com_index;
-            ++match_count;
-        }
-
-        if (match_count > 1U) {
-            rpc_record->com_operation_match_ambiguous = TRUE;
-        } else if (match_count == 1U) {
-            rpc_record->has_com_operation = TRUE;
-            rpc_record->com_operation_index = match_index;
-        }
-    }
-}
-
 static const wchar_t *rpc_record_outcome(
     const COMTRACE_RPC_TIMELINE_RECORD *record
 )
@@ -4756,7 +4696,12 @@ static int inspect_etl_internal(
     if (!context.has_filters) {
         comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
         link_rpc_records_to_endpoints(&context);
-        link_rpc_records_to_com_operations(&context);
+        if (comtrace_rpc_timeline_link_com_operations(
+                &context.rpc_timeline,
+                &context.timeline
+            ) != COMTRACE_RPC_TIMELINE_SUCCESS) {
+            context.rpc_timeline_status = COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
+        }
         add_lifetime_records_to_graph(&context);
         if (comtrace_relationship_graph_link_ole_data_objects(
                 &context.relationship_graph
