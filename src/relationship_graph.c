@@ -131,6 +131,325 @@ static int same_node(
     }
 }
 
+
+static ULONGLONG hash_data(ULONGLONG hash, const void *data, size_t size)
+{
+    const unsigned char *bytes = (const unsigned char *)data;
+    size_t index;
+    for (index = 0U; index < size; ++index) {
+        hash ^= (ULONGLONG)bytes[index];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static int is_indexed_node_type(COMTRACE_GRAPH_NODE_TYPE type)
+{
+    switch (type) {
+    case COMTRACE_GRAPH_NODE_PROCESS:
+    case COMTRACE_GRAPH_NODE_THREAD:
+    case COMTRACE_GRAPH_NODE_ACTIVITY:
+    case COMTRACE_GRAPH_NODE_CALL:
+    case COMTRACE_GRAPH_NODE_COM_OBJECT:
+    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
+    case COMTRACE_GRAPH_NODE_CLSID:
+    case COMTRACE_GRAPH_NODE_IID:
+    case COMTRACE_GRAPH_NODE_IPID:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static ULONGLONG hash_node_key(
+    COMTRACE_GRAPH_NODE_TYPE type,
+    DWORD process_id,
+    DWORD thread_id,
+    const GUID *guid,
+    ULONGLONG value,
+    ULONGLONG process_generation,
+    BOOL has_process_generation
+)
+{
+    ULONGLONG hash = 14695981039346656037ULL;
+    hash = hash_data(hash, &type, sizeof(type));
+
+    switch (type) {
+    case COMTRACE_GRAPH_NODE_PROCESS:
+        hash = hash_data(hash, &process_id, sizeof(process_id));
+        hash = hash_data(hash, &has_process_generation, sizeof(has_process_generation));
+        if (has_process_generation) {
+            hash = hash_data(hash, &process_generation, sizeof(process_generation));
+        }
+        break;
+    case COMTRACE_GRAPH_NODE_THREAD:
+        hash = hash_data(hash, &process_id, sizeof(process_id));
+        hash = hash_data(hash, &thread_id, sizeof(thread_id));
+        hash = hash_data(hash, &has_process_generation, sizeof(has_process_generation));
+        if (has_process_generation) {
+            hash = hash_data(hash, &process_generation, sizeof(process_generation));
+        }
+        break;
+    case COMTRACE_GRAPH_NODE_ACTIVITY:
+    case COMTRACE_GRAPH_NODE_CLSID:
+    case COMTRACE_GRAPH_NODE_IID:
+    case COMTRACE_GRAPH_NODE_IPID:
+        if (guid != NULL) {
+            hash = hash_data(hash, guid, sizeof(*guid));
+        }
+        break;
+    case COMTRACE_GRAPH_NODE_CALL:
+        hash = hash_data(hash, &value, sizeof(value));
+        break;
+    case COMTRACE_GRAPH_NODE_COM_OBJECT:
+        hash = hash_data(hash, &process_id, sizeof(process_id));
+        hash = hash_data(hash, &value, sizeof(value));
+        hash = hash_data(hash, &has_process_generation, sizeof(has_process_generation));
+        if (has_process_generation) {
+            hash = hash_data(hash, &process_generation, sizeof(process_generation));
+        }
+        break;
+    case COMTRACE_GRAPH_NODE_COM_LIFETIME_OBJECT:
+        hash = hash_data(hash, &process_id, sizeof(process_id));
+        hash = hash_data(hash, &value, sizeof(value));
+        hash = hash_data(hash, &has_process_generation, sizeof(has_process_generation));
+        if (has_process_generation) {
+            hash = hash_data(hash, &process_generation, sizeof(process_generation));
+        }
+        {
+            BOOL has_guid = guid != NULL;
+            hash = hash_data(hash, &has_guid, sizeof(has_guid));
+        }
+        if (guid != NULL) {
+            hash = hash_data(hash, guid, sizeof(*guid));
+        }
+        break;
+    default:
+        break;
+    }
+    return hash;
+}
+
+static ULONGLONG hash_graph_node(const COMTRACE_GRAPH_NODE *node)
+{
+    return hash_node_key(
+        node->type,
+        node->process_id,
+        node->thread_id,
+        node->has_guid ? &node->guid : NULL,
+        node->value,
+        node->process_generation,
+        node->has_process_generation
+    );
+}
+
+static size_t find_node_index(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph,
+    COMTRACE_GRAPH_NODE_TYPE type,
+    DWORD process_id,
+    DWORD thread_id,
+    const GUID *guid,
+    ULONGLONG value,
+    ULONGLONG process_generation,
+    BOOL has_process_generation
+)
+{
+    size_t slot;
+    size_t searched;
+    ULONGLONG hash;
+
+    if (!is_indexed_node_type(type) || graph->node_index_capacity == 0U) {
+        return (size_t)-1;
+    }
+
+    hash = hash_node_key(type, process_id, thread_id, guid, value,
+        process_generation, has_process_generation);
+    slot = (size_t)(hash & (ULONGLONG)(graph->node_index_capacity - 1U));
+
+    for (searched = 0U; searched < graph->node_index_capacity; ++searched) {
+        size_t entry = graph->node_index_slots[slot];
+        if (entry == 0U) {
+            return (size_t)-1;
+        }
+        if (same_node(&graph->nodes[entry - 1U], type, process_id,
+                thread_id, guid, value, process_generation,
+                has_process_generation)) {
+            return entry - 1U;
+        }
+        slot = (slot + 1U) & (graph->node_index_capacity - 1U);
+    }
+    return (size_t)-1;
+}
+
+static int rebuild_node_index(COMTRACE_RELATIONSHIP_GRAPH *graph, size_t capacity)
+{
+    size_t *slots;
+    size_t index;
+    size_t count = 0U;
+
+    if (capacity < 2U || capacity > (size_t)-1 / sizeof(*slots)) {
+        return 0;
+    }
+    slots = (size_t *)calloc(capacity, sizeof(*slots));
+    if (slots == NULL) {
+        return 0;
+    }
+
+    for (index = 0U; index < graph->node_count; ++index) {
+        const COMTRACE_GRAPH_NODE *node = &graph->nodes[index];
+        size_t slot;
+        if (!is_indexed_node_type(node->type)) {
+            continue;
+        }
+        slot = (size_t)(hash_graph_node(node) & (ULONGLONG)(capacity - 1U));
+        while (slots[slot] != 0U) {
+            slot = (slot + 1U) & (capacity - 1U);
+        }
+        slots[slot] = index + 1U;
+        ++count;
+    }
+
+    free(graph->node_index_slots);
+    graph->node_index_slots = slots;
+    graph->node_index_capacity = capacity;
+    graph->node_index_count = count;
+    return 1;
+}
+
+static int ensure_node_index_capacity(COMTRACE_RELATIONSHIP_GRAPH *graph)
+{
+    size_t capacity;
+    if (graph->node_index_capacity != 0U &&
+        graph->node_index_count < graph->node_index_capacity / 2U) {
+        return 1;
+    }
+    if (graph->node_index_capacity == 0U) {
+        capacity = 32U;
+    } else {
+        capacity = graph->node_index_capacity * 2U;
+        if (capacity < graph->node_index_capacity) {
+            return 0;
+        }
+    }
+    return rebuild_node_index(graph, capacity);
+}
+
+static void insert_node_index(COMTRACE_RELATIONSHIP_GRAPH *graph, size_t index)
+{
+    const COMTRACE_GRAPH_NODE *node = &graph->nodes[index];
+    size_t slot = (size_t)(hash_graph_node(node) &
+        (ULONGLONG)(graph->node_index_capacity - 1U));
+    while (graph->node_index_slots[slot] != 0U) {
+        slot = (slot + 1U) & (graph->node_index_capacity - 1U);
+    }
+    graph->node_index_slots[slot] = index + 1U;
+    ++graph->node_index_count;
+}
+
+static ULONGLONG hash_edge_key(
+    COMTRACE_GRAPH_EDGE_TYPE type,
+    size_t source_index,
+    size_t target_index
+)
+{
+    ULONGLONG hash = 14695981039346656037ULL;
+    hash = hash_data(hash, &type, sizeof(type));
+    hash = hash_data(hash, &source_index, sizeof(source_index));
+    hash = hash_data(hash, &target_index, sizeof(target_index));
+    return hash;
+}
+
+static size_t find_edge_index(
+    const COMTRACE_RELATIONSHIP_GRAPH *graph,
+    COMTRACE_GRAPH_EDGE_TYPE type,
+    size_t source_index,
+    size_t target_index
+)
+{
+    size_t slot;
+    size_t searched;
+    ULONGLONG hash;
+    if (graph->edge_index_capacity == 0U) {
+        return (size_t)-1;
+    }
+    hash = hash_edge_key(type, source_index, target_index);
+    slot = (size_t)(hash & (ULONGLONG)(graph->edge_index_capacity - 1U));
+
+    for (searched = 0U; searched < graph->edge_index_capacity; ++searched) {
+        size_t entry = graph->edge_index_slots[slot];
+        if (entry == 0U) {
+            return (size_t)-1;
+        }
+        {
+            const COMTRACE_GRAPH_EDGE *edge = &graph->edges[entry - 1U];
+            if (edge->type == type &&
+                edge->source_index == source_index &&
+                edge->target_index == target_index) {
+                return entry - 1U;
+            }
+        }
+        slot = (slot + 1U) & (graph->edge_index_capacity - 1U);
+    }
+    return (size_t)-1;
+}
+
+static int rebuild_edge_index(COMTRACE_RELATIONSHIP_GRAPH *graph, size_t capacity)
+{
+    size_t *slots;
+    size_t index;
+    if (capacity < 2U || capacity > (size_t)-1 / sizeof(*slots)) {
+        return 0;
+    }
+    slots = (size_t *)calloc(capacity, sizeof(*slots));
+    if (slots == NULL) {
+        return 0;
+    }
+    for (index = 0U; index < graph->edge_count; ++index) {
+        const COMTRACE_GRAPH_EDGE *edge = &graph->edges[index];
+        size_t slot = (size_t)(hash_edge_key(edge->type, edge->source_index,
+            edge->target_index) & (ULONGLONG)(capacity - 1U));
+        while (slots[slot] != 0U) {
+            slot = (slot + 1U) & (capacity - 1U);
+        }
+        slots[slot] = index + 1U;
+    }
+    free(graph->edge_index_slots);
+    graph->edge_index_slots = slots;
+    graph->edge_index_capacity = capacity;
+    graph->edge_index_count = graph->edge_count;
+    return 1;
+}
+
+static int ensure_edge_index_capacity(COMTRACE_RELATIONSHIP_GRAPH *graph)
+{
+    size_t capacity;
+    if (graph->edge_index_capacity != 0U &&
+        graph->edge_index_count < graph->edge_index_capacity / 2U) {
+        return 1;
+    }
+    if (graph->edge_index_capacity == 0U) {
+        capacity = 32U;
+    } else {
+        capacity = graph->edge_index_capacity * 2U;
+        if (capacity < graph->edge_index_capacity) {
+            return 0;
+        }
+    }
+    return rebuild_edge_index(graph, capacity);
+}
+
+static void insert_edge_index(COMTRACE_RELATIONSHIP_GRAPH *graph, size_t index)
+{
+    const COMTRACE_GRAPH_EDGE *edge = &graph->edges[index];
+    size_t slot = (size_t)(hash_edge_key(edge->type, edge->source_index,
+        edge->target_index) & (ULONGLONG)(graph->edge_index_capacity - 1U));
+    while (graph->edge_index_slots[slot] != 0U) {
+        slot = (slot + 1U) & (graph->edge_index_capacity - 1U);
+    }
+    graph->edge_index_slots[slot] = index + 1U;
+    ++graph->edge_index_count;
+}
+
 static COMTRACE_GRAPH_STATUS add_node_with_generation(
     COMTRACE_RELATIONSHIP_GRAPH *graph,
     COMTRACE_GRAPH_NODE_TYPE type,
@@ -146,22 +465,23 @@ static COMTRACE_GRAPH_STATUS add_node_with_generation(
     size_t current;
     COMTRACE_GRAPH_NODE *node;
 
-    for (current = 0U; current < graph->node_count; ++current) {
-        if (same_node(
-                &graph->nodes[current],
-                type,
-                process_id,
-                thread_id,
-                guid,
-                value,
-                process_generation,
-                has_process_generation)) {
-            *index = current;
-            return COMTRACE_GRAPH_SUCCESS;
-        }
+    current = find_node_index(
+        graph,
+        type,
+        process_id,
+        thread_id,
+        guid,
+        value,
+        process_generation,
+        has_process_generation
+    );
+    if (current != (size_t)-1) {
+        *index = current;
+        return COMTRACE_GRAPH_SUCCESS;
     }
 
-    if (!ensure_node_capacity(graph)) {
+    if (!ensure_node_capacity(graph) ||
+        (is_indexed_node_type(type) && !ensure_node_index_capacity(graph))) {
         return COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
 
@@ -181,6 +501,9 @@ static COMTRACE_GRAPH_STATUS add_node_with_generation(
     }
 
     ++graph->node_count;
+    if (is_indexed_node_type(type)) {
+        insert_node_index(graph, current);
+    }
     *index = current;
     return COMTRACE_GRAPH_SUCCESS;
 }
@@ -223,16 +546,12 @@ static COMTRACE_GRAPH_STATUS add_edge(
         return COMTRACE_GRAPH_INVALID_ARGUMENT;
     }
 
-    for (current = 0U; current < graph->edge_count; ++current) {
-        edge = &graph->edges[current];
-        if (edge->type == type &&
-            edge->source_index == source_index &&
-            edge->target_index == target_index) {
-            return COMTRACE_GRAPH_SUCCESS;
-        }
+    current = find_edge_index(graph, type, source_index, target_index);
+    if (current != (size_t)-1) {
+        return COMTRACE_GRAPH_SUCCESS;
     }
 
-    if (!ensure_edge_capacity(graph)) {
+    if (!ensure_edge_capacity(graph) || !ensure_edge_index_capacity(graph)) {
         return COMTRACE_GRAPH_ALLOCATION_FAILED;
     }
 
@@ -241,6 +560,7 @@ static COMTRACE_GRAPH_STATUS add_edge(
     edge->source_index = source_index;
     edge->target_index = target_index;
     ++graph->edge_count;
+    insert_edge_index(graph, graph->edge_count - 1U);
     return COMTRACE_GRAPH_SUCCESS;
 }
 
@@ -574,6 +894,8 @@ void comtrace_relationship_graph_destroy(COMTRACE_RELATIONSHIP_GRAPH *graph)
 
     free(graph->nodes);
     free(graph->edges);
+    free(graph->node_index_slots);
+    free(graph->edge_index_slots);
     ZeroMemory(graph, sizeof(*graph));
 }
 
