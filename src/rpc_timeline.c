@@ -572,6 +572,149 @@ void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline)
     }
 }
 
+typedef struct {
+    GUID activity_id;
+    GUID interface_uuid;
+    size_t record_index;
+} COMTRACE_RPC_COM_LINK_KEY;
+
+static int compare_rpc_com_link_keys(
+    const void *left_value,
+    const void *right_value
+)
+{
+    const COMTRACE_RPC_COM_LINK_KEY *left =
+        (const COMTRACE_RPC_COM_LINK_KEY *)left_value;
+    const COMTRACE_RPC_COM_LINK_KEY *right =
+        (const COMTRACE_RPC_COM_LINK_KEY *)right_value;
+    int result = memcmp(
+        &left->activity_id,
+        &right->activity_id,
+        sizeof(left->activity_id)
+    );
+
+    if (result != 0) {
+        return result;
+    }
+
+    return memcmp(
+        &left->interface_uuid,
+        &right->interface_uuid,
+        sizeof(left->interface_uuid)
+    );
+}
+
+COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_link_com_operations(
+    COMTRACE_RPC_TIMELINE *rpc_timeline,
+    const COMTRACE_TIMELINE *com_timeline
+)
+{
+    COMTRACE_RPC_COM_LINK_KEY *keys;
+    size_t key_count = 0U;
+    size_t key_position = 0U;
+    size_t rpc_index;
+    size_t com_index;
+
+    if (rpc_timeline == NULL || com_timeline == NULL) {
+        return COMTRACE_RPC_TIMELINE_INVALID_ARGUMENT;
+    }
+
+    for (rpc_index = 0U; rpc_index < rpc_timeline->record_count; ++rpc_index) {
+        COMTRACE_RPC_TIMELINE_RECORD *record = &rpc_timeline->records[rpc_index];
+        record->has_com_operation = FALSE;
+        record->com_operation_index = 0U;
+        record->com_operation_match_ambiguous = FALSE;
+    }
+
+    for (com_index = 0U; com_index < com_timeline->record_count; ++com_index) {
+        const COMTRACE_TIMELINE_RECORD *record = &com_timeline->records[com_index];
+
+        if (record->has_start &&
+            record->has_activity_ids &&
+            record->activity_ids.has_activity_id &&
+            record->has_object_identity &&
+            record->object_identity.has_iid) {
+            ++key_count;
+        }
+    }
+
+    if (key_count == 0U) {
+        return COMTRACE_RPC_TIMELINE_SUCCESS;
+    }
+
+    if (key_count > (size_t)-1 / sizeof(*keys)) {
+        return COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
+    }
+
+    keys = (COMTRACE_RPC_COM_LINK_KEY *)malloc(key_count * sizeof(*keys));
+    if (keys == NULL) {
+        return COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
+    }
+
+    for (com_index = 0U; com_index < com_timeline->record_count; ++com_index) {
+        const COMTRACE_TIMELINE_RECORD *record = &com_timeline->records[com_index];
+
+        if (!record->has_start ||
+            !record->has_activity_ids ||
+            !record->activity_ids.has_activity_id ||
+            !record->has_object_identity ||
+            !record->object_identity.has_iid) {
+            continue;
+        }
+
+        keys[key_position].activity_id = record->activity_ids.activity_id;
+        keys[key_position].interface_uuid = record->object_identity.iid;
+        keys[key_position].record_index = com_index;
+        ++key_position;
+    }
+
+    qsort(keys, key_count, sizeof(*keys), compare_rpc_com_link_keys);
+
+    for (rpc_index = 0U; rpc_index < rpc_timeline->record_count; ++rpc_index) {
+        COMTRACE_RPC_TIMELINE_RECORD *rpc_record =
+            &rpc_timeline->records[rpc_index];
+        COMTRACE_RPC_COM_LINK_KEY search_key;
+        size_t low = 0U;
+        size_t high = key_count;
+
+        if (!rpc_record->has_start ||
+            !rpc_record->has_activity_id ||
+            !rpc_record->has_interface_uuid) {
+            continue;
+        }
+
+        search_key.activity_id = rpc_record->activity_id;
+        search_key.interface_uuid = rpc_record->interface_uuid;
+        search_key.record_index = 0U;
+
+        while (low < high) {
+            size_t middle = low + (high - low) / 2U;
+
+            if (compare_rpc_com_link_keys(&keys[middle], &search_key) < 0) {
+                low = middle + 1U;
+            } else {
+                high = middle;
+            }
+        }
+
+        if (low == key_count ||
+            compare_rpc_com_link_keys(&keys[low], &search_key) != 0) {
+            continue;
+        }
+
+        if (low + 1U < key_count &&
+            compare_rpc_com_link_keys(&keys[low], &keys[low + 1U]) == 0) {
+            rpc_record->com_operation_match_ambiguous = TRUE;
+        } else {
+            rpc_record->has_com_operation = TRUE;
+            rpc_record->com_operation_index = keys[low].record_index;
+        }
+    }
+
+    free(keys);
+    return COMTRACE_RPC_TIMELINE_SUCCESS;
+}
+
 size_t comtrace_rpc_timeline_count(const COMTRACE_RPC_TIMELINE *timeline)
 {
     return timeline == NULL ? 0U : timeline->record_count;
