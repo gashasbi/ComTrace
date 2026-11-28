@@ -541,7 +541,24 @@ static int run_clipboard_activity(IDataObject *data_object)
         goto restore;
     }
 
-    result = OleGetClipboard(&current);
+    {
+        unsigned int attempt;
+
+        for (attempt = 0; attempt < 5U; ++attempt) {
+            result = OleGetClipboard(&current);
+            if (SUCCEEDED(result) && current != NULL) {
+                break;
+            }
+
+            if (current != NULL) {
+                current->lpVtbl->Release(current);
+                current = NULL;
+            }
+
+            Sleep(50U);
+        }
+    }
+
     if (FAILED(result) || current == NULL) {
         printf("OleGetClipboard during test failed: 0x%08lx\n", (unsigned long)result);
         goto restore;
