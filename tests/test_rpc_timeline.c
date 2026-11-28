@@ -424,6 +424,188 @@ static int test_failure_status_and_invalid_duration(void)
     return 1;
 }
 
+static int test_pending_rpc_index_preserves_match_order_after_resize(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    GUID target_activity = activity_id;
+    size_t index;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcClientCall";
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.activity_ids = &ids;
+    ids.activity_id = target_activity;
+    ids.has_activity_id = TRUE;
+
+    event.process_id = 20U;
+    event.thread_id = 2U;
+    event.timestamp = 1ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.process_id = 10U;
+    event.thread_id = 1U;
+    event.timestamp = 2ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    for (index = 0U; index < 61U; ++index) {
+        ids.activity_id = activity_id;
+        ids.activity_id.Data1 = 0x20000000U + (ULONG)index;
+        event.process_id = 100U + (DWORD)index;
+        event.thread_id = 200U + (DWORD)index;
+        event.timestamp = 3ULL + (ULONGLONG)index;
+        if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    ids.activity_id = target_activity;
+    event.process_id = 10U;
+    event.thread_id = 1U;
+    event.timestamp = 100ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS ||
+        timeline.pending_count != 64U) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.process_id = 20U;
+    event.thread_id = 2U;
+    event.timestamp = 101ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS ||
+        !timeline.records[0].has_stop) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+    event.process_id = 10U;
+    event.thread_id = 1U;
+    event.timestamp = 102ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS ||
+        timeline.pending_count != 64U) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    ids.activity_id = activity_id;
+    ids.activity_id.Data1 = 0x50000000U;
+    event.process_id = 300U;
+    event.thread_id = 400U;
+    event.timestamp = 103ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    ids.activity_id = target_activity;
+    event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+    event.process_id = 10U;
+    event.thread_id = 1U;
+    event.timestamp = 104ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS ||
+        !timeline.records[64].has_stop ||
+        timeline.records[1].has_stop ||
+        !timeline.records[63].has_start) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    event.timestamp = 105ULL;
+    if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+        COMTRACE_RPC_TIMELINE_SUCCESS ||
+        !timeline.records[63].has_stop ||
+        timeline.records[1].has_stop) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_large_pending_rpc_matching(void)
+{
+    const size_t pair_count = 12000U;
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_ACTIVITY_IDS ids;
+    COMTRACE_RPC_TIMELINE_EVENT event;
+    size_t index;
+
+    comtrace_rpc_timeline_init(&timeline);
+    ZeroMemory(&ids, sizeof(ids));
+    ZeroMemory(&event, sizeof(event));
+    event.operation = L"RpcClientCall";
+    event.activity_ids = &ids;
+    ids.has_activity_id = TRUE;
+
+    for (index = 0U; index < pair_count; ++index) {
+        ids.activity_id = activity_id;
+        ids.activity_id.Data1 = (ULONG)(index + 1U);
+        event.phase = COMTRACE_RPC_TIMELINE_PHASE_START;
+        event.process_id = (DWORD)(index + 1U);
+        event.thread_id = (DWORD)(index + 101U);
+        event.timestamp = (ULONGLONG)index * 10ULL;
+        if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    for (index = 0U; index < pair_count; ++index) {
+        ids.activity_id = activity_id;
+        ids.activity_id.Data1 = (ULONG)(index + 1U);
+        event.phase = COMTRACE_RPC_TIMELINE_PHASE_STOP;
+        event.process_id = (DWORD)(index + 1U);
+        event.thread_id = (DWORD)(index + 101U);
+        event.timestamp = (ULONGLONG)index * 10ULL + 5ULL;
+        if (comtrace_rpc_timeline_add_event(&timeline, &event) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    if (timeline.record_count != pair_count ||
+        timeline.pending_count != 0U) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    for (index = 0U; index < pair_count; ++index) {
+        if (!timeline.records[index].has_start ||
+            !timeline.records[index].has_stop ||
+            !timeline.records[index].has_duration ||
+            timeline.records[index].duration_ticks != 5ULL) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_related_activity_id_pair(void)
 {
     COMTRACE_RPC_TIMELINE timeline;
@@ -839,6 +1021,14 @@ static int test_com_operation_link_index(void)
 
 int main(void)
 {
+    if (!test_pending_rpc_index_preserves_match_order_after_resize()) {
+        puts("test_pending_rpc_index_preserves_match_order_after_resize failed.");
+        return 1;
+    }
+    if (!test_large_pending_rpc_matching()) {
+        puts("test_large_pending_rpc_matching failed.");
+        return 1;
+    }
     if (!test_related_activity_id_client_server_correlation()) {
         puts("test_related_activity_id_client_server_correlation failed.");
         return 1;
