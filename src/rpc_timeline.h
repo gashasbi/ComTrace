@@ -128,7 +128,7 @@ COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_add_event(
 size_t comtrace_rpc_timeline_count(const COMTRACE_RPC_TIMELINE *timeline);
 size_t comtrace_rpc_timeline_pending_count(const COMTRACE_RPC_TIMELINE *timeline);
 
-void comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline);
+COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_correlate_calls(COMTRACE_RPC_TIMELINE *timeline);
 
 COMTRACE_RPC_TIMELINE_STATUS comtrace_rpc_timeline_link_com_operations(
     COMTRACE_RPC_TIMELINE *rpc_timeline,
