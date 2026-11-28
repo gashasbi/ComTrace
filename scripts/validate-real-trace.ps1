@@ -561,19 +561,19 @@ if ($comEventCount -eq 0) {
 $identityPattern = "(?im)(?:com_)?(?:clsid|iid|ipid|oid)="
 $identityValueCount = [regex]::Matches($searchOutput, $identityPattern).Count
 
-$matchedTimeline = [regex]::Match($searchOutput, "Matched start/stop:\s*(\d+)")
-$matchedByCallTrace = [regex]::Match($searchOutput, "Matched by CallTraceId:\s*(\d+)")
-$matchedByActivity = [regex]::Match($searchOutput, "Matched by ActivityId:\s*(\d+)")
-$matchedByProcessThread = [regex]::Match($searchOutput, "Matched by process/thread/operation:\s*(\d+)")
-$missingCallTrace = [regex]::Match($searchOutput, "Missing CallTraceId:\s*(\d+)")
-$missingActivity = [regex]::Match($searchOutput, "Missing ActivityId:\s*(\d+)")
+$matchedTimeline = [regex]::Match($inspectOutput, "Matched start/stop:\s*(\d+)")
+$matchedByCallTrace = [regex]::Match($inspectOutput, "Matched by CallTraceId:\s*(\d+)")
+$matchedByActivity = [regex]::Match($inspectOutput, "Matched by ActivityId:\s*(\d+)")
+$matchedByProcessThread = [regex]::Match($inspectOutput, "Matched by process/thread/operation:\s*(\d+)")
+$missingCallTrace = [regex]::Match($inspectOutput, "Missing CallTraceId:\s*(\d+)")
+$missingActivity = [regex]::Match($inspectOutput, "Missing ActivityId:\s*(\d+)")
 if (-not $matchedTimeline.Success -or
     -not $matchedByCallTrace.Success -or
     -not $matchedByActivity.Success -or
     -not $matchedByProcessThread.Success -or
     -not $missingCallTrace.Success -or
     -not $missingActivity.Success) {
-    throw "The COM timeline summary did not contain its pairing counters. Review $searchPath"
+    throw "The COM timeline summary did not contain its pairing counters. Review $inspectPath"
 }
 
 $comTimelineMatched = [UInt64]::Parse($matchedTimeline.Groups[1].Value)
@@ -583,7 +583,7 @@ $comTimelineMatchedByProcessThread = [UInt64]::Parse($matchedByProcessThread.Gro
 $comTimelineMissingCallTrace = [UInt64]::Parse($missingCallTrace.Groups[1].Value)
 $comTimelineMissingActivity = [UInt64]::Parse($missingActivity.Groups[1].Value)
 if ($comTimelineMatched -eq 0) {
-    throw "No COM start/stop pairs were matched. Review CallTraceId, ActivityId, and process/thread/operation data in $searchPath"
+    throw "No COM start/stop pairs were matched. Review CallTraceId, ActivityId, and process/thread/operation data in $inspectPath"
 }
 
 $comMatchTotal = $comTimelineMatchedByCallTrace +
