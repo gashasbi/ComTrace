@@ -466,6 +466,68 @@ static int test_duplicate_event_does_not_duplicate_nodes_or_edges(void)
     return 1;
 }
 
+
+static int test_index_growth_and_duplicate_lookup(void)
+{
+    COMTRACE_RELATIONSHIP_GRAPH graph;
+    COMTRACE_COM_OBJECT_IDENTITY identity;
+    COMTRACE_ACTIVITY_IDS activity_ids;
+    size_t first_node_count;
+    size_t first_edge_count;
+    DWORD index;
+
+    comtrace_relationship_graph_init(&graph);
+    ZeroMemory(&identity, sizeof(identity));
+    ZeroMemory(&activity_ids, sizeof(activity_ids));
+    identity.has_process_id = TRUE;
+    identity.has_thread_id = TRUE;
+    identity.has_call_trace_id = TRUE;
+    activity_ids.has_activity_id = TRUE;
+    activity_ids.has_related_activity_id = TRUE;
+
+    for (index = 0U; index < 512U; ++index) {
+        identity.process_id = 1000U + index;
+        identity.thread_id = 2000U + index;
+        identity.call_trace_id = 0x100000ULL + index;
+        activity_ids.activity_id.Data1 = 0x20000000UL + index;
+        activity_ids.related_activity_id.Data1 = 0x30000000UL + index;
+        if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+            COMTRACE_GRAPH_SUCCESS) {
+            comtrace_relationship_graph_destroy(&graph);
+            return 0;
+        }
+    }
+
+    first_node_count = graph.node_count;
+    first_edge_count = graph.edge_count;
+
+    for (index = 0U; index < 512U; ++index) {
+        identity.process_id = 1000U + index;
+        identity.thread_id = 2000U + index;
+        identity.call_trace_id = 0x100000ULL + index;
+        activity_ids.activity_id.Data1 = 0x20000000UL + index;
+        activity_ids.related_activity_id.Data1 = 0x30000000UL + index;
+        if (comtrace_relationship_graph_add_event(&graph, &identity, &activity_ids) !=
+            COMTRACE_GRAPH_SUCCESS) {
+            comtrace_relationship_graph_destroy(&graph);
+            return 0;
+        }
+    }
+
+    if (graph.node_count != first_node_count ||
+        graph.edge_count != first_edge_count ||
+        graph.node_index_capacity <= 32U ||
+        graph.edge_index_capacity <= 32U ||
+        graph.node_index_count == 0U ||
+        graph.edge_index_count != graph.edge_count) {
+        comtrace_relationship_graph_destroy(&graph);
+        return 0;
+    }
+
+    comtrace_relationship_graph_destroy(&graph);
+    return 1;
+}
+
 static int test_object_and_ipid_observation_windows(void)
 {
     COMTRACE_RELATIONSHIP_GRAPH graph;
@@ -1146,7 +1208,8 @@ static int test_multiple_lifetime_interfaces_and_native_link(void)
 
 int main(void)
 {
-    if (!test_client_server_graph() ||
+    if (!test_index_growth_and_duplicate_lookup() ||
+        !test_client_server_graph() ||
         !test_explicit_source_and_target_processes() ||
         !test_interface_without_object_id() ||
         !test_oid_without_known_process() ||
