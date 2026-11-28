@@ -114,6 +114,12 @@ typedef struct {
     COMTRACE_GRAPH_EDGE *edges;
     size_t edge_count;
     size_t edge_capacity;
+    size_t *node_index_slots;
+    size_t node_index_capacity;
+    size_t node_index_count;
+    size_t *edge_index_slots;
+    size_t edge_index_capacity;
+    size_t edge_index_count;
 } COMTRACE_RELATIONSHIP_GRAPH;
 
 void comtrace_relationship_graph_init(COMTRACE_RELATIONSHIP_GRAPH *graph);
