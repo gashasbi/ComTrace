@@ -17,6 +17,8 @@ param(
     [ValidateRange(300, 3600)]
     [int]$InspectionTimeoutSeconds = 900,
 
+    [string]$InspectReportPath,
+
     [ValidateRange(10, 3600)]
     [int]$CaptureSeconds = 30,
 
@@ -383,9 +385,23 @@ if (-not (Test-Path -LiteralPath $EtlPath -PathType Leaf)) {
     throw "ETL capture did not create an input file: $EtlPath"
 }
 
-Write-Host "Inspecting ETL."
-$inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, [string]$InspectSampleLimit) -Description "ETL inspection" -TimeoutSeconds $InspectionTimeoutSeconds
-Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
+if ([string]::IsNullOrWhiteSpace($InspectReportPath)) {
+    Write-Host "Inspecting ETL."
+    $inspectOutput = Invoke-NativeCommand -Executable $ComTraceExe -Arguments @("--inspect", $EtlPath, [string]$InspectSampleLimit) -Description "ETL inspection" -TimeoutSeconds $InspectionTimeoutSeconds
+    Set-Content -LiteralPath $inspectPath -Value $inspectOutput -Encoding UTF8
+}
+else {
+    if (-not (Test-Path -LiteralPath $InspectReportPath -PathType Leaf)) {
+        throw "ETL inspection report was not found: $InspectReportPath"
+    }
+
+    $inspectPath = (Resolve-Path -LiteralPath $InspectReportPath).Path
+    Write-Host "Using existing ETL inspection report."
+    $inspectOutput = Get-Content -LiteralPath $inspectPath -Raw
+    if ([string]::IsNullOrWhiteSpace($inspectOutput)) {
+        throw "ETL inspection report is empty: $inspectPath"
+    }
+}
 
 $rpcTimelineMatch = [regex]::Match(
     $inspectOutput,
