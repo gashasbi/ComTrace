@@ -309,19 +309,29 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
         }
     }
 
-    Write-Host "Generating non-interactive OLE data-object and drop-target activity."
-    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments @() -Description "OLE data-object activity fixture" -TimeoutSeconds 60
-    Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
-
+    Write-Host "Generating OLE data-object and drop-target activity."
+    $oleFixtureArguments = @()
     if ($InteractiveOleValidation) {
-        Write-Host "Perform a real clipboard copy/paste and a real drag-and-drop operation now."
-        Write-Host "Keep both operations within the configured capture window."
-        [void](Read-Host "Press Enter after completing the OLE operations")
+        $oleFixtureArguments = @("--interactive")
     }
+    $oleFixtureOutput = Invoke-NativeCommand -Executable $ComTraceOleActivityFixtureExe -Arguments $oleFixtureArguments -Description "OLE data-object activity fixture" -TimeoutSeconds 60
+    Set-Content -LiteralPath $oleFixturePath -Value $oleFixtureOutput -Encoding UTF8
 
     if ($oleFixtureOutput -notmatch "OLE IDataObject activity succeeded" -or
         $oleFixtureOutput -notmatch "OLE drop target registration succeeded") {
         throw "The OLE activity fixture did not complete its data-object and drop-target checks. Review $oleFixturePath"
+    }
+
+    if ($InteractiveOleValidation) {
+        if ($oleFixtureOutput -notmatch "OLE clipboard API activity succeeded" -or
+            $oleFixtureOutput -notmatch "OLE DoDragDrop activity succeeded") {
+            throw "The interactive OLE fixture did not complete its clipboard and DoDragDrop checks. Review $oleFixturePath"
+        }
+
+        Write-Host "The fixture exercised the OLE clipboard and DoDragDrop APIs."
+        Write-Host "Perform a real clipboard copy/paste and a real drag-and-drop operation now."
+        Write-Host "Keep both operations within the configured capture window."
+        [void](Read-Host "Press Enter after completing the OLE operations")
     }
 
     $captureWaitCompleted = $captureProcess.WaitForExit(($CaptureSeconds + 90) * 1000)

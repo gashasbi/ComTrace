@@ -3,6 +3,7 @@
 #include <ole2.h>
 #include <shlobj_core.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef struct {
     IDataObject data_object_iface;
@@ -13,6 +14,11 @@ typedef struct {
     IDropTarget drop_target_iface;
     LONG references;
 } COMTRACE_TEST_DROP_TARGET;
+
+typedef struct {
+    IDropSource drop_source_iface;
+    LONG references;
+} COMTRACE_TEST_DROP_SOURCE;
 
 static const IID COMTRACE_IID_IUNKNOWN = {
     0x00000000, 0x0000, 0x0000,
@@ -28,6 +34,31 @@ static const IID COMTRACE_IID_IDROPTARGET = {
     0x00000122, 0x0000, 0x0000,
     { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
 };
+
+static const IID COMTRACE_IID_IDROPSOURCE = {
+    0x00000121, 0x0000, 0x0000,
+    { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 }
+};
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
+    IDropSource *drop_source_iface,
+    REFIID interface_id,
+    void **result
+);
+
+static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface);
+static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface);
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_continue_drag(
+    IDropSource *drop_source_iface,
+    BOOL escape_pressed,
+    DWORD key_state
+);
+
+static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
+    IDropSource *drop_source_iface,
+    DWORD effect
+);
 
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
     IDataObject *data_object_iface,
@@ -149,6 +180,14 @@ static IDropTargetVtbl drop_target_vtable = {
     drop_target_drag_over,
     drop_target_drag_leave,
     drop_target_drop
+};
+
+static IDropSourceVtbl drop_source_vtable = {
+    drop_source_query_interface,
+    drop_source_add_ref,
+    drop_source_release,
+    drop_source_query_continue_drag,
+    drop_source_give_feedback
 };
 
 static HRESULT STDMETHODCALLTYPE data_object_query_interface(
@@ -513,7 +552,179 @@ static IDataObject *create_data_object(void)
     return &object->data_object_iface;
 }
 
-int main(void)
+static HRESULT STDMETHODCALLTYPE drop_source_query_interface(
+    IDropSource *drop_source_iface,
+    REFIID interface_id,
+    void **result
+)
+{
+    if (result == NULL || interface_id == NULL) {
+        return E_POINTER;
+    }
+
+    *result = NULL;
+
+    if (IsEqualGUID(interface_id, &COMTRACE_IID_IUNKNOWN) ||
+        IsEqualGUID(interface_id, &COMTRACE_IID_IDROPSOURCE)) {
+        *result = drop_source_iface;
+        drop_source_add_ref(drop_source_iface);
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_add_ref(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    return (ULONG)InterlockedIncrement(&source->references);
+}
+
+static ULONG STDMETHODCALLTYPE drop_source_release(IDropSource *drop_source_iface)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)drop_source_iface;
+    LONG references = InterlockedDecrement(&source->references);
+
+    if (references == 0) {
+        HeapFree(GetProcessHeap(), 0, source);
+    }
+
+    return (ULONG)references;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_query_continue_drag(
+    IDropSource *drop_source_iface,
+    BOOL escape_pressed,
+    DWORD key_state
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(key_state);
+
+    return escape_pressed ? DRAGDROP_S_CANCEL : DRAGDROP_S_DROP;
+}
+
+static HRESULT STDMETHODCALLTYPE drop_source_give_feedback(
+    IDropSource *drop_source_iface,
+    DWORD effect
+)
+{
+    UNREFERENCED_PARAMETER(drop_source_iface);
+    UNREFERENCED_PARAMETER(effect);
+    return DRAGDROP_S_USEDEFAULTCURSORS;
+}
+
+static IDropSource *create_drop_source(void)
+{
+    COMTRACE_TEST_DROP_SOURCE *source = (COMTRACE_TEST_DROP_SOURCE *)HeapAlloc(
+        GetProcessHeap(),
+        HEAP_ZERO_MEMORY,
+        sizeof(*source)
+    );
+
+    if (source == NULL) {
+        return NULL;
+    }
+
+    source->drop_source_iface.lpVtbl = &drop_source_vtable;
+    source->references = 1;
+    return &source->drop_source_iface;
+}
+
+static int run_clipboard_activity(IDataObject *data_object)
+{
+    IDataObject *previous = NULL;
+    IDataObject *current = NULL;
+    HRESULT result;
+    HRESULT restore_result;
+    int succeeded = 0;
+
+    result = OleGetClipboard(&previous);
+    if (FAILED(result)) {
+        printf("OleGetClipboard before test failed: 0x%08lx\n", (unsigned long)result);
+        return 0;
+    }
+
+    result = OleSetClipboard(data_object);
+    if (FAILED(result)) {
+        printf("OleSetClipboard failed: 0x%08lx\n", (unsigned long)result);
+        goto cleanup;
+    }
+
+    result = OleIsCurrentClipboard(data_object);
+    if (result != S_OK) {
+        printf("OleIsCurrentClipboard failed: 0x%08lx\n", (unsigned long)result);
+        goto restore;
+    }
+
+    result = OleGetClipboard(&current);
+    if (FAILED(result) || current == NULL) {
+        printf("OleGetClipboard during test failed: 0x%08lx\n", (unsigned long)result);
+        goto restore;
+    }
+
+    current->lpVtbl->Release(current);
+    current = NULL;
+
+    result = OleFlushClipboard();
+    if (FAILED(result)) {
+        printf("OleFlushClipboard failed: 0x%08lx\n", (unsigned long)result);
+        goto restore;
+    }
+
+    succeeded = 1;
+
+restore:
+    restore_result = OleSetClipboard(previous);
+    if (FAILED(restore_result)) {
+        printf("Restoring the previous clipboard failed: 0x%08lx\n",
+            (unsigned long)restore_result);
+        succeeded = 0;
+    } else if (previous != NULL) {
+        restore_result = OleFlushClipboard();
+        if (FAILED(restore_result)) {
+            printf("Flushing the restored clipboard failed: 0x%08lx\n",
+                (unsigned long)restore_result);
+            succeeded = 0;
+        }
+    }
+
+cleanup:
+    if (current != NULL) {
+        current->lpVtbl->Release(current);
+    }
+    if (previous != NULL) {
+        previous->lpVtbl->Release(previous);
+    }
+
+    return succeeded;
+}
+
+static int run_drag_drop_activity(IDataObject *data_object)
+{
+    IDropSource *drop_source;
+    DWORD effect = DROPEFFECT_NONE;
+    HRESULT result;
+
+    drop_source = create_drop_source();
+    if (drop_source == NULL) {
+        puts("Unable to allocate the OLE drop source.");
+        return 0;
+    }
+
+    result = DoDragDrop(data_object, drop_source, DROPEFFECT_COPY, &effect);
+    drop_source->lpVtbl->Release(drop_source);
+
+    if (result != DRAGDROP_S_DROP && result != S_OK) {
+        printf("DoDragDrop failed: 0x%08lx\n", (unsigned long)result);
+        return 0;
+    }
+
+    printf("DoDragDrop completed. Effect: 0x%08lx\n", (unsigned long)effect);
+    return 1;
+}
+
+int main(int argc, char **argv)
 {
     IDataObject *data_object = NULL;
     IDropTarget *drop_target = NULL;
@@ -522,7 +733,15 @@ int main(void)
     STGMEDIUM medium;
     HRESULT result;
     BOOL drop_registered = FALSE;
+    BOOL interactive_mode = FALSE;
     int exit_code = 1;
+
+    if (argc == 2 && strcmp(argv[1], "--interactive") == 0) {
+        interactive_mode = TRUE;
+    } else if (argc != 1) {
+        puts("Usage: ComTraceOleActivityFixture [--interactive]");
+        return 1;
+    }
 
     result = OleInitialize(NULL);
     if (FAILED(result)) {
@@ -559,6 +778,15 @@ int main(void)
     puts("OLE fixture: IDataObject read succeeded.");
     fflush(stdout);
 
+    if (interactive_mode) {
+        puts("OLE fixture: exercising clipboard APIs.");
+        fflush(stdout);
+        if (!run_clipboard_activity(data_object)) {
+            goto cleanup;
+        }
+        puts("OLE clipboard API activity succeeded.");
+    }
+
     drop_target = create_drop_target();
     if (drop_target == NULL) {
         puts("Unable to allocate the OLE drop target.");
@@ -594,6 +822,15 @@ int main(void)
     drop_registered = TRUE;
     puts("OLE fixture: drop target registered.");
     fflush(stdout);
+
+    if (interactive_mode) {
+        puts("OLE fixture: exercising DoDragDrop.");
+        fflush(stdout);
+        if (!run_drag_drop_activity(data_object)) {
+            goto cleanup;
+        }
+        puts("OLE DoDragDrop activity succeeded.");
+    }
 
     result = RevokeDragDrop(drop_window);
     if (FAILED(result)) {
