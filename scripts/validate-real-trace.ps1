@@ -349,21 +349,25 @@ if ([string]::IsNullOrWhiteSpace($EtlPath)) {
 }
 finally {
     if ($captureStarted -and $null -ne $captureProcess) {
-        $captureProcess.Refresh()
-        if (-not $captureProcess.HasExited) {
+        $sessionOutput = & "$env:WINDIR\System32\logman.exe" query "ComTrace COM Perf Capture" -ets 2>&1
+        if ($LASTEXITCODE -eq 0) {
             $logmanOutput = & "$env:WINDIR\System32\logman.exe" stop "ComTrace COM Perf Capture" -ets 2>&1
-            $logmanExitCode = $LASTEXITCODE
-            if ($logmanExitCode -ne 0) {
+            if ($LASTEXITCODE -ne 0) {
                 Write-Warning "Unable to stop the ComTrace ETW session during cleanup: $($logmanOutput -join ' ')"
             }
-            if (-not $captureProcess.WaitForExit(15000)) {
+        }
+        $captureProcess.Refresh()
+        if (-not $captureProcess.HasExited -and -not $captureProcess.WaitForExit(15000)) {
+            $sessionOutput = & "$env:WINDIR\System32\logman.exe" query "ComTrace COM Perf Capture" -ets 2>&1
+            if ($LASTEXITCODE -ne 0) {
                 Stop-Process -Id $captureProcess.Id -Force -ErrorAction SilentlyContinue
                 [void]$captureProcess.WaitForExit(5000)
             }
         }
-    }
-    if ($null -ne $captureProcess) {
-        $captureProcess.Dispose()
+        $captureProcess.Refresh()
+        if ($captureProcess.HasExited) {
+            $captureProcess.Dispose()
+        }
     }
 }
 }
