@@ -591,6 +591,156 @@ static int test_same_thread_rpc_match_is_preferred(void)
 }
 
 
+static int test_related_activity_id_client_server_correlation(void)
+{
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_RPC_TIMELINE_RECORD *records;
+    GUID activities[7];
+    size_t index;
+
+    for (index = 0U; index < _countof(activities); ++index) {
+        activities[index] = activity_id;
+        activities[index].Data1 += (ULONG)(index + 1U);
+    }
+
+    comtrace_rpc_timeline_init(&timeline);
+    records = (COMTRACE_RPC_TIMELINE_RECORD *)calloc(9U, sizeof(*records));
+    if (records == NULL) {
+        return 0;
+    }
+
+    timeline.records = records;
+    timeline.record_count = 9U;
+    timeline.record_capacity = 9U;
+
+    for (index = 0U; index < timeline.record_count; ++index) {
+        records[index].has_start = TRUE;
+        records[index].has_stop = TRUE;
+        records[index].has_activity_id = TRUE;
+        records[index].has_interface_uuid = TRUE;
+        records[index].interface_uuid = interface_id;
+        records[index].has_procedure_number = TRUE;
+        records[index].procedure_number = 7U;
+        records[index].role = (index == 0U || index == 2U ||
+            index == 4U || index == 7U)
+            ? COMTRACE_RPC_ROLE_CLIENT
+            : COMTRACE_RPC_ROLE_SERVER;
+    }
+
+    records[0].activity_id = activities[0];
+    records[0].has_related_activity_id = TRUE;
+    records[0].related_activity_id = activities[1];
+
+    records[1].activity_id = activities[1];
+
+    records[2].activity_id = activities[2];
+
+    records[3].activity_id = activities[3];
+    records[3].has_related_activity_id = TRUE;
+    records[3].related_activity_id = activities[2];
+
+    records[4].activity_id = activities[4];
+    records[4].has_related_activity_id = TRUE;
+    records[4].related_activity_id = activities[5];
+
+    records[5].activity_id = activities[5];
+    records[6].activity_id = activities[5];
+
+    records[7].activity_id = activities[6];
+    records[7].has_related_activity_id = TRUE;
+    records[7].related_activity_id = activities[6];
+
+    records[8].activity_id = activities[6];
+    records[8].has_related_activity_id = TRUE;
+    records[8].related_activity_id = activities[6];
+
+    comtrace_rpc_timeline_correlate_calls(&timeline);
+
+    if (!records[0].has_correlated_record ||
+        records[0].correlated_record_index != 1U ||
+        records[0].correlation_type != COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID ||
+        !records[1].has_correlated_record ||
+        records[1].correlated_record_index != 0U ||
+        records[1].correlation_type != COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID ||
+        !records[2].has_correlated_record ||
+        records[2].correlated_record_index != 3U ||
+        records[2].correlation_type != COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID ||
+        !records[3].has_correlated_record ||
+        records[3].correlated_record_index != 2U ||
+        records[3].correlation_type != COMTRACE_RPC_CORRELATION_RELATED_ACTIVITY_ID ||
+        records[4].has_correlated_record ||
+        records[5].has_correlated_record ||
+        records[6].has_correlated_record ||
+        !records[7].has_correlated_record ||
+        records[7].correlated_record_index != 8U ||
+        records[7].correlation_type != COMTRACE_RPC_CORRELATION_ACTIVITY_ID ||
+        !records[8].has_correlated_record ||
+        records[8].correlated_record_index != 7U ||
+        records[8].correlation_type != COMTRACE_RPC_CORRELATION_ACTIVITY_ID ||
+        timeline.correlated_client_server_calls != 3ULL ||
+        timeline.ambiguous_client_server_calls != 1ULL) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
+static int test_large_rpc_client_server_correlation(void)
+{
+    const size_t record_count = 46113U;
+    COMTRACE_RPC_TIMELINE timeline;
+    COMTRACE_RPC_TIMELINE_RECORD *records;
+    size_t index;
+
+    comtrace_rpc_timeline_init(&timeline);
+    records = (COMTRACE_RPC_TIMELINE_RECORD *)calloc(
+        record_count,
+        sizeof(*records)
+    );
+    if (records == NULL) {
+        return 0;
+    }
+
+    timeline.records = records;
+    timeline.record_count = record_count;
+    timeline.record_capacity = record_count;
+
+    for (index = 0U; index < record_count; ++index) {
+        records[index].has_start = TRUE;
+        records[index].has_stop = TRUE;
+        records[index].has_activity_id = TRUE;
+        records[index].activity_id = activity_id;
+        records[index].activity_id.Data1 = (ULONG)(index + 1U);
+        records[index].has_interface_uuid = TRUE;
+        records[index].interface_uuid = interface_id;
+        records[index].has_procedure_number = TRUE;
+        records[index].procedure_number = 7U;
+        records[index].role = index % 2U == 0U
+            ? COMTRACE_RPC_ROLE_CLIENT
+            : COMTRACE_RPC_ROLE_SERVER;
+    }
+
+    comtrace_rpc_timeline_correlate_calls(&timeline);
+
+    if (timeline.correlated_client_server_calls != 0ULL ||
+        timeline.ambiguous_client_server_calls != 0ULL) {
+        comtrace_rpc_timeline_destroy(&timeline);
+        return 0;
+    }
+
+    for (index = 0U; index < record_count; ++index) {
+        if (records[index].has_correlated_record) {
+            comtrace_rpc_timeline_destroy(&timeline);
+            return 0;
+        }
+    }
+
+    comtrace_rpc_timeline_destroy(&timeline);
+    return 1;
+}
+
 static int test_com_operation_link_index(void)
 {
     COMTRACE_RPC_TIMELINE rpc_timeline;
@@ -681,6 +831,14 @@ static int test_com_operation_link_index(void)
 
 int main(void)
 {
+    if (!test_related_activity_id_client_server_correlation()) {
+        puts("test_related_activity_id_client_server_correlation failed.");
+        return 1;
+    }
+    if (!test_large_rpc_client_server_correlation()) {
+        puts("test_large_rpc_client_server_correlation failed.");
+        return 1;
+    }
     if (!test_com_operation_link_index()) {
         puts("test_com_operation_link_index failed.");
         return 1;
