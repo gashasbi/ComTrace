@@ -211,7 +211,7 @@ static int ensure_pending_hash_capacity(COMTRACE_RPC_TIMELINE *timeline)
     size_t capacity = timeline->pending_hash_capacity;
     size_t required;
     size_t *slots;
-    size_t position;
+    size_t record_index;
     size_t slot;
 
     if (timeline->pending_count == (size_t)-1) {
@@ -244,16 +244,20 @@ static int ensure_pending_hash_capacity(COMTRACE_RPC_TIMELINE *timeline)
         slots[slot] = (size_t)-1;
     }
 
-    for (position = 0U; position < timeline->pending_count; ++position) {
-        size_t record_index = timeline->pending_indices[position];
+    for (record_index = 0U; record_index < timeline->record_count; ++record_index) {
         COMTRACE_RPC_TIMELINE_RECORD *record =
             &timeline->records[record_index];
-        size_t bucket = hash_pending_record_key(record) % capacity;
-        size_t next_index = slots[bucket];
+        size_t bucket;
+        size_t next_index;
 
+        if (!record->has_start || record->has_stop) {
+            continue;
+        }
+
+        bucket = hash_pending_record_key(record) % capacity;
+        next_index = slots[bucket];
         record->pending_previous_index = (size_t)-1;
         record->pending_next_index = next_index;
-        record->pending_position = position;
         if (next_index != (size_t)-1) {
             timeline->records[next_index].pending_previous_index = record_index;
         }
