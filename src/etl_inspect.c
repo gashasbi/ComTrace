@@ -4694,7 +4694,10 @@ static int inspect_etl_internal(
     close_status = CloseTrace(trace_handle);
 
     if (!context.has_filters) {
-        comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline);
+        if (comtrace_rpc_timeline_correlate_calls(&context.rpc_timeline) !=
+            COMTRACE_RPC_TIMELINE_SUCCESS) {
+            context.rpc_timeline_status = COMTRACE_RPC_TIMELINE_ALLOCATION_FAILED;
+        }
         link_rpc_records_to_endpoints(&context);
         if (comtrace_rpc_timeline_link_com_operations(
                 &context.rpc_timeline,
